@@ -790,6 +790,7 @@ export function AppleIslandDesign() {
 
   // Real Tailscale Nodes from backend
   const [tailscaleNodes, setTailscaleNodes] = useState([]);
+  const [tailscaleFunnel, setTailscaleFunnel] = useState(null);
   useEffect(() => {
     const fetchTS = async () => {
       try {
@@ -797,7 +798,11 @@ export function AppleIslandDesign() {
         if (res.ok) {
           const d = await res.json();
           if (d.nodes && d.nodes.length > 0) {
-            setTailscaleNodes(d.nodes);
+            const filtered = d.nodes.filter(n => !n.name.toLowerCase().includes("funnel-ingress"));
+            setTailscaleNodes(filtered);
+          }
+          if (d.funnel) {
+            setTailscaleFunnel(d.funnel);
           }
         }
       } catch (e) {}
@@ -2250,7 +2255,13 @@ export function AppleIslandDesign() {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3 text-xs font-mono">
+              <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+                {tailscaleFunnel?.active && (
+                  <div className="px-3 py-1.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                    <span>Funnel Activo ({tailscaleFunnel.ingress_nodes} Proxies)</span>
+                  </div>
+                )}
                 <div className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/70">
                   Cuenta: <span className="text-white font-medium">operator@homelab.local</span>
                 </div>
@@ -2267,7 +2278,7 @@ export function AppleIslandDesign() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {(tailscaleNodes.length > 0 ? tailscaleNodes.map(n => ({
-                  name: n.name,
+                  name: (n.name === "localhost" && (n.os || "").toLowerCase().includes("ios")) ? "iPhone 11" : n.name,
                   ip: n.ip,
                   os: n.os,
                   status: n.self ? "Este Host (Self)" : n.online ? (n.active ? "Activo Directo" : "En Malla") : "Desconectado",

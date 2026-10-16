@@ -576,9 +576,14 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                         "tx_bytes": self_node.get("TxBytes", 0)
                     })
                     peers = data.get("Peer", {})
+                    funnel_nodes_count = 0
                     for p in peers.values():
+                        name = p.get("HostName", "device")
+                        if "funnel-ingress" in name.lower():
+                            funnel_nodes_count += 1
+                            continue
                         nodes.append({
-                            "name": p.get("HostName", "device"),
+                            "name": name,
                             "dns": p.get("DNSName", "").rstrip("."),
                             "ip": p.get("TailscaleIPs", [""])[0],
                             "os": p.get("OS", "unknown"),
@@ -589,7 +594,14 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                             "tx_bytes": p.get("TxBytes", 0),
                             "cur_addr": p.get("CurAddr", "")
                         })
-                    self._send_json({"status": "ok", "nodes": nodes})
+                    self._send_json({
+                        "status": "ok", 
+                        "nodes": nodes,
+                        "funnel": {
+                            "active": funnel_nodes_count > 0,
+                            "ingress_nodes": funnel_nodes_count
+                        }
+                    })
                     return
             except Exception as e:
                 self._send_json({"status": "error", "message": str(e)}, 500)

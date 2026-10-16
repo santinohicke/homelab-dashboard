@@ -1,0 +1,31 @@
+[Unit]
+Description=Homelab Telemetry & Control Micro-API
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=homelab
+Group=docker
+WorkingDirectory=/opt/homelab
+Environment=HOMELAB_API_PORT=8088
+Environment=HOMELAB_DATA_DIR=/opt/homelab/data
+Environment=HOMELAB_BACKUP_DIR=/opt/homelab/data/backups
+Environment=HOMELAB_DB_PATH=/opt/homelab/data/metrics.db
+Environment=HOMELAB_MAINT_FLAG=/opt/homelab/data/maintenance.flag
+Environment=HOMELAB_CERT_PATH=/etc/ssl/certs/homelab.crt
+Environment=HOMELAB_SSL_DOMAIN=*.homelab.internal
+Environment=HOMELAB_BACKUP_SCRIPT=/opt/homelab/scripts/backup.sh
+
+ExecStart=/usr/bin/python3 /opt/homelab/backend/api.py
+Restart=always
+RestartSec=5s
+
+# Security Hardening Sandbox
+ProtectSystem=full
+ProtectHome=read-only
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

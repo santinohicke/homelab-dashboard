@@ -53,7 +53,7 @@ export default function BackupsManager() {
         }
       }
     } catch (e) {
-      console.log("Using initial backups fallback", e);
+      void e;
     }
 
     // Initial fallback if offline

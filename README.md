@@ -195,7 +195,7 @@ docker run -d --name homelab-dashboard -p 3000:80 --restart unless-stopped homel
 ---
 
 ## Soporte PWA en iPhone y Android
-El proyecto incluye `manifest.json`, iconos de alta resolución (`apple-touch-icon.png`, `icon-192.png`, `icon-512.png`) y meta-tags adaptados para **Notch y Safe Area** (`viewport-fit=cover`). Al seleccionar *"Agregar a la pantalla de inicio"* en Safari o Chrome, el dashboard se comporta como una aplicación nativa a pantalla completa sin barra de navegación del explorador.
+El proyecto incluye `manifest.json`, iconos de alta resolución (`apple-touch-icon.png`, `icon-192.png`, `icon-512.png`) y meta-tags adaptados para **Notch y Safe Area** (`viewport-fit=cover`). La cápsula interactiva **Dynamic Island** calcula dinámicamente su cota superior mediante `calc(env(safe-area-inset-top) + 10px)` para librar completamente el altavoz frontal y los sensores TrueDepth en dispositivos iOS con notch (como iPhone 11 y superiores). Al seleccionar *"Agregar a la pantalla de inicio"* en Safari o Chrome, el dashboard se comporta como una aplicación nativa a pantalla completa sin barra de navegación del explorador.
 
 ---
 

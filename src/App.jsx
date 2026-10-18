@@ -1172,14 +1172,17 @@ export function AppleIslandDesign() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-neutral-900 via-zinc-950 to-black text-white px-4 sm:px-8 pt-3 pb-12 font-sans selection:bg-blue-500/30">
-      {/* FLOATING DYNAMIC ISLAND */}
+      {/* FLOATING DYNAMIC ISLAND (Safe-area adapted for iPhone 11 notch clearance) */}
       {islandOpen && (
         <div 
           className="fixed inset-0 z-30 bg-black/20 backdrop-blur-[1px] transition-opacity duration-300"
           onClick={() => setIslandOpen(false)}
         />
       )}
-      <div className="fixed top-3.5 left-1/2 -translate-x-1/2 z-40">
+      <div 
+        className="fixed left-1/2 -translate-x-1/2 z-40 transition-[top] duration-200"
+        style={{ top: 'max(1.75rem, calc(env(safe-area-inset-top, 0px) + 10px))' }}
+      >
         <div 
           onClick={() => setIslandOpen(!islandOpen)}
           style={{
@@ -1360,10 +1363,11 @@ export function AppleIslandDesign() {
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto pt-6 sm:pt-8 space-y-8">
+      <div className="max-w-6xl mx-auto pt-14 sm:pt-8 space-y-8">
         {/* HEADER */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-white/10">
-          <div className="space-y-3 w-full sm:w-auto">
+        <div className="pb-6 border-b border-white/10 space-y-4">
+          {/* TOP ROW: TITLE ON LEFT, WIDGETS (MANTENIMIENTO, HORA, TEMPERATURA) ON RIGHT */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="text-xs uppercase tracking-widest text-zinc-400 font-mono font-semibold mb-1">
                 {dashboardSection === "control" && "HOMELAB · SERVIDOR LENOVO"}
@@ -1387,61 +1391,62 @@ export function AppleIslandDesign() {
               </h1>
             </div>
 
-            {/* SECTIONS SWITCHER HORIZONTALLY SCROLLABLE BAR */}
-            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-xl overflow-x-auto no-scrollbar max-w-full">
-              {[
-                { id: "control", label: "Centro de Control", icon: Sliders, color: "text-cyan-400" },
-                { id: "radar", label: "Radar IT & Pasantías", icon: Radar, color: "text-amber-400" },
-                { id: "ai", label: "Telemetría IA", icon: Sparkles, color: "text-purple-400" },
-                { id: "metrics", label: "Métricas & Gráficos", icon: BarChart3, color: "text-purple-400" },
-                { id: "devops", label: "Consola & DevOps", icon: Terminal, color: "text-emerald-400" },
-                { id: "security", label: "Seguridad & Auditoría", icon: ShieldCheck, color: "text-rose-400" },
-                { id: "network", label: "Topología de Red", icon: Network, color: "text-blue-400" },
-                { id: "backups", label: "Gestor de Backups", icon: Archive, color: "text-amber-400" }
-              ].map(tab => {
-                const Icon = tab.icon;
-                const isActive = dashboardSection === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setDashboardSection(tab.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                      isActive
-                        ? "bg-white/15 text-white shadow-lg border border-white/20 font-bold"
-                        : "text-white/50 hover:text-white/80 hover:bg-white/5"
-                    }`}
-                  >
-                    <Icon className={`w-3.5 h-3.5 ${tab.color}`} />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
+            {/* WIDGETS RIGHT-ALIGNED: MANTENIMIENTO, HORA, TEMPERATURA */}
+            <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2.5 sm:gap-3 text-xs shrink-0">
+              {/* Toggle Modo Mantenimiento Button */}
+              <button
+                onClick={toggleMaintenanceMode}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                  maintenanceMode
+                    ? "bg-amber-500/25 border-amber-400/50 text-amber-300 shadow-md shadow-amber-500/20"
+                    : "bg-white/[0.06] border-white/10 text-white/70 hover:text-white hover:bg-white/10"
+                }`}
+                title="Activar o desactivar aviso de modo mantenimiento en el dashboard"
+              >
+                <AlertTriangle className={`w-3.5 h-3.5 ${maintenanceMode ? "text-amber-400 animate-pulse" : "text-white/40"}`} />
+                <span>Mantenimiento: <strong className={maintenanceMode ? "text-amber-300 font-bold" : "text-white/60"}>{maintenanceMode ? "ON" : "OFF"}</strong></span>
+              </button>
+
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.06] border border-white/10 text-white/80 glass-shine">
+                <Clock className="w-4 h-4 text-white/50" />
+                <span className="font-mono">{timeStr}</span>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.06] border border-white/10 text-white/90 glass-shine">
+                <CloudSun className="w-4 h-4 text-amber-400" />
+                <span className="font-medium">{homeTemp} · {homeCondition}</span>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-xs shrink-0">
-            {/* Toggle Modo Mantenimiento Button */}
-            <button
-              onClick={toggleMaintenanceMode}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
-                maintenanceMode
-                  ? "bg-amber-500/25 border-amber-400/50 text-amber-300 shadow-md shadow-amber-500/20"
-                  : "bg-white/[0.06] border-white/10 text-white/70 hover:text-white hover:bg-white/10"
-              }`}
-              title="Activar o desactivar aviso de modo mantenimiento en el dashboard"
-            >
-              <AlertTriangle className={`w-3.5 h-3.5 ${maintenanceMode ? "text-amber-400 animate-pulse" : "text-white/40"}`} />
-              <span>Mantenimiento: <strong className={maintenanceMode ? "text-amber-300 font-bold" : "text-white/60"}>{maintenanceMode ? "ON" : "OFF"}</strong></span>
-            </button>
-
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.06] border border-white/10 text-white/80 glass-shine">
-              <Clock className="w-4 h-4 text-white/50" />
-              <span className="font-mono">{timeStr}</span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.06] border border-white/10 text-white/90 glass-shine">
-              <CloudSun className="w-4 h-4 text-amber-400" />
-              <span className="font-medium">{homeTemp} · {homeCondition}</span>
-            </div>
+          {/* BOTTOM ROW: FULL WIDTH SECTIONS SWITCHER HORIZONTALLY SCROLLABLE BAR */}
+          <div className="w-full flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-xl overflow-x-auto no-scrollbar">
+            {[
+              { id: "control", label: "Centro de Control", icon: Sliders, color: "text-cyan-400" },
+              { id: "radar", label: "Radar IT & Pasantías", icon: Radar, color: "text-amber-400" },
+              { id: "ai", label: "Telemetría IA", icon: Sparkles, color: "text-purple-400" },
+              { id: "metrics", label: "Métricas & Gráficos", icon: BarChart3, color: "text-purple-400" },
+              { id: "devops", label: "Consola & DevOps", icon: Terminal, color: "text-emerald-400" },
+              { id: "security", label: "Seguridad & Auditoría", icon: ShieldCheck, color: "text-rose-400" },
+              { id: "network", label: "Topología de Red", icon: Network, color: "text-blue-400" },
+              { id: "backups", label: "Gestor de Backups", icon: Archive, color: "text-amber-400" }
+            ].map(tab => {
+              const Icon = tab.icon;
+              const isActive = dashboardSection === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setDashboardSection(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                    isActive
+                      ? "bg-white/15 text-white shadow-lg border border-white/20 font-bold"
+                      : "text-white/50 hover:text-white/80 hover:bg-white/5"
+                  }`}
+                >
+                  <Icon className={`w-3.5 h-3.5 ${tab.color}`} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

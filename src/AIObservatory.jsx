@@ -137,7 +137,7 @@ export default function AIObservatory() {
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-bold text-white text-base flex items-center gap-2">
+            <div className="font-bold text-white text-base flex flex-wrap items-center gap-2">
               <span>Google Gemini 3.1 Flash-Lite</span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                 Free Tier Activo
@@ -149,7 +149,7 @@ export default function AIObservatory() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
           <button
             onClick={handleTestInference}
             disabled={testingAI}
@@ -436,13 +436,13 @@ export default function AIObservatory() {
           </span>
         </div>
 
-        <div className="p-5 sm:p-6 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-4 glass-shine overflow-x-auto">
+        <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-4 glass-shine overflow-x-auto">
           {(!stats?.recent_logs || stats.recent_logs.length === 0) ? (
             <div className="text-center py-8 text-white/40 text-xs font-mono">
               No hay consultas registradas aún. Ejecuta un "Test de Diagnóstico IA" o un "Rastreo de Radar IT" para poblar este registro.
             </div>
           ) : (
-            <table className="w-full text-left text-xs font-mono">
+            <table className="w-full min-w-[640px] text-left text-xs font-mono">
               <thead>
                 <tr className="border-b border-white/10 text-[10px] uppercase tracking-wider text-white/40 pb-2">
                   <th className="pb-2">Hora</th>

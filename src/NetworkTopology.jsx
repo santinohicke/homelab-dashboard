@@ -63,7 +63,7 @@ export default function NetworkTopology() {
             <Network className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-bold text-white text-base flex items-center gap-2">
+            <div className="font-bold text-white text-base flex flex-wrap items-center gap-2">
               <span>Topología de Red & Mapa de Dispositivos</span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -113,7 +113,7 @@ export default function NetworkTopology() {
       </div>
 
       {/* SECTION 1: INTERACTIVE NETWORK TOPOLOGY TREE (DIAGRAMA EN ÁRBOL) */}
-      <div className="p-6 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
+      <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-cyan-500/15 flex items-center justify-center text-cyan-400 border border-cyan-500/20">
@@ -127,7 +127,7 @@ export default function NetworkTopology() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
             <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
               Cableado Ethernet 1 Gbps
@@ -361,7 +361,7 @@ export default function NetworkTopology() {
 
 
       {/* SECTION 2: DHCP TABLE & IP/MAC LEASES */}
-      <div className="p-6 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
+      <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
@@ -388,7 +388,7 @@ export default function NetworkTopology() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full min-w-[700px] text-left text-xs">
             <thead>
               <tr className="border-b border-white/10 text-white/40 uppercase font-mono tracking-wider">
                 <th className="pb-3 pl-3">Dispositivo / Hostname</th>

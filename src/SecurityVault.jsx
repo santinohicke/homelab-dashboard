@@ -161,7 +161,7 @@ Valid for *.santino.lab / Lenovo Server M93p Tiny
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-bold text-white text-base flex items-center gap-2">
+            <div className="font-bold text-white text-base flex flex-wrap items-center gap-2">
               <span>Defensa Perimetral & Bóveda Cifrada</span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -174,7 +174,7 @@ Valid for *.santino.lab / Lenovo Server M93p Tiny
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
           <button
             onClick={handleRunPortScan}
             disabled={isScanningPorts}
@@ -219,7 +219,7 @@ Valid for *.santino.lab / Lenovo Server M93p Tiny
       </div>
 
       {/* SECTION 1: SSL CERTIFICATES & TLS 1.3 AUDIT */}
-      <div className="p-6 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
+      <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-cyan-500/15 flex items-center justify-center text-cyan-400 border border-cyan-500/20">
@@ -293,7 +293,7 @@ Valid for *.santino.lab / Lenovo Server M93p Tiny
       </div>
 
       {/* SECTION 2: FAIL2BAN & BRUTE-FORCE INTRUSION PREVENTER */}
-      <div className="p-6 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
+      <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-rose-500/15 flex items-center justify-center text-rose-400 border border-rose-500/20">
@@ -307,7 +307,7 @@ Valid for *.santino.lab / Lenovo Server M93p Tiny
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-mono text-white/50">Estado de la cárcel:</span>
             <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
               Jails: sshd, npm-badbots [ACTIVE]
@@ -317,7 +317,7 @@ Valid for *.santino.lab / Lenovo Server M93p Tiny
 
         {/* IP LIST TABLE */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full min-w-[680px] text-left text-xs">
             <thead>
               <tr className="border-b border-white/10 text-white/40 uppercase font-mono tracking-wider">
                 <th className="pb-3 pl-3">Dirección IP</th>
@@ -381,7 +381,7 @@ Valid for *.santino.lab / Lenovo Server M93p Tiny
       {/* SECTION 3: OPEN PORTS SCANNER & VAULTWARDEN HEALTH */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* OPEN PORTS SCANNER (2 cols) */}
-        <div className="lg:col-span-2 p-6 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-5 glass-shine">
+        <div className="lg:col-span-2 p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-5 glass-shine">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
@@ -424,7 +424,7 @@ Valid for *.santino.lab / Lenovo Server M93p Tiny
         </div>
 
         {/* VAULTWARDEN ZERO-KNOWLEDGE HEALTH (1 col) */}
-        <div className="p-6 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-5 glass-shine flex flex-col justify-between">
+        <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-5 glass-shine flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-3 pb-4 border-b border-white/10">
               <div className="w-10 h-10 rounded-2xl bg-purple-500/15 flex items-center justify-center text-purple-400 border border-purple-500/20">

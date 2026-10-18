@@ -71,7 +71,7 @@ export default function DevOpsConsole() {
     <div className="space-y-8 animate-fadeIn">
       {/* 1. SECCIÓN DE ACCIONES RÁPIDAS CON 1 CLIC (REALES) */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-2 gap-2">
           <div>
             <h2 className="text-xs uppercase tracking-wider text-cyan-400 font-semibold flex items-center gap-2">
               <Sparkles className="w-4 h-4" />

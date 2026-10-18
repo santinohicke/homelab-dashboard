@@ -29,7 +29,7 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 │                           DYNAMIC ISLAND WIDGET                             │
 │       [Server Online]      ·      [4ms Latencia]      ·     [03:30 ART]     │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ [Centro Control] [Radar IT] [Telemetría IA] [Métricas] [DevOps] [Seguridad] [Red] [Backups] │
+│ [Centro Control] [Radar IT] [Telemetría IA] [Métricas] [Seguridad] [Red] [Backups]          │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -52,6 +52,7 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 
 ### 2. Radar Autónomo IT · Pasantías & Part-Time 24/7 (Google Gemini AI)
 * **Vacantes 100% Reales (Zero-Mock)**: Extracción directa del estado embebido `window.__STATE__` en bolsas universitarias (UCA Campus, Universidad de Belgrano), LinkedIn Jobs y Get on Board, descartando de forma tajante datos sintéticos o alucinaciones.
+* **Arquitectura Asíncrona No Bloqueante (Anti-Timeout 504)**: El accionador "Rastrear Ahora" ejecuta el web scraper e inferencia LLM en hilos daemon en segundo plano (`threading.Thread(daemon=True)`). Responde de inmediato con HTTP 200 JSON (`{"status": "started", "scanning": true}`) y el frontend sondea de forma reactiva el estado en vivo a través de `GET /api/v1/agent/status`, garantizando cero bloqueos de red o caídas por límites de tiempo (`proxy_read_timeout`) en proxies inversos Nginx.
 * **Criterios Estrictos de Filtrado (Orientado a Ingeniería Informática)**:
   * **Jornada Obligatoria**: Exclusivamente Part-Time / Media Jornada (descarta jornadas completas o full-time de 8-9h).
   * **Ubicación & Modalidad**: Remoto o presencial/híbrido **estrictamente en CABA (Ciudad Autónoma de Buenos Aires) o GBA cercano**, descartando puestos presenciales fuera de Buenos Aires.

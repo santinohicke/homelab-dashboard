@@ -54,8 +54,9 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
 | `GET` | `/api/v1/agent/findings` | Devuelve convocatorias reales ordenadas por fecha con objeto `stats` (totales, aplicados, pendientes, rechazados). |
+| `GET` | `/api/v1/agent/status` | Devuelve el estado en tiempo real del recolector (`scanning: true/false`, progreso y últimos resultados). |
 | `GET` | `/api/v1/agent/targets` | Lista de portales web y fuentes de empleo configuradas con sus intervalos. |
-| `POST` | `/api/v1/agent/run` | Fuerza la ejecución inmediata del scraper y análisis con Google Gemini 3.1 Flash-Lite. |
+| `POST` | `/api/v1/agent/run` | Dispara el rastreo autónomo en segundo plano de forma no bloqueante (retorna 200 JSON inmediato). |
 | `POST` | `/api/v1/agent/apply` | Marca una convocatoria como postulado (`is_applied = 1`, `is_read = 1`, `is_rejected = 0`). |
 | `POST` | `/api/v1/agent/unapply` | Desmarca la postulación activa (`is_applied = 0`, `is_rejected = 0`). |
 | `POST` | `/api/v1/agent/reject` | Registra el rechazo de una postulación (`is_rejected = 1`, `is_applied = 1`, `is_read = 1`). |

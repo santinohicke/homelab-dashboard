@@ -43,6 +43,13 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 | `GET` | `/api/v1/backups/download?file=...` | Descarga directa de snapshots hacia el navegador web. |
 | `GET` | `/api/v1/security/audit` | Escaneo local de puertos en escucha y auditoría de expiración SSL (TLS 1.3). |
 
+### DNS & Adblock (Pi-hole FTL v6)
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/pihole` | Telemetría en vivo: dominios en gravedad, consultas del día y porcentaje bloqueado. |
+| `POST` | `/api/v1/pihole/pause` | Pausa el filtrado de publicidad durante 5 minutos para pruebas (`pihole disable 5m`). |
+| `POST` | `/api/v1/pihole/resume` | Reanuda el filtrado DNS inmediatamente (`pihole enable`). |
+
 ---
 
 ## Despliegue en el Servidor

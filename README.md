@@ -66,6 +66,7 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 ---
 
 ### 4. Bóveda de Seguridad & Auditoría
+* **Filtrado DNS en Tiempo Real (Pi-hole FTL v6)**: Tarjeta interactiva con recuento de consultas bloqueadas del día, porcentaje de telemetría filtrada y lectura en vivo de la base de datos de gravedad (79.7k dominios). Incluye control de pausa interactiva de 5 minutos y reanudación inmediata.
 * **Auditoría de Certificados SSL**: Días restantes antes del vencimiento (Let's Encrypt / Wildcard), algoritmo de curva elíptica ECDSA 384 bits y versión de protocolo TLS 1.3.
 * **Descargador de Certificado CA Raíz**: Botón de un clic para exportar el certificado de confianza local en formato `.crt` para celulares y laptops.
 * **Escáner de Puertos Abiertos**: Matriz de inspección de puertos en escucha (`:22`, `:80`, `:443`, `:81`, `:53`, `:8123`, `:3001`, `:9443`) con estado de firewall UFW y tasa de peticiones.
@@ -75,6 +76,7 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 ---
 
 ### 5. Topología de Red & Mapa de Dispositivos
+* **Malla WireGuard (Tailscale VPN) & Funnel**: Visualización de clientes autorizados en la malla peer-to-peer con filtrado y agregación automática de proxies Anycast de Tailscale Funnel (para evitar saturar la interfaz y destacar únicamente los dispositivos clientes reales).
 * **Diagrama en Árbol Interactivo**: Visualización de la jerarquía completa: Gateway de Fibra Óptica -> Servidor Lenovo -> Docker Bridge Virtual (`172.20.0.0/16`) -> Ramas WiFi para cada móvil/PC. Al clickear cualquier nodo se despliega una ficha técnica con IPs, MACs y puertos.
 * **Matriz de Ping Cruzado**: Medición interactiva de latencia ICMP entre nodos con botón de testeo en vivo.
 * **Tabla DHCP & Mapeo de Direcciones MAC**: Buscador en tiempo real de hostnames, tipo de asignación (estática vs dinámica), interfaz física y velocidad negociada (1 Gbps Full-Duplex / WiFi 5 GHz).

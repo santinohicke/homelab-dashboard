@@ -243,6 +243,22 @@ export function DockerContainers3DRack() {
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [copiedLogs, setCopiedLogs] = useState(false);
   const logsEndRef = useRef(null);
+  const logsPanelRef = useRef(null);
+  const [isMobileView, setIsMobileView] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobileView(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (selectedUnit && isMobileView) {
+      setTimeout(() => {
+        logsPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 150);
+    }
+  }, [selectedUnit, isMobileView]);
 
   // Fetch real container list from Portainer API
   const fetchContainers = async () => {
@@ -366,6 +382,182 @@ export function DockerContainers3DRack() {
     return { ...u, y, h };
   });
   const totalHeight = curY - gap;
+
+  const renderLogsPanel = (isMobile) => {
+    if (!selectedUnit || !currentUnit) return null;
+
+    return (
+      <div 
+        ref={isMobile ? logsPanelRef : null}
+        onPointerDown={(e) => e.stopPropagation()}
+        className={isMobile 
+          ? "w-full mt-4 flex flex-col rounded-2xl bg-black/90 backdrop-blur-2xl border border-white/15 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300 select-auto min-h-[460px] max-h-[580px]" 
+          : "absolute top-4 sm:top-6 right-3 sm:right-6 bottom-4 sm:bottom-6 w-[450px] lg:w-[470px] z-30 flex flex-col rounded-2xl bg-black/90 backdrop-blur-2xl border border-white/15 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 select-auto"
+        }
+      >
+        {/* POPUP HEADER */}
+        <div className="p-3.5 sm:p-4 border-b border-white/10 bg-white/[0.04] flex items-start justify-between gap-3">
+          <div className="space-y-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-white/10 text-white border border-white/20 font-bold text-[10px] font-mono">
+                {currentUnit.layer}
+              </span>
+              <span className="text-white font-bold text-sm tracking-wide truncate">
+                {currentUnit.label}
+              </span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium ${
+                restartingKey === currentUnit.key 
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse"
+                  : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+              }`}>
+                {restartingKey === currentUnit.key ? "Reiniciando..." : `Activo · ${currentUnit.ping}`}
+              </span>
+            </div>
+            <div className="text-[11px] text-zinc-400 font-mono flex items-center gap-2">
+              <span>RAM: {currentUnit.mem}</span>
+              {matchedContainer && (
+                <>
+                  <span>·</span>
+                  <span>ID: {matchedContainer.Id.substring(0, 7)}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* CLOSE POPUP BUTTON */}
+          <button 
+            onClick={() => setSelectedUnit(null)}
+            className="p-1 rounded-lg hover:bg-white/10 text-white/50 hover:text-white transition-all shrink-0 cursor-pointer"
+            title="Cerrar ventana y replegar unidad"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* ACTION BUTTONS (RESTART & PORTAINER & REOPEN LOGS) */}
+        <div className="px-3.5 sm:px-4 py-2 border-b border-white/5 bg-white/[0.02] flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleRestart(currentUnit)}
+              disabled={restartingKey === currentUnit.key}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all border cursor-pointer ${
+                restartingKey === currentUnit.key
+                  ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                  : "bg-white/5 hover:bg-white/15 border-white/15 text-white"
+              }`}
+              title="Reiniciar contenedor en vivo vía Portainer API"
+            >
+              <RotateCw className={`w-3 h-3 ${restartingKey === currentUnit.key ? "animate-spin text-amber-400" : "text-cyan-400"}`} />
+              <span>{restartingKey === currentUnit.key ? "Reiniciando..." : "Reiniciar"}</span>
+            </button>
+
+            <a 
+              href="https://portainer.santino.lab"
+              target="_blank"
+              rel="noreferrer"
+              className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 hover:text-white text-[11px] font-mono flex items-center gap-1"
+            >
+              <span>Portainer</span>
+              <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+          </div>
+
+          {!showLogs && (
+            <button
+              onClick={() => setShowLogs(true)}
+              className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 text-[11px] font-mono flex items-center gap-1.5 cursor-pointer"
+            >
+              <Terminal className="w-3 h-3 text-cyan-400" />
+              <span>Reabrir Logs</span>
+            </button>
+          )}
+        </div>
+
+        {/* ACTION FEEDBACK ALERT */}
+        {actionFeedback && (
+          <div className={`px-4 py-1.5 text-[11px] font-mono font-medium border-b border-white/5 ${
+            actionFeedback.type === "success" ? "bg-emerald-500/10 text-emerald-300" :
+            actionFeedback.type === "error" ? "bg-rose-500/10 text-rose-300" : "bg-cyan-500/10 text-cyan-300"
+          }`}>
+            {actionFeedback.msg}
+          </div>
+        )}
+
+        {/* LIVE LOGS TERMINAL (AUTOMATICALLY SHOWN, CAN BE CLOSED LIKE A TAB WITH X) */}
+        {showLogs ? (
+          <div className="flex-1 flex flex-col min-h-0 bg-black/95 font-mono text-[11px]">
+            {/* TERMINAL TAB HEADER */}
+            <div className="flex items-center justify-between px-3.5 py-2 bg-white/[0.04] border-b border-white/10 select-none">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-zinc-300 text-[11px] font-mono truncate">
+                  logs // {matchedContainer ? matchedContainer.Names[0]?.replace('/', '') : currentUnit.dockerName}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button 
+                  onClick={fetchLogs} 
+                  className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
+                  title="Refrescar logs ahora"
+                >
+                  <RotateCw className={`w-3 h-3 ${loadingLogs ? "animate-spin text-cyan-400" : ""}`} />
+                </button>
+                <button 
+                  onClick={handleCopyLogs}
+                  className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
+                  title="Copiar logs al portapapeles"
+                >
+                  {copiedLogs ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                </button>
+                {/* CLOSE LOGS TAB BUTTON X - CLOSES LOGS BUT KEEPS UNIT EXTENDED */}
+                <button 
+                  onClick={() => setShowLogs(false)}
+                  className="p-1 rounded hover:bg-rose-500/20 text-white/60 hover:text-rose-400 transition-colors cursor-pointer"
+                  title="Cerrar pestaña de logs (mantiene unidad seleccionada)"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* TERMINAL STREAM OUTPUT */}
+            <div className="flex-1 p-3 overflow-y-auto space-y-1 bg-black/95 scrollbar-thin scrollbar-thumb-white/20 select-text leading-relaxed font-mono touch-pan-y">
+              {loadingLogs && logs.length === 0 ? (
+                <div className="text-zinc-500 italic flex items-center gap-2 py-8 justify-center">
+                  <RotateCw className="w-4 h-4 animate-spin text-cyan-400" />
+                  <span>Conectando al stream de logs...</span>
+                </div>
+              ) : logs.length === 0 ? (
+                <div className="text-zinc-500 italic py-4 text-center">
+                  No se registraron líneas recientes en stdout/stderr.
+                </div>
+              ) : (
+                logs.map((line, idx) => {
+                  let colorClass = "text-zinc-300";
+                  if (/error|fatal|exception|fail/i.test(line)) colorClass = "text-rose-400";
+                  else if (/warn/i.test(line)) colorClass = "text-amber-300";
+                  else if (/info|200 ok|success|healthy/i.test(line)) colorClass = "text-emerald-300";
+
+                  return (
+                    <div key={idx} className={`leading-relaxed break-all ${colorClass} hover:bg-white/[0.03] px-1 rounded`}>
+                      <span className="text-zinc-600 select-none mr-2">{(idx + 1).toString().padStart(2, '0')}</span>
+                      {line}
+                    </div>
+                  );
+                })
+              )}
+              <div ref={logsEndRef} />
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 text-center text-xs text-white/40 font-mono italic">
+            Terminal de logs cerrada. La unidad continúa seleccionada en el bastidor.
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div 
@@ -542,175 +734,12 @@ export function DockerContainers3DRack() {
           </div>
         </div>
 
-        {/* MEDIUM FLOATING POPUP INSIDE THE RACK STAGE */}
-        {selectedUnit && currentUnit && (
-          <div 
-            onPointerDown={(e) => e.stopPropagation()}
-            className="absolute top-4 sm:top-6 right-3 sm:right-6 bottom-4 sm:bottom-6 w-[92%] sm:w-[450px] lg:w-[470px] z-30 flex flex-col rounded-2xl bg-black/90 backdrop-blur-2xl border border-white/15 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 select-auto"
-          >
-            {/* POPUP HEADER */}
-            <div className="p-3.5 sm:p-4 border-b border-white/10 bg-white/[0.04] flex items-start justify-between gap-3">
-              <div className="space-y-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2 py-0.5 rounded bg-white/10 text-white border border-white/20 font-bold text-[10px] font-mono">
-                    {currentUnit.layer}
-                  </span>
-                  <span className="text-white font-bold text-sm tracking-wide truncate">
-                    {currentUnit.label}
-                  </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-medium ${
-                    restartingKey === currentUnit.key 
-                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse"
-                      : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                  }`}>
-                    {restartingKey === currentUnit.key ? "Reiniciando..." : `Activo · ${currentUnit.ping}`}
-                  </span>
-                </div>
-                <div className="text-[11px] text-zinc-400 font-mono flex items-center gap-2">
-                  <span>RAM: {currentUnit.mem}</span>
-                  {matchedContainer && (
-                    <>
-                      <span>·</span>
-                      <span>ID: {matchedContainer.Id.substring(0, 7)}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* CLOSE POPUP BUTTON */}
-              <button 
-                onClick={() => setSelectedUnit(null)}
-                className="p-1 rounded-lg hover:bg-white/10 text-white/50 hover:text-white transition-all shrink-0"
-                title="Cerrar ventana y replegar unidad"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* ACTION BUTTONS (RESTART & PORTAINER & REOPEN LOGS) */}
-            <div className="px-3.5 sm:px-4 py-2 border-b border-white/5 bg-white/[0.02] flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleRestart(currentUnit)}
-                  disabled={restartingKey === currentUnit.key}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all border ${
-                    restartingKey === currentUnit.key
-                      ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
-                      : "bg-white/5 hover:bg-white/15 border-white/15 text-white"
-                  }`}
-                  title="Reiniciar contenedor en vivo vía Portainer API"
-                >
-                  <RotateCw className={`w-3 h-3 ${restartingKey === currentUnit.key ? "animate-spin text-amber-400" : "text-cyan-400"}`} />
-                  <span>{restartingKey === currentUnit.key ? "Reiniciando..." : "Reiniciar"}</span>
-                </button>
-
-                <a 
-                  href="https://portainer.santino.lab"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 hover:text-white text-[11px] font-mono flex items-center gap-1"
-                >
-                  <span>Portainer</span>
-                  <ExternalLink className="w-2.5 h-2.5" />
-                </a>
-              </div>
-
-              {!showLogs && (
-                <button
-                  onClick={() => setShowLogs(true)}
-                  className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 text-[11px] font-mono flex items-center gap-1.5"
-                >
-                  <Terminal className="w-3 h-3 text-cyan-400" />
-                  <span>Reabrir Logs</span>
-                </button>
-              )}
-            </div>
-
-            {/* ACTION FEEDBACK ALERT */}
-            {actionFeedback && (
-              <div className={`px-4 py-1.5 text-[11px] font-mono font-medium border-b border-white/5 ${
-                actionFeedback.type === "success" ? "bg-emerald-500/10 text-emerald-300" :
-                actionFeedback.type === "error" ? "bg-rose-500/10 text-rose-300" : "bg-cyan-500/10 text-cyan-300"
-              }`}>
-                {actionFeedback.msg}
-              </div>
-            )}
-
-            {/* LIVE LOGS TERMINAL (AUTOMATICALLY SHOWN, CAN BE CLOSED LIKE A TAB WITH X) */}
-            {showLogs ? (
-              <div className="flex-1 flex flex-col min-h-0 bg-black/95 font-mono text-[11px]">
-                {/* TERMINAL TAB HEADER */}
-                <div className="flex items-center justify-between px-3.5 py-2 bg-white/[0.04] border-b border-white/10 select-none">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-zinc-300 text-[11px] font-mono truncate">
-                      logs // {matchedContainer ? matchedContainer.Names[0]?.replace('/', '') : currentUnit.dockerName}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button 
-                      onClick={fetchLogs} 
-                      className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-                      title="Refrescar logs ahora"
-                    >
-                      <RotateCw className={`w-3 h-3 ${loadingLogs ? "animate-spin text-cyan-400" : ""}`} />
-                    </button>
-                    <button 
-                      onClick={handleCopyLogs}
-                      className="p-1 rounded hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-                      title="Copiar logs al portapapeles"
-                    >
-                      {copiedLogs ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                    </button>
-                    {/* CLOSE LOGS TAB BUTTON X - CLOSES LOGS BUT KEEPS UNIT EXTENDED */}
-                    <button 
-                      onClick={() => setShowLogs(false)}
-                      className="p-1 rounded hover:bg-rose-500/20 text-white/60 hover:text-rose-400 transition-colors"
-                      title="Cerrar pestaña de logs (mantiene unidad seleccionada)"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* TERMINAL STREAM OUTPUT */}
-                <div className="flex-1 p-3 overflow-y-auto space-y-1 bg-black/95 scrollbar-thin scrollbar-thumb-white/20 select-text leading-relaxed font-mono">
-                  {loadingLogs && logs.length === 0 ? (
-                    <div className="text-zinc-500 italic flex items-center gap-2 py-8 justify-center">
-                      <RotateCw className="w-4 h-4 animate-spin text-cyan-400" />
-                      <span>Conectando al stream de logs...</span>
-                    </div>
-                  ) : logs.length === 0 ? (
-                    <div className="text-zinc-500 italic py-4 text-center">
-                      No se registraron líneas recientes en stdout/stderr.
-                    </div>
-                  ) : (
-                    logs.map((line, idx) => {
-                      let colorClass = "text-zinc-300";
-                      if (/error|fatal|exception|fail/i.test(line)) colorClass = "text-rose-400";
-                      else if (/warn/i.test(line)) colorClass = "text-amber-300";
-                      else if (/info|200 ok|success|healthy/i.test(line)) colorClass = "text-emerald-300";
-
-                      return (
-                        <div key={idx} className={`leading-relaxed break-all ${colorClass} hover:bg-white/[0.03] px-1 rounded`}>
-                          <span className="text-zinc-600 select-none mr-2">{(idx + 1).toString().padStart(2, '0')}</span>
-                          {line}
-                        </div>
-                      );
-                    })
-                  )}
-                  <div ref={logsEndRef} />
-                </div>
-              </div>
-            ) : (
-              <div className="p-6 text-center text-xs text-white/40 font-mono italic">
-                Terminal de logs cerrada. La unidad continúa seleccionada en el bastidor.
-              </div>
-            )}
-          </div>
-        )}
+        {/* DESKTOP FLOATING POPUP (INSIDE RACK STAGE) */}
+        {!isMobileView && renderLogsPanel(false)}
       </div>
+
+      {/* MOBILE STRETCHED LOGS PANEL (BELOW RACK STAGE, DOES NOT COVER RACK) */}
+      {isMobileView && renderLogsPanel(true)}
     </div>
   );
 }

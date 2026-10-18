@@ -5,6 +5,24 @@ import {
   Sliders, Timer, HardDrive, Database, Gauge, Play
 } from "lucide-react";
 
+// Sanitizer to repair broken accents and encodings (e.g. Pasant?as -> Pasantías)
+const cleanText = (str) => {
+  if (!str || typeof str !== "string") return "";
+  return str
+    .replace(/Pasant\?as/gi, "Pasantías")
+    .replace(/Pasant\?a/gi, "Pasantía")
+    .replace(/Ingenier\?a/gi, "Ingeniería")
+    .replace(/tecnolog\?a/gi, "tecnología")
+    .replace(/electr\?nica/gi, "electrónica")
+    .replace(/t\?cnico/gi, "técnico")
+    .replace(/atenci\?n/gi, "atención")
+    .replace(/gesti\?n/gi, "gestión")
+    .replace(/inform\?tica/gi, "informática")
+    .replace(/pr\?ctica/gi, "práctica")
+    .replace(/compa\?\?a/gi, "compañía")
+    .replace(/([a-zA-ZáéíóúÁÉÍÓÚñÑ])\?([a-zA-Z])/g, "$1í$2");
+};
+
 // Helper for cubic bezier smooth curve
 function getSvgPath(points) {
   if (!points || points.length === 0) return "";
@@ -183,7 +201,7 @@ export default function AIObservatory() {
                 {testResult.status === "ok" ? "Inferencia de prueba exitosa:" : "Error en inferencia:"}
               </div>
               <div className="text-white/80 font-sans text-xs mt-0.5">
-                {testResult.status === "ok" ? `"${testResult.answer}"` : testResult.message}
+                {testResult.status === "ok" ? `"${cleanText(testResult.answer)}"` : testResult.message}
               </div>
               {testResult.status === "ok" && (
                 <div className="text-[11px] text-white/50 mt-1">
@@ -459,7 +477,7 @@ export default function AIObservatory() {
                 {stats.recent_logs.map((log) => (
                   <tr key={log.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="py-2.5 text-white/50 whitespace-nowrap">{log.time_str}</td>
-                    <td className="py-2.5 text-white font-medium max-w-[220px] truncate">{log.purpose}</td>
+                    <td className="py-2.5 text-white font-medium max-w-[220px] truncate">{cleanText(log.purpose)}</td>
                     <td className="py-2.5 text-purple-300">{log.model}</td>
                     <td className="py-2.5 text-right text-white/60">{log.prompt_tokens.toLocaleString("es-AR")}</td>
                     <td className="py-2.5 text-right text-white/60">{log.completion_tokens.toLocaleString("es-AR")}</td>

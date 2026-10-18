@@ -10,7 +10,6 @@ import {
   Copy, X, Check, Archive, HeartPulse, Bell, Network, AlertTriangle
 } from "lucide-react";
 import HomelabMetricsObservatory from "./MetricsObservatory.jsx";
-import DevOpsConsole from "./DevOpsConsole.jsx";
 import SecurityVault from "./SecurityVault.jsx";
 import NetworkTopology from "./NetworkTopology.jsx";
 import BackupsManager from "./BackupsManager.jsx";
@@ -881,7 +880,7 @@ export function AppleIslandDesign() {
   const [timeStr, setTimeStr] = useState(() => 
     new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) + " ART"
   );
-  const [dashboardSection, setDashboardSection] = useState("control"); // "control" | "radar" | "metrics" | "devops" | "security" | "network" | "backups"
+  const [dashboardSection, setDashboardSection] = useState("control"); // "control" | "radar" | "ai" | "metrics" | "security" | "network" | "backups"
 
   // Service Worker Registration for iPhone PWA Push
   useEffect(() => {
@@ -1496,7 +1495,6 @@ export function AppleIslandDesign() {
                 {dashboardSection === "radar" && "VIGILANCIA IA · PASANTÍAS & EMPLEOS IT"}
                 {dashboardSection === "ai" && "INTELIGENCIA ARTIFICIAL · OBSERVABILIDAD & CUOTA"}
                 {dashboardSection === "metrics" && "OBSERVABILIDAD · TELEMETRÍA HISTÓRICA"}
-                {dashboardSection === "devops" && "OPERACIONES · AUTOMATIZACIÓN & TERMINAL"}
                 {dashboardSection === "security" && "CENTRO DE DEFENSA · CIFRADO & HARDENING"}
                 {dashboardSection === "network" && "INFRAESTRUCTURA · MAPA LAN & TOPOLOGÍA"}
                 {dashboardSection === "backups" && "PROTECCIÓN DE DATOS · SNAPSHOTS & DISASTER RECOVERY"}
@@ -1506,7 +1504,6 @@ export function AppleIslandDesign() {
                 {dashboardSection === "radar" && "Radar Autónomo IT"}
                 {dashboardSection === "ai" && "Telemetría & Consumo de IA"}
                 {dashboardSection === "metrics" && "Métricas & Analíticas"}
-                {dashboardSection === "devops" && "Consola de Operaciones & DevOps"}
                 {dashboardSection === "security" && "Bóveda de Seguridad & Auditoría"}
                 {dashboardSection === "network" && "Topología de Red & Dispositivos"}
                 {dashboardSection === "backups" && "Gestor de Backups & Recuperación"}
@@ -1547,7 +1544,6 @@ export function AppleIslandDesign() {
               { id: "radar", label: "Radar IT & Pasantías", icon: Radar, color: "text-cyan-400" },
               { id: "ai", label: "Telemetría IA", icon: Sparkles, color: "text-purple-400" },
               { id: "metrics", label: "Métricas & Gráficos", icon: BarChart3, color: "text-purple-400" },
-              { id: "devops", label: "Consola & DevOps", icon: Terminal, color: "text-emerald-400" },
               { id: "security", label: "Seguridad & Auditoría", icon: ShieldCheck, color: "text-rose-400" },
               { id: "network", label: "Topología de Red", icon: Network, color: "text-blue-400" },
               { id: "backups", label: "Gestor de Backups", icon: Archive, color: "text-blue-400" }
@@ -2568,10 +2564,6 @@ export function AppleIslandDesign() {
 
           {dashboardSection === "metrics" && (
             <HomelabMetricsObservatory />
-          )}
-
-          {dashboardSection === "devops" && (
-            <DevOpsConsole />
           )}
 
           {dashboardSection === "security" && (

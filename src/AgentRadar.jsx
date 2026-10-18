@@ -735,38 +735,47 @@ export default function AgentRadar() {
               {targets.map(t => (
                 <div
                   key={t.id}
-                  className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  className="p-4 sm:p-5 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-3.5 sm:gap-4 overflow-hidden"
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-white">{cleanText(t.name)}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
-                        t.active ? "bg-emerald-500/20 text-emerald-300" : "bg-zinc-700 text-zinc-400"
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-sm text-white truncate">{cleanText(t.name)}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono shrink-0 border ${
+                        t.active 
+                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" 
+                          : "bg-zinc-800 text-zinc-400 border-white/10"
                       }`}>
                         {t.active ? "Activo (Cada 6h)" : "Pausado"}
                       </span>
                     </div>
-                    <div className="text-xs font-mono text-white/40 truncate max-w-md">{t.url}</div>
-                    <div className="text-[11px] text-white/60">{cleanText(t.criteria)}</div>
-                    <div className="text-[10px] font-mono text-cyan-400/80">
-                      Último escaneo: {t.last_checked_str}
+                    <div className="text-xs font-mono text-white/40 truncate w-full" title={t.url}>
+                      {t.url}
+                    </div>
+                    <div className="text-[11px] text-white/60 line-clamp-2 leading-relaxed break-words">
+                      {cleanText(t.criteria)}
+                    </div>
+                    <div className="text-[10px] font-mono text-cyan-400/80 flex items-center gap-1.5 pt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400/80 shrink-0" />
+                      <span className="truncate">Último escaneo: {t.last_checked_str}</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 pt-2.5 md:pt-0 border-t md:border-t-0 border-white/5 self-end md:self-center">
                     <button
+                      type="button"
                       onClick={() => handleRunScan(t.id)}
                       disabled={scanning}
-                      className="px-3 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 font-mono text-xs border border-cyan-500/30 transition-all cursor-pointer"
+                      className="px-3 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 font-mono text-xs border border-cyan-500/30 transition-all cursor-pointer whitespace-nowrap disabled:opacity-50"
                     >
                       Escanear
                     </button>
                     <button
+                      type="button"
                       onClick={() => handleToggleTarget(t.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-mono border transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-mono border transition-all cursor-pointer whitespace-nowrap ${
                         t.active 
-                          ? "bg-white/5 border-white/10 text-white/60 hover:text-white" 
-                          : "bg-emerald-500/20 border-emerald-500/30 text-emerald-300"
+                          ? "bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white" 
+                          : "bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/30 text-emerald-300"
                       }`}
                     >
                       {t.active ? "Pausar" : "Activar"}

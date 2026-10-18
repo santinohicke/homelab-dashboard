@@ -48,13 +48,18 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 ---
 
 ### 2. Radar Autónomo IT · Pasantías & Part-Time 24/7 (Google Gemini AI)
+* **Vacantes 100% Reales (Zero-Mock)**: Extracción directa del estado embebido `window.__STATE__` en la Bolsa de la Universidad Católica Argentina (UCA Campus HiringRoom), LinkedIn Jobs y Get on Board, descartando de forma tajante datos sintéticos o alucinaciones.
 * **Criterios Estrictos de Filtrado**:
-  * **Jornada Obligatoria**: Exclusivamente Part-Time / Media Jornada (descarta de forma tajante jornadas full-time para compatibilidad con la facultad).
-  * **Ubicación & Modalidad**: Remoto o presencial/híbrido **estrictamente en CABA (Ciudad Autónoma de Buenos Aires) o GBA inmediato**, descartando cualquier rol presencial fuera de Buenos Aires.
-  * **Ramas Tecnológicas de Interés**: Puestos iniciales de IT/Sistemas/Ingeniería Informática con preferencia en ramas de infraestructura y hardware menos propensas a la automatización por IA: Redes, Telecomunicaciones, Sistemas Embebidos, Electrónica, Soporte de Infraestructura, C/C++, Rust, Cloud y QA.
-* **Multi-Portal de Rastreo**: Monitoreo de la Bolsa de Empleo de la Universidad Católica Argentina (UCA Campus HiringRoom), LinkedIn Jobs Argentina (Part-Time / Trainee / Embebidos CABA) y Get on Board Part-Time.
-* **Gestión de Postulaciones**: Acciones directas de *Postularse / Postulado* y *Descartar* con persistencia SQLite y filtro dedicado *"Mis Postulaciones"*.
-* **Notificaciones Web Push Nativas para iPhone (PWA Standalone)**: Integración con Service Worker (`sw.js`), Web Push API y Badging en iOS 16.4+ para recibir alertas inmediatas en el celular sin servicios de terceros.
+  * **Jornada Obligatoria**: Exclusivamente Part-Time / Media Jornada (descarta jornadas completas o full-time de 8-9h).
+  * **Ubicación & Modalidad**: Remoto o presencial/híbrido **estrictamente en CABA (Ciudad Autónoma de Buenos Aires) o GBA cercano**, descartando puestos presenciales fuera de Buenos Aires.
+  * **Ramas Tecnológicas de Interés**: Redes, Telecomunicaciones, Sistemas Embebidos, Electrónica, Soporte de Infraestructura, C/C++, Rust, Cloud y QA.
+* **Filtros Simplificados**: Navegación canónica reducida a `Todas`, `Nuevas` y `Mis Postulaciones`.
+* **Seguimiento de Postulaciones y Rechazos ("Me rechazaron")**:
+  * Acciones de postulación directa con registro de fecha y estado en base SQLite.
+  * En "Mis Postulaciones", botón de acción "Me rechazaron" que etiqueta la vacante con el badge `Rechazada` (color rubí/rosa) y opción de deshacer ("Desmarcar rechazo"), manteniéndolas en el flujo sin crear secciones redundantes.
+  * Vacantes abiertas señaladas con estado `Postulado · En espera`.
+* **Métricas Reales en Vivo**: Cuadrícula de 6 métricas extraídas en tiempo real de SQLite: *Ofertas Analizadas*, *Nuevas sin Leer*, *Mis Postulaciones*, *En Espera*, *Rechazadas* y *Portales en Vigilancia*.
+* **Notificaciones Web Push Nativas para iPhone (PWA Standalone)**: Integración con Service Worker (`sw.js`), Web Push API y Badging en iOS 16.4+ para alertas instantáneas.
 
 ---
 

@@ -1418,30 +1418,121 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             total_reqs = all_row[0]
             total_tokens = all_row[1]
 
-            # Hourly buckets for last 24h chart
-            since_24h = now - 86400
-            cur.execute("""
-                SELECT timestamp, prompt_tokens, completion_tokens, total_tokens, latency_ms
-                FROM ai_usage_logs
-                WHERE timestamp >= ?
-                ORDER BY timestamp ASC
-            """, (since_24h,))
-            recent_logs_24h = cur.fetchall()
+            # Time range aggregation for token consumption chart
+            range_val = query.get("range", ["24h"])[0].lower()
+            if range_val not in ["24h", "7d", "30d", "historic"]:
+                range_val = "24h"
 
-            # Generate 24 hourly buckets
             buckets = []
-            for h in range(23, -1, -1):
-                b_start = now - (h + 1) * 3600
-                b_end = now - h * 3600
-                t_label = datetime.fromtimestamp(b_end).strftime("%H:00")
-                in_b = [r for r in recent_logs_24h if b_start <= r[0] < b_end]
-                b_tokens = sum(r[3] for r in in_b)
-                b_reqs = len(in_b)
-                buckets.append({
-                    "time": t_label,
-                    "tokens": b_tokens,
-                    "requests": b_reqs
-                })
+            axis_labels = []
+
+            if range_val == "24h":
+                since_ts = now - 86400
+                cur.execute("""
+                    SELECT timestamp, prompt_tokens, completion_tokens, total_tokens, latency_ms
+                    FROM ai_usage_logs
+                    WHERE timestamp >= ? AND status = 'ok'
+                    ORDER BY timestamp ASC
+                """, (since_ts,))
+                range_logs = cur.fetchall()
+
+                for h in range(23, -1, -1):
+                    b_start = now - (h + 1) * 3600
+                    b_end = now - h * 3600
+                    t_label = datetime.fromtimestamp(b_end).strftime("%H:00")
+                    in_b = [r for r in range_logs if b_start <= r[0] < b_end]
+                    b_tokens = sum(r[3] for r in in_b)
+                    b_reqs = len(in_b)
+                    buckets.append({
+                        "time": t_label,
+                        "tokens": b_tokens,
+                        "requests": b_reqs
+                    })
+                axis_labels = ["Hace 24 horas", "Hace 12 horas", "Hace 6 horas", "Ahora"]
+
+            elif range_val == "7d":
+                since_ts = now - 7 * 86400
+                cur.execute("""
+                    SELECT timestamp, prompt_tokens, completion_tokens, total_tokens, latency_ms
+                    FROM ai_usage_logs
+                    WHERE timestamp >= ? AND status = 'ok'
+                    ORDER BY timestamp ASC
+                """, (since_ts,))
+                range_logs = cur.fetchall()
+
+                for d in range(6, -1, -1):
+                    b_start = now - (d + 1) * 86400
+                    b_end = now - d * 86400
+                    t_label = datetime.fromtimestamp(b_end).strftime("%d/%m")
+                    in_b = [r for r in range_logs if b_start <= r[0] < b_end]
+                    b_tokens = sum(r[3] for r in in_b)
+                    b_reqs = len(in_b)
+                    buckets.append({
+                        "time": t_label,
+                        "tokens": b_tokens,
+                        "requests": b_reqs
+                    })
+                axis_labels = ["Hace 7 días", "Hace 4 días", "Hace 2 días", "Hoy"]
+
+            elif range_val == "30d":
+                since_ts = now - 30 * 86400
+                cur.execute("""
+                    SELECT timestamp, prompt_tokens, completion_tokens, total_tokens, latency_ms
+                    FROM ai_usage_logs
+                    WHERE timestamp >= ? AND status = 'ok'
+                    ORDER BY timestamp ASC
+                """, (since_ts,))
+                range_logs = cur.fetchall()
+
+                for d in range(29, -1, -1):
+                    b_start = now - (d + 1) * 86400
+                    b_end = now - d * 86400
+                    t_label = datetime.fromtimestamp(b_end).strftime("%d/%m")
+                    in_b = [r for r in range_logs if b_start <= r[0] < b_end]
+                    b_tokens = sum(r[3] for r in in_b)
+                    b_reqs = len(in_b)
+                    buckets.append({
+                        "time": t_label,
+                        "tokens": b_tokens,
+                        "requests": b_reqs
+                    })
+                axis_labels = ["Hace 30 días", "Hace 20 días", "Hace 10 días", "Hoy"]
+
+            else:  # historic
+                cur.execute("SELECT MIN(timestamp) FROM ai_usage_logs WHERE status = 'ok'")
+                row_min = cur.fetchone()
+                min_ts = row_min[0] if (row_min and row_min[0]) else (now - 30 * 86400)
+                total_span = max(7 * 86400, now - min_ts)
+                start_hist = now - total_span
+
+                cur.execute("""
+                    SELECT timestamp, prompt_tokens, completion_tokens, total_tokens, latency_ms
+                    FROM ai_usage_logs
+                    WHERE timestamp >= ? AND status = 'ok'
+                    ORDER BY timestamp ASC
+                """, (start_hist,))
+                range_logs = cur.fetchall()
+
+                num_buckets = 14
+                bucket_duration = total_span / float(num_buckets)
+                for i in range(num_buckets):
+                    b_start = start_hist + i * bucket_duration
+                    b_end = start_hist + (i + 1) * bucket_duration
+                    t_label = datetime.fromtimestamp(b_end).strftime("%d/%m")
+                    in_b = [r for r in range_logs if b_start <= r[0] < b_end]
+                    b_tokens = sum(r[3] for r in in_b)
+                    b_reqs = len(in_b)
+                    buckets.append({
+                        "time": t_label,
+                        "tokens": b_tokens,
+                        "requests": b_reqs
+                    })
+                axis_labels = [
+                    datetime.fromtimestamp(start_hist).strftime("%d/%m/%Y"),
+                    datetime.fromtimestamp(start_hist + total_span * 0.33).strftime("%d/%m/%Y"),
+                    datetime.fromtimestamp(start_hist + total_span * 0.66).strftime("%d/%m/%Y"),
+                    "Hoy"
+                ]
 
             # Last 20 queries log
             cur.execute("""
@@ -1504,6 +1595,8 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                     "total_requests": total_reqs,
                     "total_tokens": total_tokens
                 },
+                "chart_range": range_val,
+                "chart_axis_labels": axis_labels,
                 "hourly_chart": buckets,
                 "recent_logs": logs
             })

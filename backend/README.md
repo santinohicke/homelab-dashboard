@@ -68,7 +68,7 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 ### Telemetría de Inteligencia Artificial (Observabilidad & Cuotas)
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
-| `GET` | `/api/v1/ai/stats` | Métricas reales de consumo Gemini: tokens consumidos hoy/histórico, límites RPD/RPM/TPM, curva Bézier por hora y countdown a reseteo UTC. |
+| `GET` | `/api/v1/ai/stats?range=24h` | Métricas reales de consumo Gemini: tokens consumidos hoy/histórico, límites RPD/RPM/TPM, curva Bézier multirrango (`24h`, `7d`, `30d`, `historic`) y countdown a reseteo UTC. |
 | `POST` | `/api/v1/ai/test` | Ejecuta un test de diagnóstico de inferencia en vivo registrando latencia y tokens exactos consumidos en `ai_usage_logs`. |
 
 ---

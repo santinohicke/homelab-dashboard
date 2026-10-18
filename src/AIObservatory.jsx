@@ -50,10 +50,11 @@ export default function AIObservatory() {
   const [testResult, setTestResult] = useState(null);
   const [hoverIndex, setHoverIndex] = useState(null);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
+  const [timeRange, setTimeRange] = useState("24h"); // "24h" | "7d" | "30d" | "historic"
 
-  const fetchStats = async () => {
+  const fetchStats = async (range = timeRange) => {
     try {
-      const res = await fetch("/api/v1/ai/stats");
+      const res = await fetch(`/api/v1/ai/stats?range=${range}`);
       if (res.ok) {
         const data = await res.json();
         setStats(data);
@@ -68,11 +69,16 @@ export default function AIObservatory() {
     }
   };
 
+  const handleRangeChange = (newRange) => {
+    setTimeRange(newRange);
+    fetchStats(newRange);
+  };
+
   useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, 10000);
+    fetchStats(timeRange);
+    const interval = setInterval(() => fetchStats(timeRange), 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [timeRange]);
 
   // Countdown timer for quota reset
   useEffect(() => {
@@ -146,6 +152,21 @@ export default function AIObservatory() {
     avg_latency_sec: 0
   };
 
+  const rangeLabels = {
+    "24h": "Últimas 24 Horas",
+    "7d": "Última Semana (7 Días)",
+    "30d": "Últimos 30 Días",
+    "historic": "Registro Histórico Completo"
+  };
+
+  const defaultAxisLabels = {
+    "24h": ["Hace 24 horas", "Hace 12 horas", "Hace 6 horas", "Ahora"],
+    "7d": ["Hace 7 días", "Hace 4 días", "Hace 2 días", "Hoy"],
+    "30d": ["Hace 30 días", "Hace 20 días", "Hace 10 días", "Hoy"],
+    "historic": ["Inicio Histórico", "Intermedio", "Reciente", "Ahora"]
+  };
+  const axisLabels = stats?.chart_axis_labels || defaultAxisLabels[timeRange] || defaultAxisLabels["24h"];
+
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
       {/* 1. TOP CONTROL BAR */}
@@ -157,12 +178,9 @@ export default function AIObservatory() {
           <div>
             <div className="font-bold text-white text-base flex flex-wrap items-center gap-2">
               <span>Google Gemini 3.1 Flash-Lite</span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                Free Tier Activo
-              </span>
             </div>
             <div className="text-xs text-white/50 font-mono">
-              Inferencia de baja latencia con thinkingBudget=0 · Cuota oficial: 1.500 RPD / 15 RPM
+              Inferencia de baja latencia · Cuota oficial: 1.500 RPD / 15 RPM / 1M TPM
             </div>
           </div>
         </div>
@@ -264,12 +282,28 @@ export default function AIObservatory() {
               <Cpu className="w-4 h-4 text-cyan-400" />
             </div>
             <div>
-              <div className="text-2xl sm:text-3xl font-black font-mono text-cyan-300">
-                {today.total_tokens.toLocaleString("es-AR")}
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl sm:text-3xl font-black font-mono text-cyan-300">
+                  {today.total_tokens.toLocaleString("es-AR")}
+                </span>
+                <span className="text-xs font-mono text-white/40">
+                  / {(stats?.limits?.tpm_limit || 1000000).toLocaleString("es-AR")} máx
+                </span>
               </div>
-              <div className="text-[11px] font-mono text-white/50 mt-0.5">
-                Tokens Procesados (In + Out)
+              <div className="text-[11px] font-mono text-cyan-400 font-semibold mt-0.5">
+                {Math.max(0, (stats?.limits?.tpm_limit || 1000000) - today.total_tokens).toLocaleString("es-AR")} disponibles
               </div>
+            </div>
+            {/* Progress Bar */}
+            <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500 rounded-full transition-all"
+                style={{ width: `${Math.min(100, Math.max(today.total_tokens > 0 ? 1 : 0, (today.total_tokens / (stats?.limits?.tpm_limit || 1000000)) * 100))}%` }}
+              />
+            </div>
+            <div className="text-[10px] font-mono text-white/40 flex items-center justify-between">
+              <span>{((today.total_tokens / (stats?.limits?.tpm_limit || 1000000)) * 100).toFixed(2)}% consumido</span>
+              <span>Cuota 1M TPM</span>
             </div>
             <div className="pt-2 border-t border-white/5 grid grid-cols-2 gap-2 text-[10px] font-mono text-white/50">
               <div>
@@ -328,13 +362,38 @@ export default function AIObservatory() {
 
       {/* 3. DYNAMIC SVG CONSUMPTION CHART */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs uppercase tracking-wider text-white/50 font-semibold flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-cyan-400" />
-            <span>Curva de Consumo de Tokens (Últimas 24 Horas)</span>
-          </h2>
-          <div className="flex items-center gap-2 text-xs font-mono text-white/40">
-            <span>Escala Máx: <strong className="text-white">{maxTokens.toLocaleString("es-AR")}</strong> tokens/h</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <h2 className="text-xs uppercase tracking-wider text-white/50 font-semibold flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-purple-400" />
+              <span>Curva de Consumo de Tokens</span>
+            </h2>
+            <div className="text-[11px] font-mono text-white/40">
+              Intervalo: <span className="text-purple-300 font-semibold">{rangeLabels[timeRange]}</span> · Escala Máx: <strong className="text-white">{maxTokens.toLocaleString("es-AR")}</strong> tokens
+            </div>
+          </div>
+
+          {/* Time range selector pills matching MetricsObservatory */}
+          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/40 border border-white/10 overflow-x-auto no-scrollbar shrink-0">
+            {[
+              { id: "24h", label: "24H", desc: "Últimas 24 Horas" },
+              { id: "7d", label: "7D", desc: "Última Semana (7 Días)" },
+              { id: "30d", label: "30D", desc: "Últimos 30 Días" },
+              { id: "historic", label: "HISTÓRICO", desc: "Registro Histórico Completo" }
+            ].map((period) => (
+              <button
+                key={period.id}
+                onClick={() => handleRangeChange(period.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                  timeRange === period.id
+                    ? "bg-purple-600 text-white shadow-md shadow-purple-500/30 scale-[1.02]"
+                    : "text-white/60 hover:text-white hover:bg-white/10"
+                }`}
+                title={period.desc}
+              >
+                {period.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -434,10 +493,11 @@ export default function AIObservatory() {
 
           {/* Time axis labels */}
           <div className="flex items-center justify-between text-[10px] font-mono text-white/40 pt-2 border-t border-white/5">
-            <span>Hace 24 horas</span>
-            <span>Hace 12 horas</span>
-            <span>Hace 6 horas</span>
-            <span className="text-purple-300 font-bold">Ahora</span>
+            {axisLabels.map((lbl, idx) => (
+              <span key={idx} className={idx === axisLabels.length - 1 ? "text-purple-300 font-bold" : ""}>
+                {lbl}
+              </span>
+            ))}
           </div>
         </div>
       </div>

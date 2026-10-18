@@ -87,12 +87,13 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 
 ### 3. Telemetría & Observabilidad de IA (Google Gemini 3.1 Flash-Lite)
 * **Medición Real de Consumo de Tokens (Sin Datos Hardcodeados)**: Registro analítico de tokens consumidos (Prompt, Completion y Total) por inferencia, con persistencia en tabla SQLite `ai_usage_logs`.
-* **Límites de Cuota Free Tier & Rate Limits**:
+* **Visualización de Cuota Máxima**: Tarjeta de consumo con límite máximo de tokens (`/ 1.000.000 máx`), saldo restante y barra de progreso porcentual dinámica.
+* **Límites de Cuota & Rate Limits**:
   * **RPD (Requests per Day)**: 1.500 solicitudes diarias máximas.
   * **RPM (Requests per Minute)**: 15 solicitudes por minuto máximas.
   * **TPM (Tokens per Minute)**: 1.000.000 tokens por minuto.
-* **Gráfica Temporal SVG de Consumo (24h)**: Curva cúbica Bézier de consumo de tokens distribuida por horas en las últimas 24 horas.
-* **Temporizador de Reseteo de Cuota**: Contador regresivo en tiempo real hacia la medianoche UTC (00:00 UTC) donde se renueva el cupo diario gratuito de Google AI Studio.
+* **Gráfica Temporal SVG Multirrango (24H, 7D, 30D, HISTÓRICO)**: Curva cúbica Bézier de consumo de tokens con selector interactivo de períodos, agrupamiento temporal dinámico en el backend y cero datos simulados.
+* **Temporizador de Reseteo de Cuota**: Contador regresivo en tiempo real hacia la medianoche UTC (00:00 UTC) donde se renueva el cupo diario de Google AI Studio.
 * **Herramienta de Diagnóstico en Tiempo Real**: Botón de prueba de inferencia (`POST /api/v1/ai/test`) con medición de latencia en milisegundos y consumo de tokens en vivo.
 
 ---

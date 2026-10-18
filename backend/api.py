@@ -162,35 +162,35 @@ def init_db():
             "UCA - Bolsa de Empleo Campus",
             "https://ucaecono.hiringroomcampus.com/jobs",
             "UCA Oficial",
-            "Bolsa oficial de la facultad. Pasantías y empleos part-time en tecnología, redes, sistemas o soporte en CABA.",
+            "Bolsa oficial de la facultad. Pasantías y empleos part-time en tecnología, redes, telecomunicaciones, cloud o sistemas en CABA.",
             6
         ),
         (
             "Universidad de Belgrano - Bolsa Campus CABA",
             "https://ub.hiringroomcampus.com/jobs",
             "Bolsa Universitaria",
-            "Pasantías formales bajo ley de pasantías educativas en sistemas, redes, telecomunicaciones y soporte en CABA.",
+            "Pasantías formales bajo ley de pasantías educativas en sistemas, redes, telecomunicaciones, cloud y desarrollo en CABA.",
             6
         ),
         (
             "LinkedIn Jobs - Pasantías & Part-Time IT",
             "https://www.linkedin.com/jobs/search?keywords=sistemas&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I",
             "LinkedIn Argentina",
-            "Pasantías y empleos part-time en Buenos Aires de sistemas, redes, hardware, firmware o soporte.",
+            "Pasantías y empleos part-time en Buenos Aires de sistemas, redes, hardware, firmware o infraestructura.",
             6
         ),
         (
-            "LinkedIn Jobs - Redes, Soporte & Electrónica",
-            "https://www.linkedin.com/jobs/search?keywords=redes%20o%20soporte%20o%20electronica&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I",
+            "LinkedIn Jobs - Redes, Telecomunicaciones & Electrónica",
+            "https://www.linkedin.com/jobs/search?keywords=redes%20o%20telecomunicaciones%20o%20electronica&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I",
             "LinkedIn Redes/Hardware",
-            "Pasantías y medio tiempo en redes, soporte técnico, electrónica, firmware o telecomunicaciones en CABA.",
+            "Pasantías y medio tiempo en redes, telecomunicaciones, electrónica, microcontroladores, firmware o IoT en CABA.",
             6
         ),
         (
             "LinkedIn Jobs - Pasantías Ingeniería & Tecnología",
             "https://www.linkedin.com/jobs/search?keywords=pasantia%20tecnologia%20o%20ingenieria&location=Buenos%20Aires%2C%20Argentina&f_JT=I",
             "LinkedIn Pasantías",
-            "Pasantías universitarias de ingeniería informática, telecomunicaciones, cloud y sistemas corporativos en CABA.",
+            "Pasantías universitarias de ingeniería informática, telecomunicaciones, cloud y arquitectura de sistemas en CABA.",
             6
         ),
         (
@@ -211,14 +211,14 @@ def init_db():
             "Get on Board - Pasantías & Part-Time IT",
             "https://www.getonbrd.com/empleos-part-time",
             "Get on Board",
-            "Busca empleos part-time o medio tiempo compatibles con cursada universitaria en tecnología y sistemas.",
+            "Busca empleos part-time o medio tiempo compatibles con cursada universitaria en desarrollo, redes y sistemas.",
             6
         ),
         (
             "Get on Board - Sysadmin, DevOps & Cloud",
             "https://www.getonbrd.com/empleos-sysadmin-devops",
             "Get on Board DevOps",
-            "Administración de servidores Linux, redes, DevOps y soporte de infraestructura en empresas auditadas.",
+            "Administración de servidores Linux, redes, DevOps e ingeniería de infraestructura en empresas auditadas.",
             6
         )
     ]
@@ -684,14 +684,18 @@ def run_agent_job_scraper(target_id=None, force=False):
                 base_host = f"{parsed_t.scheme}://{parsed_t.netloc}"
                 base_jobs_url = f"{base_host}/jobs"
                 raw_jobs = []
-                for sub_q in ["", "sistemas", "tecnologia", "desarrollo", "ingenieria", "redes", "soporte"]:
+                for sub_q in ["", "sistemas", "tecnologia", "desarrollo", "ingenieria", "redes", "infraestructura", "telecomunicaciones"]:
                     sub_url = base_jobs_url
                     if sub_q:
                         sub_url += f"?q={urllib.parse.quote(sub_q)}"
                     try:
                         sub_req = urllib.request.Request(sub_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
                         with urllib.request.urlopen(sub_req, timeout=10) as sr:
-                            s_html = sr.read().decode('utf-8', errors='ignore')
+                            raw_b = sr.read()
+                            try:
+                                s_html = raw_b.decode('utf-8')
+                            except UnicodeDecodeError:
+                                s_html = raw_b.decode('latin-1', errors='replace')
                             idx = s_html.find("window.__STATE__ = ")
                             if idx != -1:
                                 d, _ = json.JSONDecoder().raw_decode(s_html[idx + len("window.__STATE__ = "):].strip())
@@ -715,7 +719,11 @@ def run_agent_job_scraper(target_id=None, force=False):
             else:
                 req = urllib.request.Request(t_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
                 with urllib.request.urlopen(req, timeout=14) as r:
-                    html = r.read().decode('utf-8', errors='ignore')
+                    raw_b = r.read()
+                    try:
+                        html = raw_b.decode('utf-8')
+                    except UnicodeDecodeError:
+                        html = raw_b.decode('latin-1', errors='replace')
 
                 parser = JobPageExtractor(t_url)
                 parser.feed(html)
@@ -732,10 +740,21 @@ Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin e
 2. UBICACION Y MODALIDAD:
    - Si es Remoto / 100% Virtual: PERMITIDO (desde cualquier ubicacion).
    - Si es Presencial o Hibrido: DEBE SER OBLIGATORIAMENTE en CABA (Ciudad Autonoma de Buenos Aires) o Gran Buenos Aires cercano, Argentina. DESCARTA puestos presenciales/hibridos en otras provincias o paises (ej. Chile, Colombia, Mendoza, etc.).
-3. RAMAS DE INTERES:
-   - Primer empleo para estudiante de Ingenieria Informatica: Redes / Telecomunicaciones, Soporte Tecnico / SysAdmin, Electronica / Hardware, Programacion Embebida / Firmware / IoT, Bajo Nivel (C/C++, Rust), Infraestructura, Cloud, DevOps, Ciberseguridad, QA / Testing, Datos, o Desarrollo de Software general.
-   - DESCARTA carreras no afines (Contaduria, Finanzas, Abogacia, Recursos Humanos, Marketing, Ventas puras).
-   - DESCARTA puestos senior, semi-senior o que exijan mas de 2 anos de experiencia laboral previa.
+3. RAMAS DE INTERES (EXCLUSIVAMENTE INGENIERIA):
+   - El estudiante cursa Ingenieria Informatica y busca puestos genuinos de ingenieria, desarrollo o infraestructura.
+   - ACEPTADOS:
+     * Redes, Telecomunicaciones, Conectividad, Routers/Switches.
+     * Sistemas Embebidos, Firmware, Microcontroladores, IoT, Electronica y Hardware.
+     * Programacion de Bajo Nivel o Sistemas: C, C++, Rust, Go, Python.
+     * Infraestructura, Sysadmin Linux, Administracion de Servidores, Cloud (AWS, Azure, GCP), DevOps, Contenedores.
+     * Ciberseguridad, Seguridad Informatica.
+     * Desarrollo de Software / Software Engineering (Backend, Frontend, Fullstack).
+     * Ingenieria de Datos, Arquitectura de Datos o Machine Learning.
+   - DESCARTA ESTRICTAMENTE Y SIN EXCEPCIONES:
+     * Soporte Tecnico, Help Desk, Service Desk, Mesa de Ayuda, Soporte Nivel 1 o 2, Tecnico de PC/Hardware de oficina, Atencion a usuarios o soporte de aplicaciones ofimaticas.
+     * QA, Testing de Software, QA Tester, Control de Calidad manual o automatizado.
+     * Carreras no afines (Contaduria, Finanzas, Abogacia, Recursos Humanos, Marketing, Ventas puras).
+     * Puestos Senior, Semi-Senior o que exijan mas de 2 anos de experiencia laboral previa.
 4. ESTRICTAMENTE PROHIBIDO INVENTAR O HARDCODEAR PUESTOS: Usa UNICAMENTE los puestos y enlaces reales provistos en el listado. El campo 'link' debe ser exactamente la URL extraida de [LINK: ...]. Si ninguna oferta cumple los criterios, devuelve la lista vacia [].
 5. SEGURIDAD Y PREVENCION ESTRICTA DE ESTAFAS / MALWARE (CERO-TRUST):
    - DESCARTA de forma inmediata cualquier oferta sospechosa o potencialmente fraudulenta:

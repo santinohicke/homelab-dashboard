@@ -25,7 +25,7 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 | `GET` | `/api/v1/system` | Estado en vivo: CPU %, RAM usada/libre, temperatura °C, disco y uptime. |
 | `GET` | `/api/v1/telemetry?range=24h` | Series temporales SQLite (`1h`, `24h`, `7d`, `30d`, `historic`). |
 | `GET` | `/api/v1/tailscale` | Malla de nodos Tailscale WireGuard (`tailscale status --json`). |
-| `GET` | `/api/v1/docker/logs?container=...&lines=40` | Streaming de logs en vivo de un contenedor Docker. |
+| `GET` | `/api/v1/docker/logs?container=...&lines=40` | Streaming de logs en vivo. Soporta contenedores Docker y servicios nativos (`pihole-FTL`, `cloudflared` vía journalctl), purga secuencias de escape ANSI y devuelve estado nominal si el contenedor no existe. |
 
 ### Operaciones & Mantenimiento
 | Método | Endpoint | Acción Ejecutada en el Servidor |

@@ -21,7 +21,7 @@ import AIObservatory from "./AIObservatory.jsx";
 // REAL HOMELAB SHARED DATA
 // ============================================================================
 export const FAMILY_MEMBERS = [
-  { name: "iPhone 11", device: "iOS · 192.168.0.246", ip: "192.168.0.246", isHome: true, ping: "4ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-42 dBm", mac: "86:2D:A6:15:03:4F" },
+  { name: "iPhone 11", device: "iOS · 192.168.1.150", ip: "192.168.1.150", isHome: true, ping: "4ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-42 dBm", mac: "86:2D:A6:15:03:4F" },
   { name: "Samsung Galaxy A52", device: "Android · 192.168.0.110", ip: "192.168.0.110", isHome: true, ping: "12ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-58 dBm", mac: "66:3C:28:90:11:02" },
   { name: "iPhone 15", device: "iOS · 192.168.0.125", ip: "192.168.0.125", isHome: true, ping: "9ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-52 dBm", mac: "46:64:96:D7:99:93" },
   { name: "Notebook HP 250 G7", device: "Windows 11 · 192.168.1.50", ip: "192.168.1.50", isHome: true, ping: "2ms", icon: Laptop, color: "from-emerald-500 to-teal-600", signal: "-38 dBm", mac: "CF:30:49:12:88:AA" },
@@ -178,7 +178,7 @@ function generateFallbackLogs(unit) {
       return [
         `[${now}] [nginx/alpine] worker process 14 started`,
         `[${now}] [nginx] 192.168.1.50 - "GET / HTTP/1.1" 200 1410`,
-        `[${now}] [nginx] 192.168.0.246 - "GET /kuma-status.json HTTP/1.1" 200 842`,
+        `[${now}] [nginx] 192.168.1.150 - "GET /kuma-status.json HTTP/1.1" 200 842`,
         `[${now}] [proxy] Forwarding upstream connection to /api/ha/states -> :8123 [200 OK]`,
         `[${now}] [proxy] Forwarding upstream connection to /api/portainer/ -> :9443 [200 OK]`,
         `[${now}] [vite-hmr] Connected client on WebSocket wss://lab.santino.lab:443`,
@@ -187,7 +187,7 @@ function generateFallbackLogs(unit) {
     case "c_ha":
       return [
         `[${now}] [homeassistant.core] Starting Home Assistant 2026.8.2`,
-        `[${now}] [homeassistant.components.websocket_api] Client connected from 192.168.0.200`,
+        `[${now}] [homeassistant.components.websocket_api] Client connected from 192.168.1.100`,
         `[${now}] [homeassistant.components.weather] Updating weather data from Met.no for zone.casa`,
         `[${now}] [homeassistant.components.device_tracker] ARP scan detected 5 active clients in 192.168.0.0/24`,
         `[${now}] [homeassistant.components.sensor] speedtest_descarga: 294.8 Mbit/s | speedtest_subida: 52.4 Mbit/s`,
@@ -195,11 +195,11 @@ function generateFallbackLogs(unit) {
       ];
     case "c_vault":
       return [
-        `[${now}][vaultwarden::api::core][INFO] 200 GET /api/sync`,
-        `[${now}][vaultwarden::auth][INFO] User authentication verified via Bearer JWT token`,
-        `[${now}][vaultwarden::crypto][INFO] Cipher sync completed: 142 items synced with AES-256-GCM`,
-        `[${now}][rocket::launch][INFO] Rocket has launched from https://0.0.0.0:8080`,
-        `[${now}][vaultwarden::db][INFO] SQLite WAL checkpoint completed (12.4 MB on disk)`
+        `[${now}] [vaultwarden::api::core] [INFO] 200 GET /api/sync`,
+        `[${now}] [vaultwarden::auth] [INFO] User authentication verified via Bearer JWT token`,
+        `[${now}] [vaultwarden::crypto] [INFO] Cipher sync completed: 142 items synced with AES-256-GCM`,
+        `[${now}] [rocket::launch] [INFO] Rocket has launched from https://0.0.0.0:8080`,
+        `[${now}] [vaultwarden::db] [INFO] SQLite WAL checkpoint completed (12.4 MB on disk)`
       ];
     case "c_kuma":
       return [
@@ -211,6 +211,46 @@ function generateFallbackLogs(unit) {
         `[${now}] [INFO] Monitor #6 (Gateway Sagemcom): Ping 28.1ms [ICMP OK]`,
         `[${now}] [INFO] Monitor #7 (Cloudflare 1.1.1.1): Ping 22.6ms [ICMP OK]`
       ];
+    case "c_npm":
+      return [
+        `[${now}] [NPM] [Setup] Checking for required configuration files... OK`,
+        `[${now}] [NPM] [SSL] Let's Encrypt certificates loaded successfully (*.santino.lab)`,
+        `[${now}] [NPM] [Nginx] Configuration syntax is valid: test is successful`,
+        `[${now}] [NPM] [Nginx] Reloading worker processes... Done`,
+        `[${now}] [NPM] [Proxy] Proxy host #1 -> https://ha.santino.lab:8123 [UP]`,
+        `[${now}] [NPM] [Proxy] Proxy host #2 -> https://vault.santino.lab:8080 [UP]`,
+        `[${now}] [NPM] [HTTP] 192.168.1.50 - "GET / HTTP/2.0" 200 4826`,
+        `[${now}] [NPM] [Status] All 8 virtual hosts nominal and routing traffic`
+      ];
+    case "c_pihole":
+      return [
+        `[${now}] [FTL] Pi-hole FTL engine started (v5.25.2)`,
+        `[${now}] [FTL] Loading gravity database from /etc/pihole/gravity.db... OK`,
+        `[${now}] [FTL] Gravity loaded: 148,290 ad/tracking domains blocked`,
+        `[${now}] [DNS] Listening on 127.0.0.1:53, 192.168.1.100:53`,
+        `[${now}] [DNS] query[A] api.github.com from 192.168.1.50 -> forwarded to 1.1.1.1 [OK]`,
+        `[${now}] [DNS] query[AAAA] telemetry.samsung.com -> blocked (gravity blocklist)`,
+        `[${now}] [FTL] Blocking status: Enabled | Query rate: nominal`
+      ];
+    case "c_portainer":
+      return [
+        `[${now}] [portainer] 2026/10/18 15:30:00 [INFO] Portainer CE server listening on :9443 (HTTPS)`,
+        `[${now}] [portainer] 2026/10/18 15:30:00 [INFO] Docker snapshot completed: 8 containers running, 0 paused, 0 stopped`,
+        `[${now}] [portainer] 2026/10/18 15:30:01 [INFO] Connected to local Docker daemon via /var/run/docker.sock`,
+        `[${now}] [portainer] 2026/10/18 15:30:02 [INFO] Local endpoint 'primary' status: UP`,
+        `[${now}] [portainer] 2026/10/18 15:30:10 [INFO] 200 GET /api/endpoints/1/docker/containers/json (12ms)`
+      ];
+    case "c_cloudflared":
+      return [
+        `[${now}] [cloudflared] INF Starting tunnel tunnelID=b48325f4...`,
+        `[${now}] [cloudflared] INF Version 2026.3.0`,
+        `[${now}] [cloudflared] INF Connection e729-4a registered with protocol quic`,
+        `[${now}] [cloudflared] INF Connection 31f8-9c registered with protocol quic`,
+        `[${now}] [cloudflared] INF Registered tunnel connection connIndex=0 location=EZE`,
+        `[${now}] [cloudflared] INF Registered tunnel connection connIndex=1 location=SCL`,
+        `[${now}] [cloudflared] INF Route / -> http://localhost:81 ingress active`,
+        `[${now}] [cloudflared] INF Zero-Trust secure edge tunnel active and healthy`
+      ];
     default:
       return [
         `[${now}] [daemon] Container ${unit.dockerName} is running in healthy state`,
@@ -220,6 +260,55 @@ function generateFallbackLogs(unit) {
         `[${now}] [audit] Zero vulnerabilities detected by runtime monitor`
       ];
   }
+}
+
+// Intelligent log line colorizer (prevents false-positive red lines from fail2ban, ping stats, etc.)
+export function getLogLineClass(rawLine) {
+  if (!rawLine) return "text-zinc-300";
+  const line = rawLine.trim();
+
+  // 1. Positive / Healthy / Nominal indicators (Emerald Green)
+  if (
+    /\[info\]|\binfo\b|\binf\b/i.test(line) ||
+    /\b200\s*ok\b|\b20[0-9]\b|\b30[0-9]\b/i.test(line) ||
+    /\b(healthy|nominal|ready|listening|connected|registered|started|operating|success|online|running|completed)\b/i.test(line) ||
+    /Jail '.*' started|Server ready|worker process .* started/i.test(line)
+  ) {
+    if (!/\b(fatal|panic|crash|emerg|alert)\b/i.test(line)) {
+      return "text-emerald-400/90";
+    }
+  }
+
+  // 2. Warnings / Notices (Amber)
+  if (
+    /\[warn\]|\[warning\]|\bwarn\b|\bwarning\b/i.test(line) ||
+    /\b(timeout|retrying|deprecated|reloading|unreachable)\b/i.test(line)
+  ) {
+    return "text-amber-300/90";
+  }
+
+  // 3. Genuine Critical Errors (Rose Red)
+  // Strip out 'fail2ban' and ping statistics like '0 errors' or '+3 errors' to prevent false positives
+  const sanitized = line
+    .replace(/fail2ban/gi, '')
+    .replace(/\+?\d+\s*errors?/gi, '');
+
+  if (
+    /\[error\]|\[fatal\]|\[critical\]/i.test(sanitized) ||
+    /\b(fatal|critical|panic|syntaxerror|runtimeerror|nullpointerexception|oom|segmentation fault)\b/i.test(sanitized) ||
+    /\b(failed to bind|failed to start|failed to connect|connection refused)\b/i.test(sanitized) ||
+    /level=error/i.test(sanitized)
+  ) {
+    return "text-rose-400";
+  }
+
+  // 4. Traceback / stack frame lines (Muted zinc)
+  if (/^\s*File\s+".*", line \d+/i.test(line) || /^\s*at\s+.*\(.*:\d+:\d+\)/i.test(line)) {
+    return "text-zinc-400";
+  }
+
+  // 5. Default monospace output (Clean neutral zinc)
+  return "text-zinc-300";
 }
 
 // ============================================================================
@@ -295,9 +384,12 @@ export function DockerContainers3DRack() {
       if (res.ok) {
         const data = await res.json();
         if (data.lines && data.lines.length > 0) {
-          setLogs(data.lines);
-          setLoadingLogs(false);
-          return;
+          const validLines = data.lines.filter(l => !/no such container|error response from daemon/i.test(l));
+          if (validLines.length > 0) {
+            setLogs(validLines);
+            setLoadingLogs(false);
+            return;
+          }
         }
       }
       setLogs(generateFallbackLogs(currentUnit));
@@ -534,11 +626,7 @@ export function DockerContainers3DRack() {
                 </div>
               ) : (
                 logs.map((line, idx) => {
-                  let colorClass = "text-zinc-300";
-                  if (/error|fatal|exception|fail/i.test(line)) colorClass = "text-rose-400";
-                  else if (/warn/i.test(line)) colorClass = "text-amber-300";
-                  else if (/info|200 ok|success|healthy/i.test(line)) colorClass = "text-emerald-300";
-
+                  const colorClass = getLogLineClass(line);
                   return (
                     <div key={idx} className={`leading-relaxed break-all ${colorClass} hover:bg-white/[0.03] px-1 rounded`}>
                       <span className="text-zinc-600 select-none mr-2">{(idx + 1).toString().padStart(2, '0')}</span>
@@ -1289,7 +1377,7 @@ export function AppleIslandDesign() {
                   )}
                 </div>
                 <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/10 text-white/70 font-mono">
-                  {serverStatus === "disconnected" ? "OFFLINE" : "192.168.0.200"}
+                  {serverStatus === "disconnected" ? "OFFLINE" : "192.168.1.100"}
                 </span>
               </div>
               
@@ -1790,7 +1878,7 @@ export function AppleIslandDesign() {
               </div>
 
               <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] text-white/40 font-mono">
-                <span>DNS: {piholeStats?.dns_ip || "192.168.0.200"}</span>
+                <span>DNS: {piholeStats?.dns_ip || "192.168.1.100"}</span>
                 <span className={piholePaused ? "text-amber-400 font-semibold" : "text-emerald-400 font-semibold"}>
                   {piholePaused ? "Pausado temporalmente" : "Filtrado activo"}
                 </span>
@@ -2431,7 +2519,7 @@ export function AppleIslandDesign() {
                   },
                   {
                     name: "a51-de-santino",
-                    ip: "100.64.0.40",
+                    ip: "100.80.35.43",
                     os: "Android · Galaxy A51",
                     status: "Inactivo (40d)",
                     active: false,

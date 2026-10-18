@@ -1061,7 +1061,7 @@ export default function HomelabMetricsObservatory() {
                   return [
                     { 
                       name: "iPhone 11 (Santino)", 
-                      ip: "192.168.0.246", 
+                      ip: "192.168.1.150", 
                       rssi: iphoneHome ? "-42 dBm" : "Ausente", 
                       quality: iphoneHome ? "En Casa (WiFi 5GHz)" : "Fuera de Casa", 
                       bar: iphoneHome ? 94 : 15, 
@@ -1193,7 +1193,7 @@ export default function HomelabMetricsObservatory() {
               <ShieldCheck className="w-4 h-4" />
               <span>4. Seguridad, Filtro DNS Pi-hole & Firewall Fail2ban</span>
             </h2>
-            <span className="text-[11px] font-mono text-white/40">192.168.0.200 DNS Master</span>
+            <span className="text-[11px] font-mono text-white/40">192.168.1.100 DNS Master</span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

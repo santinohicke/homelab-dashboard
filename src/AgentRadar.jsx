@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
 import {
-  Radar, Briefcase, Sparkles, RefreshCw, CheckCircle2, ExternalLink,
-  Filter, Search, Bell, Smartphone, Plus, Check, Archive, Clock,
+  Radar, Briefcase, Sparkles, RefreshCw, CheckCircle2,
+  Filter, Search, Plus, Check, Archive, Clock,
   ShieldCheck, MapPin, Tag, ChevronRight, AlertCircle, X, Sliders,
   CheckCircle, Globe, Terminal, ArrowUpRight, Send, Trash2, Undo2, XCircle
 } from "lucide-react";
@@ -41,12 +41,6 @@ export default function AgentRadar() {
   const [filter, setFilter] = useState("all"); // "all" | "new" | "applied"
   const [searchQuery, setSearchQuery] = useState("");
   const [showTargetsModal, setShowTargetsModal] = useState(false);
-  const [pushStatus, setPushStatus] = useState("default"); // "granted" | "denied" | "default" | "unsupported"
-  const [pushFeedback, setPushFeedback] = useState(null); // { type: "success" | "error" | "warning" | "info", message: string }
-  const [requestingPush, setRequestingPush] = useState(false);
-  const [isSecureContext, setIsSecureContext] = useState(true);
-  const [isIOS, setIsIOS] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
   
   // Add target form
   const [newTargetName, setNewTargetName] = useState("");
@@ -55,25 +49,7 @@ export default function AgentRadar() {
   const [newTargetCategory, setNewTargetCategory] = useState("Bolsa Universitaria / IT");
   const [isAddingTarget, setIsAddingTarget] = useState(false);
 
-  // Check notification permission and environment on mount
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const secure = window.isSecureContext || window.location.protocol === "https:";
-      setIsSecureContext(secure);
-
-      const ua = window.navigator?.userAgent || "";
-      const iosDevice = /iPad|iPhone|iPod/.test(ua) || (window.navigator?.platform === "MacIntel" && (window.navigator?.maxTouchPoints || 0) > 1);
-      setIsIOS(iosDevice);
-
-      const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator?.standalone === true;
-      setIsStandalone(standalone);
-
-      if ("Notification" in window) {
-        setPushStatus(Notification.permission);
-      } else {
-        setPushStatus("unsupported");
-      }
-    }
     fetchData();
   }, []);
 
@@ -314,137 +290,6 @@ export default function AgentRadar() {
     }
   };
 
-  const requestPushPermission = async () => {
-    setPushFeedback(null);
-
-    // 1. Check if Notification API exists in window
-    if (!("Notification" in window)) {
-      const msg = "La API de Notificaciones no está habilitada en esta ventana. En iOS (iPhone), recordá que Apple exige abrir el panel desde el acceso directo de la Pantalla de Inicio (PWA) y bajo HTTPS.";
-      setPushFeedback({ type: "warning", message: msg });
-      alert(msg);
-      return;
-    }
-
-    // 2. Check for Secure Context (HTTPS requirement on iOS)
-    if (!window.isSecureContext && window.location.protocol !== "https:") {
-      const msg = "Apple iOS 16.4+ prohíbe de forma estricta las notificaciones Web Push en conexiones no cifradas (HTTP). Para activarlas en tu iPhone 11, ingresá a través de https://192.168.1.100 (o https://100.64.0.10).";
-      setPushFeedback({ type: "warning", message: msg });
-      alert(msg);
-      return;
-    }
-
-    try {
-      setRequestingPush(true);
-
-      // 3. Register and ready Service Worker
-      let reg = null;
-      if ("serviceWorker" in navigator) {
-        try {
-          reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-          await navigator.serviceWorker.ready;
-        } catch (swErr) {
-          console.warn("ServiceWorker registration warning:", swErr);
-        }
-      }
-
-      // 4. Request Notification Permission with dual Promise/Callback pattern (iOS WebKit compatibility)
-      let perm = null;
-      try {
-        const p = Notification.requestPermission((result) => {
-          if (result) perm = result;
-        });
-        if (p && typeof p.then === "function") {
-          perm = await p;
-        }
-      } catch (reqErr) {
-        console.warn("Notification.requestPermission call failed:", reqErr);
-      }
-
-      if (!perm && "Notification" in window) {
-        perm = Notification.permission;
-      }
-
-      setPushStatus(perm || "default");
-
-      if (perm === "granted") {
-        setPushFeedback({
-          type: "success",
-          message: "Notificaciones activadas exitosamente en tu iPhone 11."
-        });
-
-        // Send confirmation notification via Service Worker
-        if (reg && reg.showNotification) {
-          await reg.showNotification("Radar Autónomo IT Homelab", {
-            body: "Notificaciones activadas exitosamente en tu iPhone 11.",
-            icon: "/apple-touch-icon.png",
-            badge: "/icon-192.png"
-          });
-        }
-      } else if (perm === "denied") {
-        const deniedMsg = "Permiso denegado por iOS. Para recibir alertas: ve a Ajustes de iPhone > Safari (o Homelab) > Notificaciones y activa 'Permitir notificaciones'.";
-        setPushFeedback({ type: "error", message: deniedMsg });
-        alert(deniedMsg);
-      } else {
-        setPushFeedback({
-          type: "warning",
-          message: "No se otorgó permiso. Tocá nuevamente para solicitar autorización a iOS."
-        });
-      }
-    } catch (err) {
-      console.error("Error al solicitar permisos push:", err);
-      const errMsg = `Error al solicitar permisos en iOS: ${err.message || err}`;
-      setPushFeedback({ type: "error", message: errMsg });
-      alert(errMsg);
-    } finally {
-      setRequestingPush(false);
-    }
-  };
-
-  const testPushNotification = async () => {
-    setPushFeedback(null);
-    try {
-      if (!("Notification" in window) || Notification.permission !== "granted") {
-        setPushFeedback({
-          type: "warning",
-          message: "Primero debes conceder permisos de notificación pulsando 'Activar en este iPhone'."
-        });
-        return;
-      }
-
-      if ("serviceWorker" in navigator) {
-        const reg = await navigator.serviceWorker.ready;
-        if (reg && reg.showNotification) {
-          await reg.showNotification("Radar IT · Convocatoria Detectada", {
-            body: "UCA HiringRoom: Pasantía en Infraestructura y Cloud - CABA",
-            icon: "/apple-touch-icon.png",
-            badge: "/icon-192.png"
-          });
-          setPushFeedback({
-            type: "success",
-            message: "Alerta de prueba enviada al Centro de Notificaciones de iOS."
-          });
-          return;
-        }
-      }
-
-      // Fallback for non-iOS environments
-      new Notification("Radar IT · Convocatoria Detectada", {
-        body: "UCA HiringRoom: Pasantía en Infraestructura y Cloud - CABA",
-        icon: "/apple-touch-icon.png"
-      });
-      setPushFeedback({
-        type: "success",
-        message: "Alerta de prueba enviada."
-      });
-    } catch (err) {
-      console.error("Error al enviar alerta de prueba:", err);
-      setPushFeedback({
-        type: "error",
-        message: `Error al probar alerta: ${err.message || err}`
-      });
-    }
-  };
-
   // Filter and search logic - ONLY Todas, Nuevas, Mis Postulaciones
   const filteredFindings = findings.filter(f => {
     if (filter === "new" && f.is_read) return false;
@@ -562,131 +407,7 @@ export default function AgentRadar() {
         </div>
       </div>
 
-      {/* 3. IPHONE WEB PUSH NOTIFICATIONS BANNER */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 flex flex-col gap-4 glass-shine">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-purple-500/15 flex items-center justify-center text-purple-400 border border-purple-500/20 shrink-0">
-              <Smartphone className="w-5 h-5" />
-            </div>
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-sm font-bold text-white">Alertas Push para iPhone (PWA Standalone)</h3>
-                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
-                  !isSecureContext
-                    ? "bg-amber-500/15 text-amber-400 border-amber-500/30 font-bold"
-                    : pushStatus === "granted"
-                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-bold"
-                    : pushStatus === "denied"
-                    ? "bg-rose-500/15 text-rose-400 border-rose-500/30 font-bold"
-                    : "bg-cyan-500/15 text-cyan-300 border-cyan-500/30"
-                }`}>
-                  {!isSecureContext
-                    ? "Requiere HTTPS"
-                    : pushStatus === "granted"
-                    ? "Activas"
-                    : pushStatus === "denied"
-                    ? "Bloqueadas en iOS"
-                    : "Pendiente"}
-                </span>
-              </div>
-              <p className="text-xs text-white/60">
-                En iOS 16.4+, agregá este panel a la pantalla de inicio desde Safari para recibir notificaciones nativas en tu iPhone 11 al detectar convocatorias.
-              </p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
-            {pushStatus !== "granted" ? (
-              <button
-                onClick={requestPushPermission}
-                disabled={requestingPush}
-                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs font-mono transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-purple-500/20"
-              >
-                {requestingPush ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Solicitando a iOS...</span>
-                  </>
-                ) : (
-                  <>
-                    <Bell className="w-3.5 h-3.5" />
-                    <span>Activar en este iPhone</span>
-                  </>
-                )}
-              </button>
-            ) : (
-              <button
-                onClick={testPushNotification}
-                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white/90 font-medium text-xs font-mono border border-white/15 transition-all flex items-center gap-2 cursor-pointer"
-              >
-                <Bell className="w-3.5 h-3.5 text-purple-400" />
-                <span>Probar Alerta</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Feedback alert banner */}
-        {pushFeedback && (
-          <div className={`p-3.5 rounded-2xl border text-xs font-mono flex items-start justify-between gap-3 ${
-            pushFeedback.type === "success"
-              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
-              : pushFeedback.type === "error"
-              ? "bg-rose-500/10 border-rose-500/30 text-rose-300"
-              : "bg-amber-500/10 border-amber-500/30 text-amber-300"
-          }`}>
-            <div className="flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{pushFeedback.message}</span>
-            </div>
-            <button
-              onClick={() => setPushFeedback(null)}
-              className="text-white/60 hover:text-white shrink-0 p-0.5 cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* Insecure context warning block (HTTP vs HTTPS on iOS) */}
-        {!isSecureContext && (
-          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2 text-xs">
-            <div className="flex items-center gap-2 text-amber-300 font-bold">
-              <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
-              <span>Conexión HTTP detectada — Apple iOS exige HTTPS para notificaciones</span>
-            </div>
-            <p className="text-white/70 text-[11px] leading-relaxed">
-              Safari e iOS bloquean por completo los permisos de notificación Web Push en conexiones no cifradas (<code className="text-amber-300">http://</code>). Por este motivo no aparecía la ventana emergente de permisos en tu iPhone. Para habilitarlas:
-            </p>
-            <ol className="list-decimal list-inside space-y-1 text-[11px] text-white/70 font-mono">
-              <li>Ingresá mediante HTTPS seguro al servidor: <strong className="text-white">https://192.168.1.100</strong> (o <strong className="text-white">https://100.64.0.10</strong> en Tailscale).</li>
-              <li>En Safari, si ves advertencia de certificado autofirmado, tocá <em>"Mostrar detalles"</em> y luego <em>"Visitar este sitio web"</em>.</li>
-              <li>Tocá el botón Compartir de Safari y seleccioná <em>"Agregar a pantalla de inicio"</em>.</li>
-              <li>Abrí el acceso directo creado y pulsá <em>"Activar en este iPhone"</em>.</li>
-            </ol>
-            <div className="pt-1">
-              <a
-                href={`https://${typeof window !== "undefined" ? window.location.hostname : "192.168.1.100"}/`}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-mono font-bold transition-all"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>Abrir vía HTTPS Seguro</span>
-              </a>
-            </div>
-          </div>
-        )}
-
-        {/* Standalone hint for iOS Safari if opened inside browser tab */}
-        {isIOS && !isStandalone && isSecureContext && (
-          <div className="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-start gap-2.5 text-xs text-cyan-200">
-            <Smartphone className="w-4 h-4 shrink-0 mt-0.5 text-cyan-400" />
-            <p className="text-[11px] leading-relaxed">
-              <strong>Tip para iPhone:</strong> Estás navegando desde la pestaña de Safari. Para habilitar notificaciones push en segundo plano en iOS, recordá pulsar el botón Compartir y seleccionar <em>"Agregar a pantalla de inicio"</em>.
-            </p>
-          </div>
-        )}
-      </div>
 
       {/* 4. FILTER PILLS & SEARCH BAR (STRICTLY TODAS, NUEVAS, MIS POSTULACIONES) */}
       <div className="space-y-3">

@@ -216,7 +216,7 @@ export default function BackupsManager() {
       </div>
 
       {/* SECTION 1: VISUAL CALENDAR OF BACKUPS (OCTOBER 2026) */}
-      <div className="p-6 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
+      <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-500/15 flex items-center justify-center text-emerald-400 border border-emerald-500/20">
@@ -230,7 +230,7 @@ export default function BackupsManager() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
             <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
               Backup Exitoso (03:00 AM)
@@ -243,9 +243,9 @@ export default function BackupsManager() {
         </div>
 
         {/* MONTH CALENDAR GRID */}
-        <div className="grid grid-cols-7 gap-2 sm:gap-3">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2.5">
           {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d, i) => (
-            <div key={i} className="text-center font-mono text-[11px] text-white/40 font-bold uppercase pb-1">
+            <div key={i} className="text-center font-mono text-[10px] sm:text-[11px] text-white/40 font-bold uppercase pb-1">
               {d}
             </div>
           ))}
@@ -257,7 +257,7 @@ export default function BackupsManager() {
             return (
               <div
                 key={day}
-                className={`p-2.5 sm:p-3 rounded-2xl border transition-all text-center flex flex-col justify-between min-h-[64px] sm:min-h-[76px] ${
+                className={`p-1 sm:p-2.5 rounded-xl sm:rounded-2xl border transition-all text-center flex flex-col justify-between min-h-[50px] sm:min-h-[76px] ${
                   isToday
                     ? "bg-emerald-500/15 border-emerald-400/50 shadow-lg shadow-emerald-500/10 ring-1 ring-emerald-400/30"
                     : isCompleted
@@ -265,17 +265,17 @@ export default function BackupsManager() {
                     : "bg-white/[0.01] border-white/5 opacity-40"
                 }`}
               >
-                <div className="flex items-center justify-between text-xs font-mono">
+                <div className="flex items-center justify-between text-[11px] sm:text-xs font-mono px-0.5">
                   <span className={`font-bold ${isToday ? "text-emerald-300" : "text-white/80"}`}>{day}</span>
                   {isCompleted && (
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400" />
+                    <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400" />
                   )}
                 </div>
 
-                <div className="text-[10px] font-mono mt-1">
+                <div className="text-[9px] sm:text-[10px] font-mono mt-0.5">
                   {isCompleted ? (
-                    <span className="text-emerald-400 flex items-center justify-center gap-1 font-semibold">
-                      <Check className="w-3 h-3" />
+                    <span className="text-emerald-400 flex items-center justify-center gap-0.5 sm:gap-1 font-semibold">
+                      <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       <span className="hidden sm:inline">03:00</span>
                     </span>
                   ) : (
@@ -289,7 +289,7 @@ export default function BackupsManager() {
       </div>
 
       {/* SECTION 2: BACKUP FILES EXPLORER */}
-      <div className="p-6 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
+      <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-cyan-500/15 flex items-center justify-center text-cyan-400 border border-cyan-500/20">
@@ -318,7 +318,7 @@ export default function BackupsManager() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full min-w-[650px] text-left text-xs">
             <thead>
               <tr className="border-b border-white/10 text-white/40 uppercase font-mono tracking-wider">
                 <th className="pb-3 pl-3">Nombre del Archivo Snapshot</th>
@@ -368,7 +368,7 @@ export default function BackupsManager() {
       </div>
 
       {/* SECTION 3: GUIDED DISASTER RECOVERY SIMULATOR */}
-      <div className="p-6 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
+      <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 space-y-6 glass-shine">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-purple-500/15 flex items-center justify-center text-purple-400 border border-purple-500/20">
@@ -382,7 +382,7 @@ export default function BackupsManager() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
             <span className={`px-3 py-1 rounded-full border font-mono ${simulatorStep === 1 ? "bg-purple-500/20 border-purple-500/40 text-purple-300 font-bold" : "bg-white/5 border-white/10 text-white/40"}`}>
               1. Servicio
             </span>

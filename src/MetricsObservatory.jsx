@@ -765,7 +765,7 @@ export default function HomelabMetricsObservatory() {
 
         <div className="flex flex-wrap items-center gap-3">
           {/* The 5 Period Buttons */}
-          <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-2xl bg-black/40 border border-white/10">
+          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/40 border border-white/10 overflow-x-auto no-scrollbar max-w-full">
             {[
               { id: "1h", label: "1H", desc: "1 Hora" },
               { id: "24h", label: "24H", desc: "24 Horas" },
@@ -776,7 +776,7 @@ export default function HomelabMetricsObservatory() {
               <button
                 key={period.id}
                 onClick={() => setTimeRange(period.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   timeRange === period.id
                     ? "bg-cyan-500 text-black shadow-md shadow-cyan-500/30 scale-[1.02]"
                     : "text-white/60 hover:text-white hover:bg-white/10"
@@ -808,8 +808,8 @@ export default function HomelabMetricsObservatory() {
       </div>
 
       {/* QUICK CATEGORY FILTER TABS */}
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="text-white/40 font-mono uppercase text-[10px] mr-1 flex items-center gap-1">
+      <div className="flex items-center gap-2 text-xs overflow-x-auto no-scrollbar max-w-full pb-1">
+        <span className="text-white/40 font-mono uppercase text-[10px] mr-1 flex items-center gap-1 shrink-0">
           <Filter className="w-3 h-3" /> Filtrar Sección:
         </span>
         {[
@@ -823,7 +823,7 @@ export default function HomelabMetricsObservatory() {
           <button
             key={cat.id}
             onClick={() => setActiveCategory(cat.id)}
-            className={`px-3 py-1.5 rounded-xl font-medium transition-all text-xs ${
+            className={`px-3 py-1.5 rounded-xl font-medium transition-all text-xs whitespace-nowrap shrink-0 ${
               activeCategory === cat.id
                 ? "bg-white/15 text-white border border-white/20 font-bold shadow-sm"
                 : "bg-white/[0.03] text-white/50 border border-white/5 hover:text-white hover:bg-white/10"

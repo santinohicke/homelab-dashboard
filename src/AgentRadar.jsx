@@ -335,7 +335,7 @@ export default function AgentRadar() {
             <Radar className="w-5 h-5 animate-pulse" />
           </div>
           <div>
-            <div className="font-bold text-white text-base flex items-center gap-2">
+            <div className="font-bold text-white text-base flex flex-wrap items-center gap-2">
               <span>Radar de Oportunidades IT & Pasantías</span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
@@ -348,7 +348,7 @@ export default function AgentRadar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
           <button
             onClick={() => handleRunScan()}
             disabled={scanning}
@@ -496,7 +496,7 @@ export default function AgentRadar() {
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Strict 3 filter pills */}
-          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10">
+          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar max-w-full">
             {[
               { id: "all", label: `Todas (${findings.length})` },
               { id: "new", label: `Nuevas (${stats.unread_count})` },
@@ -628,7 +628,7 @@ export default function AgentRadar() {
               </div>
 
               {/* Actions Footer */}
-              <div className="pt-4 mt-4 border-t border-white/10 flex items-center justify-between gap-3">
+              <div className="pt-4 mt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-2.5">
                 <a
                   href={finding.link}
                   target="_blank"

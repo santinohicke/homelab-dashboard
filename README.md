@@ -49,10 +49,11 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 
 ### 2. Radar Autónomo IT · Pasantías & Part-Time 24/7 (Google Gemini AI)
 * **Vacantes 100% Reales (Zero-Mock)**: Extracción directa del estado embebido `window.__STATE__` en bolsas universitarias (UCA Campus, Universidad de Belgrano), LinkedIn Jobs y Get on Board, descartando de forma tajante datos sintéticos o alucinaciones.
-* **Criterios Estrictos de Filtrado**:
+* **Criterios Estrictos de Filtrado (Orientado a Ingeniería Informática)**:
   * **Jornada Obligatoria**: Exclusivamente Part-Time / Media Jornada (descarta jornadas completas o full-time de 8-9h).
   * **Ubicación & Modalidad**: Remoto o presencial/híbrido **estrictamente en CABA (Ciudad Autónoma de Buenos Aires) o GBA cercano**, descartando puestos presenciales fuera de Buenos Aires.
-  * **Ramas Tecnológicas de Interés**: Redes, Telecomunicaciones, Sistemas Embebidos, Electrónica, Soporte de Infraestructura, C/C++, Rust, Cloud y QA.
+  * **Ramas Tecnológicas de Interés**: Redes, Telecomunicaciones, Sistemas Embebidos, Electrónica, Microcontroladores, Firmware, Bajo Nivel (C/C++, Rust, Go), Sysadmin Linux, Infraestructura, Cloud, DevOps, Ciberseguridad y Software Engineering.
+  * **Exclusión Categórica**: Descarta sin excepciones puestos de Soporte Técnico, Help Desk, Service Desk, Mesa de Ayuda, Soporte Nivel 1/2, Atención a Usuarios, QA, Software Testing o Control de Calidad.
 * **Blindaje Anti-Estafas y Prevención de Malware (Cero-Trust)**:
   * El prompt de inferencia de Gemini descarta activamente cualquier vacante que exija descargas de archivos ejecutables (.exe, .zip), librerías sospechosas o clones de repositorios desconocidos para supuestas "pruebas técnicas".
   * Descarta reclutadores con contacto exclusivo por canales informales (Telegram, WhatsApp o correos @gmail) sin respaldo corporativo.
@@ -61,7 +62,7 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
   1. *Bolsa de Empleo Campus UCA* (`ucaecono.hiringroomcampus.com`)
   2. *Bolsa de Empleo Campus Universidad de Belgrano* (`ub.hiringroomcampus.com`)
   3. *LinkedIn Jobs: Pasantías & Part-Time IT CABA*
-  4. *LinkedIn Jobs: Redes, Soporte & Electrónica*
+  4. *LinkedIn Jobs: Redes, Telecomunicaciones & Electrónica*
   5. *LinkedIn Jobs: Pasantías de Ingeniería & Tecnología*
   6. *LinkedIn Jobs: Trainee / Junior Infraestructura & DevOps*
   7. *LinkedIn Jobs: Programación Embebida, Firmware & IoT*
@@ -71,6 +72,10 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 * **Seguimiento de Postulaciones y Rechazos ("Me rechazaron")**:
   * En "Mis Postulaciones", botón de acción "Me rechazaron" que etiqueta la vacante con el badge `Rechazada` (color rubí/rosa) y opción de deshacer ("Desmarcar rechazo"), manteniéndolas en el flujo sin crear secciones redundantes.
   * Vacantes abiertas señaladas con estado `Postulado · En espera`.
+* **Diseño Cyber Glass & Despeje Visual (Sin Naranja)**:
+  * Estética depurada Apple Glass Cyber: acentos en cian puro, bordes translúcidos y fondos oscuros neutrales, eliminando completamente la paleta ámbar/naranja.
+  * Formato de tarjetas simplificado: síntesis directa de 2 líneas (`line-clamp-2`), eliminando cajas pesadas con bordes redundantes.
+  * Saneamiento nativo UTF-8 (`cleanText()`) para corrección de caracteres y tildes rotas (`Pasantías`).
 * **Métricas Reales en Vivo**: Cuadrícula de 6 métricas extraídas en tiempo real de SQLite: *Ofertas Analizadas*, *Nuevas sin Leer*, *Mis Postulaciones*, *En Espera*, *Rechazadas* y *Portales en Vigilancia*.
 * **Notificaciones Web Push Nativas para iPhone (PWA Standalone)**: Integración con Service Worker (`sw.js`), Web Push API y Badging en iOS 16.4+ para alertas instantáneas.
 

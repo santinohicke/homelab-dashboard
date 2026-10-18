@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import {
   Activity, Server, Wifi, Cpu, HardDrive, Smartphone, Laptop, Tablet,
   Shield, ShieldCheck, Lock, Zap, Radio, Globe, RefreshCw, RotateCw, Terminal, ExternalLink,
@@ -22,7 +22,7 @@ export const FAMILY_MEMBERS = [
   { name: "iPhone 11", device: "iOS · 192.168.0.246", ip: "192.168.0.246", isHome: true, ping: "4ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-42 dBm", mac: "86:2D:A6:15:03:4F" },
   { name: "Samsung Galaxy A52", device: "Android · 192.168.0.110", ip: "192.168.0.110", isHome: true, ping: "12ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-58 dBm", mac: "66:3C:28:90:11:02" },
   { name: "iPhone 15", device: "iOS · 192.168.0.125", ip: "192.168.0.125", isHome: true, ping: "9ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-52 dBm", mac: "46:64:96:D7:99:93" },
-  { name: "Notebook HP 250 G7", device: "Windows 11 · 192.168.0.210", ip: "192.168.0.210", isHome: true, ping: "2ms", icon: Laptop, color: "from-emerald-500 to-teal-600", signal: "-38 dBm", mac: "CF:30:49:12:88:AA" },
+  { name: "Notebook HP 250 G7", device: "Windows 11 · 192.168.1.50", ip: "192.168.1.50", isHome: true, ping: "2ms", icon: Laptop, color: "from-emerald-500 to-teal-600", signal: "-38 dBm", mac: "CF:30:49:12:88:AA" },
   { name: "Panel Control Moto e7", device: "Wallmount · 192.168.0.150", ip: "192.168.0.150", isHome: false, ping: "OFF", icon: Tablet, color: "from-purple-500 to-pink-600", signal: "N/A", mac: "04:A6:71:B2:C3:D4" }
 ];
 
@@ -175,7 +175,7 @@ function generateFallbackLogs(unit) {
     case "c_dash":
       return [
         `[${now}] [nginx/alpine] worker process 14 started`,
-        `[${now}] [nginx] 192.168.0.210 - "GET / HTTP/1.1" 200 1410`,
+        `[${now}] [nginx] 192.168.1.50 - "GET / HTTP/1.1" 200 1410`,
         `[${now}] [nginx] 192.168.0.246 - "GET /kuma-status.json HTTP/1.1" 200 842`,
         `[${now}] [proxy] Forwarding upstream connection to /api/ha/states -> :8123 [200 OK]`,
         `[${now}] [proxy] Forwarding upstream connection to /api/portainer/ -> :9443 [200 OK]`,
@@ -1122,7 +1122,7 @@ export function AppleIslandDesign() {
       id: 3,
       category: "Red",
       title: "Túnel WireGuard P2P activo (Tailscale)",
-      desc: "Conexión directa establecida con desktop-judg38n (192.168.0.210) vía MagicDNS.",
+      desc: "Conexión directa establecida con desktop-judg38n (192.168.1.50) vía MagicDNS.",
       time: "Hace 45 min",
       status: "Conectado",
       icon: Network,
@@ -2281,13 +2281,13 @@ export function AppleIslandDesign() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-white text-base">homelab-node-01</span>
+                    <span className="font-bold text-white text-base">lenovo-server</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono border border-purple-500/30">
                       NODO LOCAL HOST
                     </span>
                   </div>
                   <div className="text-xs text-white/50 font-mono">
-                    IP Tailscale: <span className="text-emerald-400 font-bold">100.64.0.10</span> · MagicDNS: homelab-node-01.tailscale.net
+                    IP Tailscale: <span className="text-emerald-400 font-bold">100.64.0.10</span> · MagicDNS: lenovo-server.tailscale.net
                   </div>
                 </div>
               </div>
@@ -2323,7 +2323,7 @@ export function AppleIslandDesign() {
                   details: n.self ? "WireGuard Core" : (n.cur_addr ? `${n.cur_addr}` : "Tailscale DERP")
                 })) : [
                   {
-                    name: "homelab-node-01",
+                    name: "lenovo-server",
                     ip: "100.64.0.10",
                     os: "Ubuntu Server 24.04 LTS",
                     status: "Este Host (Self)",
@@ -2332,27 +2332,27 @@ export function AppleIslandDesign() {
                     details: "Linux · WireGuard Core"
                   },
                   {
-                    name: "workstation-pc",
+                    name: "desktop-judg38n",
                     ip: "100.64.0.20",
-                    os: "Windows 11 · Workstation",
+                    os: "Windows 11 · PC Santino",
                     status: "Activo Directo",
                     active: true,
                     icon: Laptop,
                     details: "192.168.1.50:41641 · Tx: 7.8M / Rx: 13M"
                   },
                   {
-                    name: "mobile-device-ios",
+                    name: "iphone-11",
                     ip: "100.64.0.30",
-                    os: "iOS · Smartphone",
+                    os: "iOS · iPhone 11",
                     status: "En Malla",
                     active: true,
                     icon: Smartphone,
                     details: "Acceso Remoto Activo"
                   },
                   {
-                    name: "mobile-device-android",
+                    name: "a51-de-santino",
                     ip: "100.64.0.40",
-                    os: "Android · Smartphone",
+                    os: "Android · Galaxy A51",
                     status: "Inactivo (40d)",
                     active: false,
                     icon: Smartphone,
@@ -2421,3 +2421,4 @@ export function AppleIslandDesign() {
 export default function App() {
   return <AppleIslandDesign />;
 }
+

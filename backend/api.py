@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 =============================================================================
 Homelab Telemetry & Operations Micro-API
@@ -952,3 +952,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

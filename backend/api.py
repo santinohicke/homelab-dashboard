@@ -17,8 +17,10 @@ import socket
 import sqlite3
 import subprocess
 import threading
+import urllib.request
+from html.parser import HTMLParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, urljoin
 from datetime import datetime
 
 PORT = 8088
@@ -88,6 +90,64 @@ def init_db():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (ts, cpu, ram, 2903.0, temp, 38.5, 240.0, rx, tx, ping))
         conn.commit()
+
+    # Agent tables: autonomous web research targets & findings
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS agent_targets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            category TEXT DEFAULT 'Pasantías / IT',
+            criteria TEXT NOT NULL,
+            interval_hours INTEGER DEFAULT 6,
+            last_checked INTEGER DEFAULT 0,
+            last_hash TEXT DEFAULT '',
+            active INTEGER DEFAULT 1
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS agent_findings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target_id INTEGER,
+            timestamp INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            company TEXT NOT NULL,
+            modality TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            link TEXT NOT NULL,
+            is_read INTEGER DEFAULT 0,
+            is_archived INTEGER DEFAULT 0
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_findings_ts ON agent_findings(timestamp)")
+    conn.commit()
+
+    # Seed default targets if none exist
+    cur.execute("SELECT COUNT(*) FROM agent_targets")
+    if cur.fetchone()[0] == 0:
+        targets_seed = [
+            (
+                "Get on Board - Pasantías & Trainee IT",
+                "https://www.getonbrd.com/empleos-trainee-y-junior",
+                "Pasantías & Trainee",
+                "Busca pasantías, trainees o puestos iniciales en cualquier rama informática (Dev, Cloud, DevOps, Ciberseguridad, QA, Redes, Datos, Soporte).",
+                6
+            ),
+            (
+                "Get on Board - Empleos Part-Time IT",
+                "https://www.getonbrd.com/empleos-part-time",
+                "Part-Time & Medio Tiempo",
+                "Busca empleos part-time o medio tiempo compatibles con cursada universitaria en tecnología y sistemas.",
+                6
+            )
+        ]
+        for name, url, cat, crit, int_h in targets_seed:
+            cur.execute("""
+                INSERT INTO agent_targets (name, url, category, criteria, interval_hours, last_checked, active)
+                VALUES (?, ?, ?, ?, ?, 0, 1)
+            """, (name, url, cat, crit, int_h))
+        conn.commit()
+
     conn.close()
 
 # CPU deltas
@@ -465,6 +525,168 @@ def get_pihole_live_stats():
 
     return res
 
+# -------------------------------------------------------------
+# AUTONOMOUS WEB INTELLIGENCE & RESEARCH AGENT
+# -------------------------------------------------------------
+class JobPageExtractor(HTMLParser):
+    def __init__(self, base_url):
+        super().__init__()
+        self.base_url = base_url
+        self.lines = []
+        self.current_href = None
+        self.ignore = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ('script', 'style', 'nav', 'footer', 'noscript', 'header'):
+            self.ignore = True
+            return
+        if tag == 'a':
+            for k, v in attrs:
+                if k == 'href' and v:
+                    self.current_href = urljoin(self.base_url, v)
+
+    def handle_endtag(self, tag):
+        if tag in ('script', 'style', 'nav', 'footer', 'noscript', 'header'):
+            self.ignore = False
+            return
+        if tag == 'a':
+            self.current_href = None
+
+    def handle_data(self, data):
+        if not self.ignore and data.strip():
+            txt = data.strip()
+            if self.current_href and ('/jobs/' in self.current_href or '/empleos/' in self.current_href):
+                self.lines.append(f"{txt} [LINK: {self.current_href}]")
+            else:
+                self.lines.append(txt)
+
+    def get_content(self):
+        return '\n'.join(self.lines)
+
+def load_gemini_key():
+    env_file = "/home/santino/infra/.env"
+    if os.path.exists(env_file):
+        try:
+            with open(env_file, "r") as f:
+                for line in f:
+                    if line.startswith("GEMINI_API_KEY="):
+                        return line.strip().split("=", 1)[1].strip('"\'')
+        except Exception:
+            pass
+    return os.environ.get("GEMINI_API_KEY", "")
+
+def run_agent_job_scraper(target_id=None, force=False):
+    key = load_gemini_key()
+    if not key:
+        return {"status": "error", "message": "API Key no configurada en /home/santino/infra/.env"}
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    
+    if target_id:
+        cur.execute("SELECT id, name, url, criteria, last_checked, last_hash FROM agent_targets WHERE id = ?", (target_id,))
+    else:
+        cur.execute("SELECT id, name, url, criteria, last_checked, last_hash FROM agent_targets WHERE active = 1")
+    
+    targets = cur.fetchall()
+    total_new = 0
+    now = int(time.time())
+
+    for t in targets:
+        t_id, t_name, t_url, t_criteria, t_last_chk, t_last_hash = t
+        try:
+            req = urllib.request.Request(t_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+            with urllib.request.urlopen(req, timeout=12) as r:
+                html = r.read().decode('utf-8', errors='ignore')
+
+            parser = JobPageExtractor(t_url)
+            parser.feed(html)
+            raw_lines = [l for l in parser.get_content().split('\n') if len(l) > 3]
+            content = '\n'.join(raw_lines[:100])
+            
+            content_hash = str(hash(content))
+            if not force and content_hash == t_last_hash:
+                continue
+
+            instruction = f"""Actua como un cazatalentos senior para estudiantes universitarios de informatica.
+{t_criteria}
+Analiza el listado. Busca puestos que coincidan y descarta roles senior con mas de 2 anos de experiencia.
+Responde estrictamente con un JSON valido (sin formato markdown adicional):
+{{
+  "encontrados": [
+    {{
+      "titulo": "Titulo del puesto",
+      "empresa": "Nombre de la empresa",
+      "modalidad": "Part-Time / Pasantia / Trainee / Junior / Remoto",
+      "resumen": "Resumen conciso en 1 frase de tecnologias y requisitos",
+      "link": "URL exacta extraida de [LINK: ...]"
+    }}
+  ]
+}}"""
+
+            full_prompt = instruction + "\n\nListado:\n" + content
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={key}"
+            payload = json.dumps({
+                "contents": [{"parts": [{"text": full_prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.1,
+                    "maxOutputTokens": 800,
+                    "thinkingConfig": {
+                        "thinkingBudget": 0
+                    }
+                }
+            }).encode()
+
+            req_gemini = urllib.request.Request(gemini_url, data=payload, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req_gemini, timeout=20) as resp:
+                res = json.loads(resp.read().decode())
+                raw_text = res['candidates'][0]['content']['parts'][0]['text']
+                clean_json = raw_text.replace('```json', '').replace('```', '').strip()
+                data = json.loads(clean_json)
+                
+                for item in data.get("encontrados", []):
+                    title = item.get("titulo", "Puesto IT")
+                    company = item.get("empresa", "Empresa")
+                    modality = item.get("modalidad", "Part-Time / Trainee")
+                    summary = item.get("resumen", "")
+                    link = item.get("link", t_url)
+
+                    # Deduplicate: check if link or (title + company) exists
+                    cur.execute("SELECT id FROM agent_findings WHERE link = ? OR (title = ? AND company = ?)", (link, title, company))
+                    if not cur.fetchone():
+                        cur.execute("""
+                            INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link, is_read, is_archived)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0)
+                        """, (t_id, now, title, company, modality, summary, link))
+                        total_new += 1
+
+            cur.execute("UPDATE agent_targets SET last_checked = ?, last_hash = ? WHERE id = ?", (now, content_hash, t_id))
+            conn.commit()
+        except Exception as e:
+            print(f"[Agent Scraper Error] Target {t_name}: {e}", file=sys.stderr)
+
+    conn.close()
+    return {"status": "ok", "new_findings": total_new, "timestamp": now}
+
+def agent_scheduler_loop():
+    while True:
+        try:
+            now = int(time.time())
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute("SELECT id, interval_hours, last_checked FROM agent_targets WHERE active = 1")
+            targets = cur.fetchall()
+            conn.close()
+
+            for t_id, int_h, last_chk in targets:
+                interval_secs = max(1, int_h) * 3600
+                if (now - last_chk) >= interval_secs:
+                    print(f"[*] Running scheduled agent scrape for target {t_id}...")
+                    run_agent_job_scraper(target_id=t_id)
+        except Exception as e:
+            print(f"[Agent Scheduler Error] {e}", file=sys.stderr)
+        time.sleep(900)
+
 def telemetry_collector_loop():
     while True:
         try:
@@ -812,6 +1034,88 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             self._send_json(get_pihole_live_stats())
             return
 
+        # 12. AGENT FINDINGS (IT Internships & Part-time Opportunities)
+        if path == "/api/v1/agent/findings":
+            is_archived = int(query.get("archived", ["0"])[0])
+            limit = min(100, int(query.get("limit", ["50"])[0]))
+            
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived
+                FROM agent_findings f
+                LEFT JOIN agent_targets t ON f.target_id = t.id
+                WHERE f.is_archived = ?
+                ORDER BY f.timestamp DESC
+                LIMIT ?
+            """, (is_archived, limit))
+            rows = cur.fetchall()
+
+            cur.execute("SELECT COUNT(*) FROM agent_findings WHERE is_read = 0 AND is_archived = 0")
+            unread_count = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM agent_findings WHERE is_archived = 0")
+            total_active = cur.fetchone()[0]
+
+            conn.close()
+
+            findings = []
+            for r in rows:
+                findings.append({
+                    "id": r[0],
+                    "target_id": r[1],
+                    "target_name": r[2] or "Portal Web",
+                    "timestamp": r[3],
+                    "date_str": datetime.fromtimestamp(r[3]).strftime("%d/%m/%Y %H:%M"),
+                    "title": r[4],
+                    "company": r[5],
+                    "modality": r[6],
+                    "summary": r[7],
+                    "link": r[8],
+                    "is_read": bool(r[9]),
+                    "is_archived": bool(r[10])
+                })
+
+            self._send_json({
+                "status": "ok",
+                "findings": findings,
+                "unread_count": unread_count,
+                "total_count": total_active
+            })
+            return
+
+        # 13. AGENT TARGETS (Configured Web Portals)
+        if path == "/api/v1/agent/targets":
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT id, name, url, category, criteria, interval_hours, last_checked, active
+                FROM agent_targets
+                ORDER BY id ASC
+            """)
+            rows = cur.fetchall()
+            conn.close()
+
+            targets = []
+            for r in rows:
+                targets.append({
+                    "id": r[0],
+                    "name": r[1],
+                    "url": r[2],
+                    "category": r[3],
+                    "criteria": r[4],
+                    "interval_hours": r[5],
+                    "last_checked": r[6],
+                    "last_checked_str": datetime.fromtimestamp(r[6]).strftime("%d/%m/%Y %H:%M") if r[6] else "Nunca",
+                    "active": bool(r[7])
+                })
+
+            self._send_json({
+                "status": "ok",
+                "targets": targets
+            })
+            return
+
         self._send_json({"error": "Endpoint not found"}, 404)
 
     def do_POST(self):
@@ -931,6 +1235,113 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 self._send_json({"status": "error", "message": str(e)}, 500)
                 return
 
+        # 8. AGENT: RUN SCRAPER NOW
+        if path == "/api/v1/agent/run":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = {}
+            if content_length > 0:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                except Exception:
+                    pass
+            target_id = body.get("target_id")
+            result = run_agent_job_scraper(target_id=target_id, force=True)
+            self._send_json(result)
+            return
+
+        # 9. AGENT: MARK FINDING READ
+        if path == "/api/v1/agent/mark-read":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = {}
+            if content_length > 0:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                except Exception:
+                    pass
+            
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            if body.get("all"):
+                cur.execute("UPDATE agent_findings SET is_read = 1 WHERE is_read = 0")
+            elif "id" in body:
+                cur.execute("UPDATE agent_findings SET is_read = 1 WHERE id = ?", (body["id"],))
+            conn.commit()
+            conn.close()
+            self._send_json({"status": "ok"})
+            return
+
+        # 10. AGENT: ARCHIVE FINDING
+        if path == "/api/v1/agent/archive":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = {}
+            if content_length > 0:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                except Exception:
+                    pass
+            
+            if "id" in body:
+                conn = sqlite3.connect(DB_PATH)
+                cur = conn.cursor()
+                cur.execute("UPDATE agent_findings SET is_archived = 1 WHERE id = ?", (body["id"],))
+                conn.commit()
+                conn.close()
+            self._send_json({"status": "ok"})
+            return
+
+        # 11. AGENT: ADD TARGET
+        if path == "/api/v1/agent/targets":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = {}
+            if content_length > 0:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                except Exception:
+                    pass
+            
+            name = body.get("name", "").strip()
+            url = body.get("url", "").strip()
+            category = body.get("category", "Pasantías / IT").strip()
+            criteria = body.get("criteria", "Buscar pasantías, trainee o empleos part-time en tecnología.").strip()
+            interval_hours = int(body.get("interval_hours", 6))
+
+            if not name or not url:
+                self._send_json({"status": "error", "message": "Nombre y URL son obligatorios"}, 400)
+                return
+
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO agent_targets (name, url, category, criteria, interval_hours, last_checked, active)
+                VALUES (?, ?, ?, ?, ?, 0, 1)
+            """, (name, url, category, criteria, interval_hours))
+            new_id = cur.lastrowid
+            conn.commit()
+            conn.close()
+
+            self._send_json({"status": "ok", "id": new_id})
+            return
+
+        # 12. AGENT: TOGGLE TARGET ACTIVE
+        if path == "/api/v1/agent/targets/toggle":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = {}
+            if content_length > 0:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                except Exception:
+                    pass
+            
+            t_id = body.get("id")
+            if t_id is not None:
+                conn = sqlite3.connect(DB_PATH)
+                cur = conn.cursor()
+                cur.execute("UPDATE agent_targets SET active = CASE WHEN active = 1 THEN 0 ELSE 1 END WHERE id = ?", (t_id,))
+                conn.commit()
+                conn.close()
+            self._send_json({"status": "ok"})
+            return
+
         self._send_json({"error": "Action endpoint not found"}, 404)
 
 def main():
@@ -941,9 +1352,13 @@ def main():
     collector_thread.start()
     print("[*] Telemetry background collector started.")
 
+    agent_thread = threading.Thread(target=agent_scheduler_loop, daemon=True)
+    agent_thread.start()
+    print("[*] Autonomous IT Agent scheduler loop started.")
+
     HTTPServer.allow_reuse_address = True
     server = HTTPServer(("0.0.0.0", PORT), HomelabAPIHandler)
-    print(f"[?] Homelab Micro-API listening on http://0.0.0.0:{PORT}...")
+    print(f"[*] Homelab Micro-API listening on http://0.0.0.0:{PORT}...")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

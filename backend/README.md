@@ -50,6 +50,17 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 | `POST` | `/api/v1/pihole/pause` | Pausa el filtrado de publicidad durante 5 minutos para pruebas (`pihole disable 5m`). |
 | `POST` | `/api/v1/pihole/resume` | Reanuda el filtrado DNS inmediatamente (`pihole enable`). |
 
+### Agente Autónomo de Investigación IT & Pasantías (Gemini AI Zero-Billing)
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/agent/findings` | Devuelve las convocatorias detectadas ordenadas por fecha con contador de no leídos. |
+| `GET` | `/api/v1/agent/targets` | Lista de portales web y fuentes de empleo configuradas con sus intervalos. |
+| `POST` | `/api/v1/agent/run` | Fuerza la ejecución inmediata del scraper y análisis con Google Gemini 3.1 Flash-Lite. |
+| `POST` | `/api/v1/agent/mark-read` | Marca una oferta (`{"id": N}`) o todas (`{"all": true}`) como leídas. |
+| `POST` | `/api/v1/agent/archive` | Archiva una oferta (`{"id": N}`) de la vista activa. |
+| `POST` | `/api/v1/agent/targets` | Agrega un nuevo portal o URL con criterios personalizados de búsqueda. |
+| `POST` | `/api/v1/agent/targets/toggle` | Pausa o activa el monitoreo periódico de un portal existente (`{"id": N}`). |
+
 ---
 
 ## Despliegue en el Servidor

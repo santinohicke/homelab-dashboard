@@ -14,6 +14,7 @@ import DevOpsConsole from "./DevOpsConsole.jsx";
 import SecurityVault from "./SecurityVault.jsx";
 import NetworkTopology from "./NetworkTopology.jsx";
 import BackupsManager from "./BackupsManager.jsx";
+import AgentRadar from "./AgentRadar.jsx";
 
 // ============================================================================
 // REAL HOMELAB SHARED DATA
@@ -762,7 +763,14 @@ export function AppleIslandDesign() {
   const [timeStr, setTimeStr] = useState(() => 
     new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) + " ART"
   );
-  const [dashboardSection, setDashboardSection] = useState("control"); // "control" | "metrics" | "devops" | "security" | "network" | "backups"
+  const [dashboardSection, setDashboardSection] = useState("control"); // "control" | "radar" | "metrics" | "devops" | "security" | "network" | "backups"
+
+  // Service Worker Registration for iPhone PWA Push
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
 
   // Modo Mantenimiento state (synchronized with real backend flag)
   const [maintenanceMode, setMaintenanceMode] = useState(false);
@@ -1358,6 +1366,7 @@ export function AppleIslandDesign() {
             <div>
               <div className="text-xs uppercase tracking-widest text-zinc-400 font-mono font-semibold mb-1">
                 {dashboardSection === "control" && "HOMELAB · SERVIDOR LENOVO"}
+                {dashboardSection === "radar" && "VIGILANCIA IA · PASANTÍAS & EMPLEOS IT"}
                 {dashboardSection === "metrics" && "OBSERVABILIDAD · TELEMETRÍA HISTÓRICA"}
                 {dashboardSection === "devops" && "OPERACIONES · AUTOMATIZACIÓN & TERMINAL"}
                 {dashboardSection === "security" && "CENTRO DE DEFENSA · CIFRADO & HARDENING"}
@@ -1366,6 +1375,7 @@ export function AppleIslandDesign() {
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
                 {dashboardSection === "control" && "Centro de Control"}
+                {dashboardSection === "radar" && "Radar Autónomo IT"}
                 {dashboardSection === "metrics" && "Métricas & Analíticas"}
                 {dashboardSection === "devops" && "Consola de Operaciones & DevOps"}
                 {dashboardSection === "security" && "Bóveda de Seguridad & Auditoría"}
@@ -1378,6 +1388,7 @@ export function AppleIslandDesign() {
             <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-xl overflow-x-auto no-scrollbar max-w-full">
               {[
                 { id: "control", label: "Centro de Control", icon: Sliders, color: "text-cyan-400" },
+                { id: "radar", label: "Radar IT & Pasantías", icon: Radar, color: "text-amber-400" },
                 { id: "metrics", label: "Métricas & Gráficos", icon: BarChart3, color: "text-purple-400" },
                 { id: "devops", label: "Consola & DevOps", icon: Terminal, color: "text-emerald-400" },
                 { id: "security", label: "Seguridad & Auditoría", icon: ShieldCheck, color: "text-rose-400" },
@@ -2390,6 +2401,10 @@ export function AppleIslandDesign() {
         )}
 
         <TabErrorBoundary key={dashboardSection}>
+          {dashboardSection === "radar" && (
+            <AgentRadar />
+          )}
+
           {dashboardSection === "metrics" && (
             <HomelabMetricsObservatory />
           )}

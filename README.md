@@ -29,7 +29,7 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 │                           DYNAMIC ISLAND WIDGET                             │
 │       [Server Online]      ·      [4ms Latencia]      ·     [03:30 ART]     │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  [Centro Control] [Métricas] [DevOps] [Seguridad] [Red] [Backups]           │
+│ [Centro Control] [Radar IT] [Métricas] [DevOps] [Seguridad] [Red] [Backups] │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -87,6 +87,15 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 * **Calendario Mensual Visual**: Cuadrícula de 31 días con indicadores de ejecución exitosa del cron de las 03:00 AM.
 * **Explorador de Snapshots**: Listado de respaldos comprimidos (`.tar.gz`, `.sqlite.bak`), tamaño en disco, fecha, botón de descarga y verificación criptográfica SHA-256.
 * **Simulador de Restauración Asistida**: Asistente guiado en 4 pasos para ensayar la recuperación de un contenedor en menos de 5 minutos ante emergencias.
+
+---
+
+### 7. Radar Autónomo IT · Pasantías & Part-Time 24/7 (Google Gemini AI)
+* **Agente de Vigilancia Web Continuo**: Motor autónomo ejecutado en segundo plano que rastrea periódicamente portales de empleo tecnológico (Get on Board, bolsas universitarias).
+* **Filtrado Inteligente con Google Gemini 3.1 Flash-Lite**: Procesa listados de empleo descartando automáticamente roles sénior (+2 años) y seleccionando únicamente vacantes iniciales, pasantías, trainees y empleos de medio tiempo (part-time) compatibles con cursadas universitarias.
+* **Política Estricta Zero-Billing ($0.00)**: Diseñado para operar exclusivamente dentro de la capa gratuita (Free Tier) de Google AI Studio, con latencia optimizada (`thinkingBudget: 0`) y desconexión absoluta de facturación.
+* **Notificaciones Web Push Nativas para iPhone (PWA Standalone)**: Integración con Service Worker (`sw.js`), Web Push API y Badging en iOS 16.4+ para recibir alertas inmediatas en el celular sin requerir servicios de mensajería externos de terceros.
+* **Gestor de Portales & Criterios**: Panel interactivo para agregar nuevas URLs a monitorear y ajustar prompts de búsqueda en tiempo real.
 
 ---
 

@@ -209,6 +209,7 @@ En cumplimiento estricto con las especificaciones de seguridad de Apple WebKit:
 * **Contexto Seguro Requerido (`HTTPS`)**: iOS restringe el acceso a la API de Notificaciones exclusivamente a conexiones seguras (`https://`). En conexiones HTTP sin cifrar, WebKit bloquea el prompt del sistema.
 * **Modo PWA Standalone**: Para recibir notificaciones en segundo plano, la web debe iniciarse desde el acceso directo guardado en la Pantalla de Inicio de iOS.
 * **Service Worker Universal**: Las alertas se canalizan mediante `navigator.serviceWorker.ready` y `registration.showNotification()`, evitando el constructor `new Notification()` no soportado en WebKit móvil.
+* **Certificado Público Let's Encrypt**: En entornos con Tailscale MagicDNS, el panel se sirve con certificado oficial Let's Encrypt de confianza pública (`https://lenovo-server.tail197fd6.ts.net`), garantizando la descarga inmediata del icono del bastidor y el funcionamiento pleno de Web Push sin alertas de certificado en iOS.
 
 
 ---

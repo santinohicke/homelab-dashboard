@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+﻿import React, { useState, useMemo, useEffect } from "react";
 import {
   Activity, Server, Wifi, Cpu, HardDrive, Smartphone, Laptop, Tablet,
   Shield, ShieldCheck, Lock, Zap, Radio, Globe, RefreshCw, RotateCw, Terminal,
@@ -259,7 +259,7 @@ function GlassAreaChart({
           {maxVal !== undefined && <span>Máx: <strong className="text-white font-medium">{maxVal}{unit}</strong></span>}
         </div>
         <div className="text-[10px] text-white/40">
-          {data[0]?.time} - {data[data.length - 1]?.time}
+          {data[0]?.time} ➔ {data[data.length - 1]?.time}
         </div>
       </div>
     </div>
@@ -982,7 +982,7 @@ export default function HomelabMetricsObservatory() {
               <Wifi className="w-4 h-4" />
               <span>2. Tráfico de Red, WiFi & Ancho de Banda</span>
             </h2>
-            <span className="text-[11px] font-mono text-white/40">Router Gigabit 192.168.1.1</span>
+            <span className="text-[11px] font-mono text-white/40">Router Gigabit 192.168.0.1</span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1053,38 +1053,38 @@ export default function HomelabMetricsObservatory() {
 
               <div className="space-y-3 pt-2">
                 {(() => {
-                  const phone01Batt = haStates['sensor.phone_01_battery_level']?.state;
-                  const displayBatt = haStates['sensor.wall_display_battery_level']?.state;
-                  const phone01Home = haStates['device_tracker.admin_phone']?.state === 'home';
-                  const phone02Home = haStates['device_tracker.mobile_phone_02']?.state === 'home';
+                  const a51Batt = haStates['sensor.a51_santino_battery_level']?.state;
+                  const motoBatt = haStates['sensor.panel_de_control_moto_battery_level']?.state;
+                  const iphoneHome = haStates['device_tracker.santinos_iphone']?.state === 'home';
+                  const a51Home = haStates['device_tracker.a51_santino']?.state === 'home';
 
                   return [
                     { 
-                      name: "iPhone 11 (Admin)", 
-                      ip: "192.168.1.150", 
-                      rssi: phone01Home ? "-42 dBm" : "Ausente", 
-                      quality: phone01Home ? "En Casa (WiFi 5GHz)" : "Fuera de Casa", 
-                      bar: phone01Home ? 94 : 15, 
-                      color: phone01Home ? "bg-emerald-400" : "bg-zinc-500"
+                      name: "iPhone 11 (Santino)", 
+                      ip: "192.168.0.246", 
+                      rssi: iphoneHome ? "-42 dBm" : "Ausente", 
+                      quality: iphoneHome ? "En Casa (WiFi 5GHz)" : "Fuera de Casa", 
+                      bar: iphoneHome ? 94 : 15, 
+                      color: iphoneHome ? "bg-emerald-400" : "bg-zinc-500"
                     },
                     { 
-                      name: "Android Mobile", 
-                      ip: "192.168.1.110", 
-                      rssi: phone01Batt ? `${phone01Batt}% Bat` : "-58 dBm", 
-                      quality: phone02Home ? "En Casa · Conectado" : "Suspendido", 
-                      bar: phone01Batt ? parseInt(phone01Batt) : 60, 
+                      name: "Samsung Galaxy A51", 
+                      ip: "192.168.0.110", 
+                      rssi: a51Batt ? `${a51Batt}% Bat` : "-58 dBm", 
+                      quality: a51Home ? "En Casa · Conectado" : "Suspendido", 
+                      bar: a51Batt ? parseInt(a51Batt) : 60, 
                       color: "bg-cyan-400" 
                     },
                     { 
-                      name: "Wallmount Panel Display", 
-                      ip: "192.168.1.220", 
-                      rssi: displayBatt ? `${displayBatt}% Bat` : "-48 dBm", 
+                      name: "Panel de Control Moto", 
+                      ip: "192.168.0.150", 
+                      rssi: motoBatt ? `${motoBatt}% Bat` : "-48 dBm", 
                       quality: "Enlace Fijo · Display", 
-                      bar: displayBatt ? parseInt(displayBatt) : 16, 
+                      bar: motoBatt ? parseInt(motoBatt) : 16, 
                       color: "bg-purple-400" 
                     },
                     { 
-                      name: "Workstation PC", 
+                      name: "Notebook HP 250 G7", 
                       ip: "192.168.1.50", 
                       rssi: "-38 dBm", 
                       quality: "99% Enlace Directo LAN", 
@@ -1106,7 +1106,7 @@ export default function HomelabMetricsObservatory() {
               </div>
 
               <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] font-mono text-white/40">
-                <span>SSID: Homelab WiFi 2.4/5.8</span>
+                <span>SSID: Fibertel WiFi 2.4/5.8</span>
                 <span className="text-emerald-400">Sin interferencias</span>
               </div>
             </div>
@@ -1193,7 +1193,7 @@ export default function HomelabMetricsObservatory() {
               <ShieldCheck className="w-4 h-4" />
               <span>4. Seguridad, Filtro DNS Pi-hole & Firewall Fail2ban</span>
             </h2>
-            <span className="text-[11px] font-mono text-white/40">192.168.1.100 DNS Master</span>
+            <span className="text-[11px] font-mono text-white/40">192.168.0.200 DNS Master</span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1307,3 +1307,4 @@ export default function HomelabMetricsObservatory() {
     </div>
   );
 }
+

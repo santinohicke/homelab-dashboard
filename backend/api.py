@@ -116,10 +116,38 @@ def init_db():
             summary TEXT NOT NULL,
             link TEXT NOT NULL,
             is_read INTEGER DEFAULT 0,
-            is_archived INTEGER DEFAULT 0
+            is_archived INTEGER DEFAULT 0,
+            is_applied INTEGER DEFAULT 0
         )
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_findings_ts ON agent_findings(timestamp)")
+    conn.commit()
+
+    # Dynamic migrations for agent_findings
+    cur.execute("PRAGMA table_info(agent_findings)")
+    af_cols = [c[1] for c in cur.fetchall()]
+    if "is_applied" not in af_cols:
+        try:
+            cur.execute("ALTER TABLE agent_findings ADD COLUMN is_applied INTEGER DEFAULT 0")
+            conn.commit()
+        except Exception:
+            pass
+
+    # AI usage and token telemetry tracking
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ai_usage_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp INTEGER NOT NULL,
+            model TEXT NOT NULL,
+            prompt_tokens INTEGER DEFAULT 0,
+            completion_tokens INTEGER DEFAULT 0,
+            total_tokens INTEGER DEFAULT 0,
+            purpose TEXT DEFAULT 'Scraper Radar IT',
+            latency_ms INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'ok'
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ai_usage_ts ON ai_usage_logs(timestamp)")
     conn.commit()
 
     # Seed default targets if none exist
@@ -127,16 +155,30 @@ def init_db():
     if cur.fetchone()[0] == 0:
         targets_seed = [
             (
-                "Get on Board - Pasantías & Trainee IT",
-                "https://www.getonbrd.com/empleos-trainee-y-junior",
-                "Pasantías & Trainee",
-                "Busca pasantías, trainees o puestos iniciales en cualquier rama informática (Dev, Cloud, DevOps, Ciberseguridad, QA, Redes, Datos, Soporte).",
+                "UCA - Bolsa de Empleo Campus",
+                "https://ucaecono.hiringroomcampus.com/jobs",
+                "UCA Oficial",
+                "Bolsa oficial de la facultad. Pasantías y empleos part-time en tecnología, redes, sistemas o soporte en CABA.",
+                6
+            ),
+            (
+                "LinkedIn Jobs - Pasantías & Part-Time IT",
+                "https://www.linkedin.com/jobs/search?keywords=sistemas&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I",
+                "LinkedIn Argentina",
+                "Pasantías y empleos part-time en Buenos Aires de sistemas, redes, hardware, firmware o soporte.",
+                6
+            ),
+            (
+                "LinkedIn Jobs - Redes, Soporte & Electrónica",
+                "https://www.linkedin.com/jobs/search?keywords=redes%20o%20soporte%20o%20electronica&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I",
+                "LinkedIn Redes/Hardware",
+                "Pasantías y medio tiempo en redes, soporte técnico, electrónica, firmware o telecomunicaciones en CABA.",
                 6
             ),
             (
                 "Get on Board - Empleos Part-Time IT",
                 "https://www.getonbrd.com/empleos-part-time",
-                "Part-Time & Medio Tiempo",
+                "Get on Board",
                 "Busca empleos part-time o medio tiempo compatibles con cursada universitaria en tecnología y sistemas.",
                 6
             )
@@ -555,7 +597,7 @@ class JobPageExtractor(HTMLParser):
     def handle_data(self, data):
         if not self.ignore and data.strip():
             txt = data.strip()
-            if self.current_href and ('/jobs/' in self.current_href or '/empleos/' in self.current_href):
+            if self.current_href and ('/jobs' in self.current_href or '/empleos' in self.current_href or '/vacantes' in self.current_href or 'hiringroomcampus' in self.current_href or 'linkedin.com/jobs' in self.current_href):
                 self.lines.append(f"{txt} [LINK: {self.current_href}]")
             else:
                 self.lines.append(txt)
@@ -596,29 +638,35 @@ def run_agent_job_scraper(target_id=None, force=False):
         t_id, t_name, t_url, t_criteria, t_last_chk, t_last_hash = t
         try:
             req = urllib.request.Request(t_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-            with urllib.request.urlopen(req, timeout=12) as r:
+            with urllib.request.urlopen(req, timeout=14) as r:
                 html = r.read().decode('utf-8', errors='ignore')
 
             parser = JobPageExtractor(t_url)
             parser.feed(html)
             raw_lines = [l for l in parser.get_content().split('\n') if len(l) > 3]
-            content = '\n'.join(raw_lines[:100])
+            content = '\n'.join(raw_lines[:160])
             
             content_hash = str(hash(content))
             if not force and content_hash == t_last_hash:
                 continue
 
-            instruction = f"""Actua como un cazatalentos senior para estudiantes universitarios de informatica.
-{t_criteria}
-Analiza el listado. Busca puestos que coincidan y descarta roles senior con mas de 2 anos de experiencia.
-Responde estrictamente con un JSON valido (sin formato markdown adicional):
+            instruction = f"""Actua como un cazatalentos senior y mentor de ingenieria informatica para un estudiante universitario de la UCA en Buenos Aires, Argentina.
+Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin excepcion:
+1. JORNADA OBLIGATORIA: Debe ser PART-TIME, MEDIA JORNADA o PASANTIA (4 a 6 horas diarias). DESCARTA cualquier puesto Full-Time, tiempo completo o jornada completa de 8-9 horas.
+2. UBICACION Y MODALIDAD:
+   - Si es Remoto / 100% Virtual: PERMITIDO (desde cualquier ubicacion).
+   - Si es Presencial o Hibrido: DEBE SER OBLIGATORIAMENTE en CABA (Ciudad Autonoma de Buenos Aires) o Gran Buenos Aires cercano, Argentina. DESCARTA puestos presenciales/hibridos en otras provincias o paises (ej. Chile, Colombia, Mendoza, etc.).
+3. RAMAS DE INTERES:
+   - Primer empleo para estudiante de Ingenieria Informatica: Redes / Telecomunicaciones, Soporte Tecnico / SysAdmin, Electronica / Hardware, Programacion Embebida / Firmware / IoT, Bajo Nivel (C/C++, Rust), Infraestructura, Cloud, DevOps, Ciberseguridad, QA / Testing, Datos, o Desarrollo de Software general.
+   - DESCARTA puestos senior, semi-senior o que exijan mas de 2 anos de experiencia laboral previa.
+4. Responde estrictamente con un JSON valido (sin formato markdown adicional):
 {{
   "encontrados": [
     {{
-      "titulo": "Titulo del puesto",
+      "titulo": "Titulo exacto del puesto",
       "empresa": "Nombre de la empresa",
-      "modalidad": "Part-Time / Pasantia / Trainee / Junior / Remoto",
-      "resumen": "Resumen conciso en 1 frase de tecnologias y requisitos",
+      "modalidad": "Part-Time / Pasantia / Remoto / Hibrido CABA",
+      "resumen": "Resumen conciso en 1 frase de tecnologias y por que se adapta a un estudiante",
       "link": "URL exacta extraida de [LINK: ...]"
     }}
   ]
@@ -637,9 +685,24 @@ Responde estrictamente con un JSON valido (sin formato markdown adicional):
                 }
             }).encode()
 
+            req_t0 = time.time()
             req_gemini = urllib.request.Request(gemini_url, data=payload, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req_gemini, timeout=20) as resp:
+            with urllib.request.urlopen(req_gemini, timeout=25) as resp:
                 res = json.loads(resp.read().decode())
+                latency_ms = int((time.time() - req_t0) * 1000)
+
+                # Extract and record real Gemini token usage
+                usage = res.get('usageMetadata', {})
+                p_tokens = usage.get('promptTokenCount', 0)
+                c_tokens = usage.get('candidatesTokenCount', 0)
+                t_tokens = usage.get('totalTokenCount', p_tokens + c_tokens)
+
+                cur.execute("""
+                    INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (now, "gemini-3.1-flash-lite", p_tokens, c_tokens, t_tokens, f"Rastreo: {t_name}", latency_ms, "ok"))
+                conn.commit()
+
                 raw_text = res['candidates'][0]['content']['parts'][0]['text']
                 clean_json = raw_text.replace('```json', '').replace('```', '').strip()
                 data = json.loads(clean_json)
@@ -647,7 +710,7 @@ Responde estrictamente con un JSON valido (sin formato markdown adicional):
                 for item in data.get("encontrados", []):
                     title = item.get("titulo", "Puesto IT")
                     company = item.get("empresa", "Empresa")
-                    modality = item.get("modalidad", "Part-Time / Trainee")
+                    modality = item.get("modalidad", "Part-Time / CABA")
                     summary = item.get("resumen", "")
                     link = item.get("link", t_url)
 
@@ -655,8 +718,8 @@ Responde estrictamente con un JSON valido (sin formato markdown adicional):
                     cur.execute("SELECT id FROM agent_findings WHERE link = ? OR (title = ? AND company = ?)", (link, title, company))
                     if not cur.fetchone():
                         cur.execute("""
-                            INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link, is_read, is_archived)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0)
+                            INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link, is_read, is_archived, is_applied)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0)
                         """, (t_id, now, title, company, modality, summary, link))
                         total_new += 1
 
@@ -664,6 +727,14 @@ Responde estrictamente con un JSON valido (sin formato markdown adicional):
             conn.commit()
         except Exception as e:
             print(f"[Agent Scraper Error] Target {t_name}: {e}", file=sys.stderr)
+            try:
+                cur.execute("""
+                    INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
+                    VALUES (?, ?, 0, 0, 0, ?, 0, ?)
+                """, (now, "gemini-3.1-flash-lite", f"Error: {t_name}", f"error: {str(e)[:100]}"))
+                conn.commit()
+            except Exception:
+                pass
 
     conn.close()
     return {"status": "ok", "new_findings": total_new, "timestamp": now}
@@ -1037,22 +1108,55 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
         # 12. AGENT FINDINGS (IT Internships & Part-time Opportunities)
         if path == "/api/v1/agent/findings":
             is_archived = int(query.get("archived", ["0"])[0])
+            view = query.get("view", ["active"])[0]
             limit = min(100, int(query.get("limit", ["50"])[0]))
             
             conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
-            cur.execute("""
-                SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived
-                FROM agent_findings f
-                LEFT JOIN agent_targets t ON f.target_id = t.id
-                WHERE f.is_archived = ?
-                ORDER BY f.timestamp DESC
-                LIMIT ?
-            """, (is_archived, limit))
+
+            if view == "applied":
+                cur.execute("""
+                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0)
+                    FROM agent_findings f
+                    LEFT JOIN agent_targets t ON f.target_id = t.id
+                    WHERE f.is_applied = 1 AND f.is_archived = 0
+                    ORDER BY f.timestamp DESC
+                    LIMIT ?
+                """, (limit,))
+            elif view == "archived":
+                cur.execute("""
+                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0)
+                    FROM agent_findings f
+                    LEFT JOIN agent_targets t ON f.target_id = t.id
+                    WHERE f.is_archived = 1
+                    ORDER BY f.timestamp DESC
+                    LIMIT ?
+                """, (limit,))
+            elif view == "all":
+                cur.execute("""
+                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0)
+                    FROM agent_findings f
+                    LEFT JOIN agent_targets t ON f.target_id = t.id
+                    ORDER BY f.timestamp DESC
+                    LIMIT ?
+                """, (limit,))
+            else: # active (not archived)
+                cur.execute("""
+                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0)
+                    FROM agent_findings f
+                    LEFT JOIN agent_targets t ON f.target_id = t.id
+                    WHERE f.is_archived = ?
+                    ORDER BY f.timestamp DESC
+                    LIMIT ?
+                """, (is_archived, limit))
+
             rows = cur.fetchall()
 
             cur.execute("SELECT COUNT(*) FROM agent_findings WHERE is_read = 0 AND is_archived = 0")
             unread_count = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM agent_findings WHERE is_applied = 1 AND is_archived = 0")
+            applied_count = cur.fetchone()[0]
 
             cur.execute("SELECT COUNT(*) FROM agent_findings WHERE is_archived = 0")
             total_active = cur.fetchone()[0]
@@ -1073,13 +1177,15 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                     "summary": r[7],
                     "link": r[8],
                     "is_read": bool(r[9]),
-                    "is_archived": bool(r[10])
+                    "is_archived": bool(r[10]),
+                    "is_applied": bool(r[11])
                 })
 
             self._send_json({
                 "status": "ok",
                 "findings": findings,
                 "unread_count": unread_count,
+                "applied_count": applied_count,
                 "total_count": total_active
             })
             return
@@ -1113,6 +1219,133 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             self._send_json({
                 "status": "ok",
                 "targets": targets
+            })
+            return
+
+        # 14. AI OBSERVABILITY & TOKEN USAGE STATS
+        if path == "/api/v1/ai/stats":
+            now = int(time.time())
+            # Start of current local day
+            local_midnight = int(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+
+            # Today stats
+            cur.execute("""
+                SELECT COUNT(*), COALESCE(SUM(prompt_tokens), 0), COALESCE(SUM(completion_tokens), 0), COALESCE(SUM(total_tokens), 0), COALESCE(AVG(latency_ms), 0)
+                FROM ai_usage_logs
+                WHERE timestamp >= ? AND status = 'ok'
+            """, (local_midnight,))
+            t_row = cur.fetchone()
+            today_reqs = t_row[0]
+            today_prompt = t_row[1]
+            today_completion = t_row[2]
+            today_tokens = t_row[3]
+            today_avg_lat = round(t_row[4] / 1000.0, 2) if t_row[4] else 0.0
+
+            # Current minute requests (RPM)
+            cur.execute("SELECT COUNT(*) FROM ai_usage_logs WHERE timestamp >= ?", (now - 60,))
+            current_rpm = cur.fetchone()[0]
+
+            # All time stats
+            cur.execute("""
+                SELECT COUNT(*), COALESCE(SUM(total_tokens), 0)
+                FROM ai_usage_logs
+                WHERE status = 'ok'
+            """)
+            all_row = cur.fetchone()
+            total_reqs = all_row[0]
+            total_tokens = all_row[1]
+
+            # Hourly buckets for last 24h chart
+            since_24h = now - 86400
+            cur.execute("""
+                SELECT timestamp, prompt_tokens, completion_tokens, total_tokens, latency_ms
+                FROM ai_usage_logs
+                WHERE timestamp >= ?
+                ORDER BY timestamp ASC
+            """, (since_24h,))
+            recent_logs_24h = cur.fetchall()
+
+            # Generate 24 hourly buckets
+            buckets = []
+            for h in range(23, -1, -1):
+                b_start = now - (h + 1) * 3600
+                b_end = now - h * 3600
+                t_label = datetime.fromtimestamp(b_end).strftime("%H:00")
+                in_b = [r for r in recent_logs_24h if b_start <= r[0] < b_end]
+                b_tokens = sum(r[3] for r in in_b)
+                b_reqs = len(in_b)
+                buckets.append({
+                    "time": t_label,
+                    "tokens": b_tokens,
+                    "requests": b_reqs
+                })
+
+            # Last 20 queries log
+            cur.execute("""
+                SELECT id, timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status
+                FROM ai_usage_logs
+                ORDER BY timestamp DESC
+                LIMIT 20
+            """)
+            raw_logs = cur.fetchall()
+            conn.close()
+
+            logs = []
+            for l in raw_logs:
+                logs.append({
+                    "id": l[0],
+                    "timestamp": l[1],
+                    "time_str": datetime.fromtimestamp(l[1]).strftime("%d/%m %H:%M:%S"),
+                    "model": l[2],
+                    "prompt_tokens": l[3],
+                    "completion_tokens": l[4],
+                    "total_tokens": l[5],
+                    "purpose": l[6],
+                    "latency_ms": l[7],
+                    "latency_sec": round(l[7] / 1000.0, 2),
+                    "status": l[8]
+                })
+
+            limit_rpd = 1500
+            limit_rpm = 15
+            remaining_rpd = max(0, limit_rpd - today_reqs)
+            remaining_rpm = max(0, limit_rpm - current_rpm)
+
+            # Next UTC reset calculation (00:00 UTC)
+            next_reset_ts = ((now // 86400) + 1) * 86400
+            seconds_to_reset = max(0, next_reset_ts - now)
+
+            self._send_json({
+                "status": "ok",
+                "model": "gemini-3.1-flash-lite",
+                "limits": {
+                    "rpd_limit": limit_rpd,
+                    "rpm_limit": limit_rpm,
+                    "tpm_limit": 1000000
+                },
+                "usage_today": {
+                    "requests": today_reqs,
+                    "requests_remaining": remaining_rpd,
+                    "percent_used": round((today_reqs / limit_rpd) * 100, 1) if limit_rpd > 0 else 0.0,
+                    "prompt_tokens": today_prompt,
+                    "completion_tokens": today_completion,
+                    "total_tokens": today_tokens,
+                    "avg_latency_sec": today_avg_lat
+                },
+                "usage_current": {
+                    "rpm": current_rpm,
+                    "rpm_remaining": remaining_rpm,
+                    "seconds_to_daily_reset": seconds_to_reset
+                },
+                "all_time": {
+                    "total_requests": total_reqs,
+                    "total_tokens": total_tokens
+                },
+                "hourly_chart": buckets,
+                "recent_logs": logs
             })
             return
 
@@ -1341,6 +1574,118 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 conn.close()
             self._send_json({"status": "ok"})
             return
+
+        # 13. AGENT: MARK FINDING AS APPLIED (POSTULADO)
+        if path == "/api/v1/agent/apply":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = {}
+            if content_length > 0:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                except Exception:
+                    pass
+            
+            f_id = body.get("id")
+            if f_id is not None:
+                conn = sqlite3.connect(DB_PATH)
+                cur = conn.cursor()
+                cur.execute("UPDATE agent_findings SET is_applied = 1, is_read = 1 WHERE id = ?", (f_id,))
+                conn.commit()
+                conn.close()
+            self._send_json({"status": "ok"})
+            return
+
+        # 14. AGENT: UNMARK APPLIED
+        if path == "/api/v1/agent/unapply":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = {}
+            if content_length > 0:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                except Exception:
+                    pass
+            
+            f_id = body.get("id")
+            if f_id is not None:
+                conn = sqlite3.connect(DB_PATH)
+                cur = conn.cursor()
+                cur.execute("UPDATE agent_findings SET is_applied = 0 WHERE id = ?", (f_id,))
+                conn.commit()
+                conn.close()
+            self._send_json({"status": "ok"})
+            return
+
+        # 15. AGENT: DISCARD FINDING
+        if path == "/api/v1/agent/discard":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = {}
+            if content_length > 0:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                except Exception:
+                    pass
+            
+            f_id = body.get("id")
+            if f_id is not None:
+                conn = sqlite3.connect(DB_PATH)
+                cur = conn.cursor()
+                cur.execute("UPDATE agent_findings SET is_archived = 1 WHERE id = ?", (f_id,))
+                conn.commit()
+                conn.close()
+            self._send_json({"status": "ok"})
+            return
+
+        # 16. AI: DIAGNOSTIC TEST CALL (REAL TIME TOKEN TRACKING)
+        if path == "/api/v1/ai/test":
+            key = load_gemini_key()
+            if not key:
+                self._send_json({"status": "error", "message": "API key no configurada"}, 400)
+                return
+            
+            now = int(time.time())
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={key}"
+            payload = json.dumps({
+                "contents": [{"parts": [{"text": "Responde con 'OK: Telemetria IA en linea' y 1 frase sobre servidores homelab."}]}],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "maxOutputTokens": 60,
+                    "thinkingConfig": {"thinkingBudget": 0}
+                }
+            }).encode()
+
+            req_t0 = time.time()
+            try:
+                req_gemini = urllib.request.Request(gemini_url, data=payload, headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req_gemini, timeout=10) as resp:
+                    res = json.loads(resp.read().decode())
+                    latency_ms = int((time.time() - req_t0) * 1000)
+                    usage = res.get('usageMetadata', {})
+                    p_tokens = usage.get('promptTokenCount', 0)
+                    c_tokens = usage.get('candidatesTokenCount', 0)
+                    t_tokens = usage.get('totalTokenCount', p_tokens + c_tokens)
+                    answer = res['candidates'][0]['content']['parts'][0]['text'].strip()
+
+                    conn = sqlite3.connect(DB_PATH)
+                    cur = conn.cursor()
+                    cur.execute("""
+                        INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (now, "gemini-3.1-flash-lite", p_tokens, c_tokens, t_tokens, "Test Diagnóstico", latency_ms, "ok"))
+                    conn.commit()
+                    conn.close()
+
+                    self._send_json({
+                        "status": "ok",
+                        "answer": answer,
+                        "prompt_tokens": p_tokens,
+                        "completion_tokens": c_tokens,
+                        "total_tokens": t_tokens,
+                        "latency_ms": latency_ms
+                    })
+                    return
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+                return
 
         self._send_json({"error": "Action endpoint not found"}, 404)
 

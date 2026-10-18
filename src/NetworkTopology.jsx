@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   Network, Wifi, Server, Smartphone, Laptop, Tablet, Radio,
   Globe, ArrowRight, ShieldCheck, CheckCircle2, RefreshCw, Cpu,
@@ -12,13 +12,13 @@ export default function NetworkTopology() {
 
   // DHCP & Static IP Table baseline
   const dhcpTable = [
-    { hostname: "gateway-router", ip: "192.168.1.1", mac: "02:00:00:00:00:01", type: "Gateway", lease: "Estática", iface: "WAN / LAN 1", vendor: "Gateway Telecom", speed: "1 Gbps", status: "online" },
-    { hostname: "homelab-node-01", ip: "192.168.1.100", mac: "02:00:00:00:00:02", type: "Servidor Homelab", lease: "Estática (DHCP Res)", iface: "eth0", vendor: "Lenovo ThinkCentre", speed: "1 Gbps Full", status: "online" },
-    { hostname: "iPhone-11-Admin", ip: "192.168.1.150", mac: "02:00:00:00:00:03", type: "Móvil", lease: "Dinámica (24h)", iface: "wlan0 (5 GHz)", vendor: "Apple Inc.", speed: "433 Mbps", status: "online" },
-    { hostname: "Galaxy-A52", ip: "192.168.1.110", mac: "02:00:00:00:00:04", type: "Móvil", lease: "Dinámica (24h)", iface: "wlan0 (5 GHz)", vendor: "Samsung Electronics", speed: "390 Mbps", status: "online" },
-    { hostname: "iPhone-15", ip: "192.168.1.125", mac: "02:00:00:00:00:05", type: "Móvil", lease: "Dinámica (24h)", iface: "wlan0 (5 GHz)", vendor: "Apple Inc.", speed: "520 Mbps", status: "online" },
-    { hostname: "Workstation-PC", ip: "192.168.1.50", mac: "02:00:00:00:00:06", type: "Laptop", lease: "Estática", iface: "eth0 / wlan0", vendor: "Workstation PC", speed: "866 Mbps", status: "online" },
-    { hostname: "Wall-Panel-Display", ip: "192.168.1.220", mac: "02:00:00:00:00:07", type: "Tablet / Panel", lease: "Estática", iface: "wlan0 (2.4 GHz)", vendor: "Motorola Mobility", speed: "72 Mbps", status: "online" }
+    { hostname: "sagemcom-gateway", ip: "192.168.0.1", mac: "20:9A:7D:AD:F4:54", type: "Gateway", lease: "Estática", iface: "WAN / LAN 1", vendor: "Sagemcom Broadband", speed: "1 Gbps", status: "online" },
+    { hostname: "lenovo-server", ip: "192.168.0.200", mac: "44:8A:5B:3C:D9:11", type: "Servidor Homelab", lease: "Estática (DHCP Res)", iface: "wlp3s0 / eth0", vendor: "Lenovo ThinkCentre", speed: "1 Gbps Full", status: "online" },
+    { hostname: "iPhone-11-Santino", ip: "192.168.0.246", mac: "86:2D:A6:15:03:4F", type: "Móvil", lease: "Dinámica (24h)", iface: "wlan0 (5 GHz)", vendor: "Apple Inc.", speed: "433 Mbps", status: "online" },
+    { hostname: "Galaxy-A52-Personal", ip: "192.168.0.110", mac: "B0:99:D7:66:3C:28", type: "Móvil", lease: "Dinámica (24h)", iface: "wlan0 (5 GHz)", vendor: "Samsung Electronics", speed: "390 Mbps", status: "online" },
+    { hostname: "iPhone-15-Casa", ip: "192.168.0.125", mac: "46:64:96:D7:99:93", type: "Móvil", lease: "Dinámica (24h)", iface: "wlan0 (5 GHz)", vendor: "Apple Inc.", speed: "520 Mbps", status: "online" },
+    { hostname: "Notebook-HP-250G7", ip: "192.168.1.50", mac: "DC:F5:05:CF:30:49", type: "Laptop", lease: "Estática", iface: "eth0 / wlan0", vendor: "HP Inc.", speed: "866 Mbps", status: "online" },
+    { hostname: "Moto-E7-Dashboard", ip: "192.168.0.220", mac: "1C:E5:7F:04:A6:71", type: "Tablet / Panel", lease: "Estática", iface: "wlan0 (2.4 GHz)", vendor: "Motorola Mobility", speed: "72 Mbps", status: "online" }
   ];
 
   const [deviceList, setDeviceList] = useState(dhcpTable);
@@ -55,41 +55,60 @@ export default function NetworkTopology() {
 
 
   return (
-    <div className="space-y-8 animate-fadeIn">
-      {/* HEADER BANNER */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-blue-950/40 via-cyan-950/20 to-slate-900/60 border border-white/10 backdrop-blur-2xl glass-shine relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-semibold">
-              <Network className="w-3.5 h-3.5 text-cyan-400" />
-              <span>LAN Topology & Infrastructure Map</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-              Topología de Red & Mapa de Dispositivos
-            </h1>
-            <p className="text-xs sm:text-sm text-white/60 max-w-2xl leading-relaxed">
-              Mapa visual de infraestructura: desde la acometida de fibra y el router Sagemcom, el servidor Lenovo ThinkCentre con su bridge Docker interno, hasta cada dispositivo WiFi y la tabla DHCP local.
-            </p>
+    <div className="space-y-6 animate-fadeIn pb-12">
+      {/* 1. TOP CONTROL BAR */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-shine">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-blue-500/15 flex items-center justify-center text-blue-400 border border-blue-500/20 shrink-0">
+            <Network className="w-5 h-5" />
           </div>
+          <div>
+            <div className="font-bold text-white text-base flex items-center gap-2">
+              <span>Topología de Red & Mapa de Dispositivos</span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                LAN 192.168.0.0/24
+              </span>
+            </div>
+            <div className="text-xs text-white/50 font-mono">
+              Gateway Fibra Óptica · Servidor Lenovo · Docker Bridge · WiFi 2.4/5 GHz
+            </div>
+          </div>
+        </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-2xl bg-white/[0.05] border border-white/10 text-center">
-              <div className="text-[11px] text-white/50 uppercase font-semibold">Gateway</div>
-              <div className="text-lg font-black text-white font-mono mt-0.5">192.168.1.1</div>
-              <div className="text-[10px] text-emerald-400 mt-0.5">Gateway GPON</div>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-white/[0.05] border border-white/10 text-center">
-              <div className="text-[11px] text-white/50 uppercase font-semibold">Homelab Server</div>
-              <div className="text-lg font-black text-cyan-400 font-mono mt-0.5">192.168.1.100</div>
-              <div className="text-[10px] text-cyan-300/80 mt-0.5">1 Gbps Full-Duplex</div>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-white/[0.05] border border-white/10 text-center col-span-2 sm:col-span-1">
-              <div className="text-[11px] text-white/50 uppercase font-semibold">Subred LAN</div>
-              <div className="text-lg font-black text-purple-400 font-mono mt-0.5">/24 (254 IPs)</div>
-              <div className="text-[10px] text-purple-300/80 mt-0.5">Pi-hole DNS Activo</div>
-            </div>
-          </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchRealDevices}
+            disabled={isScanning}
+            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-mono text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-blue-400 ${isScanning ? "animate-spin" : ""}`} />
+            <span>{isScanning ? "Escaneando LAN..." : "Escanear Red"}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. STATS CARDS */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+          <div className="text-[11px] text-white/50 uppercase font-semibold">Gateway</div>
+          <div className="text-xl sm:text-2xl font-black text-white font-mono mt-0.5">192.168.0.1</div>
+          <div className="text-[10px] text-emerald-400 mt-0.5">Sagemcom Fast 5657</div>
+        </div>
+        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+          <div className="text-[11px] text-white/50 uppercase font-semibold">Homelab Server</div>
+          <div className="text-xl sm:text-2xl font-black text-cyan-400 font-mono mt-0.5">192.168.0.200</div>
+          <div className="text-[10px] text-cyan-300/80 mt-0.5">1 Gbps Full-Duplex</div>
+        </div>
+        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+          <div className="text-[11px] text-white/50 uppercase font-semibold">Dispositivos LAN</div>
+          <div className="text-xl sm:text-2xl font-black text-blue-400 font-mono mt-0.5">{deviceList.length}</div>
+          <div className="text-[10px] text-blue-300/80 mt-0.5">Activos en Subred</div>
+        </div>
+        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+          <div className="text-[11px] text-white/50 uppercase font-semibold">Subred LAN</div>
+          <div className="text-xl sm:text-2xl font-black text-purple-400 font-mono mt-0.5">/24 (254 IPs)</div>
+          <div className="text-[10px] text-purple-300/80 mt-0.5">DNS Pi-hole :53</div>
         </div>
       </div>
 
@@ -134,11 +153,11 @@ export default function NetworkTopology() {
 
             <div 
               onClick={() => setSelectedNode({
-                title: "Router Gateway GPON",
+                title: "Router Sagemcom Fast 5657",
                 type: "Gateway Principal Fibra Óptica",
-                ip: "192.168.1.1",
-                mac: "02:00:00:00:00:01",
-                features: ["GPON ONT Integrada", "WiFi 5 (802.11ac) 4x4 MU-MIMO", "4x Puertos Gigabit LAN", "DNS Primario apuntando a 192.168.1.100 (Pi-hole)"]
+                ip: "192.168.0.1",
+                mac: "58:8D:09:A1:22:E0",
+                features: ["GPON ONT Integrada", "WiFi 5 (802.11ac) 4x4 MU-MIMO", "4x Puertos Gigabit LAN", "DNS Primario apuntando a 192.168.0.200 (Pi-hole)"]
               })}
               className="p-5 rounded-2xl bg-gradient-to-br from-blue-900/40 to-slate-900/60 border border-cyan-500/30 hover:border-cyan-400 transition-all cursor-pointer space-y-3 glass-shine shadow-lg"
             >
@@ -151,8 +170,8 @@ export default function NetworkTopology() {
                 </span>
               </div>
               <div>
-                <h3 className="font-bold text-white text-sm">Router Gateway GPON</h3>
-                <div className="text-xs text-cyan-300 font-mono">192.168.1.1 · Fibra Óptica</div>
+                <h3 className="font-bold text-white text-sm">Router Sagemcom Fast 5657</h3>
+                <div className="text-xs text-cyan-300 font-mono">192.168.0.1 · Fibra Óptica</div>
               </div>
               <p className="text-[11px] text-white/60">
                 Acometida GPON y ruteador central. Distribuye DHCP y asigna tráfico LAN Gigabit al servidor.
@@ -182,8 +201,8 @@ export default function NetworkTopology() {
               onClick={() => setSelectedNode({
                 title: "Lenovo ThinkCentre M93p Tiny",
                 type: "Servidor Homelab Principal",
-                ip: "192.168.1.100 · Tailscale: 100.64.0.15",
-                mac: "02:00:00:00:00:02",
+                ip: "192.168.0.200 · Tailscale: 100.64.0.10",
+                mac: "44:8A:5B:3C:D9:11",
                 features: ["Intel Core i5-4570T (2.90 GHz)", "16 GB RAM DDR3 Dual-Channel", "240 GB SSD Kingston A400", "Ubuntu 24.04 LTS Noble Numbat", "Docker Engine 27.2 + Docker Compose v2"]
               })}
               className="p-5 rounded-2xl bg-gradient-to-br from-indigo-900/40 to-slate-900/60 border border-indigo-500/30 hover:border-indigo-400 transition-all cursor-pointer space-y-3 glass-shine shadow-lg"
@@ -198,7 +217,7 @@ export default function NetworkTopology() {
               </div>
               <div>
                 <h3 className="font-bold text-white text-sm">Lenovo ThinkCentre M93p Tiny</h3>
-                <div className="text-xs text-indigo-300 font-mono">192.168.1.100 (IP Fija)</div>
+                <div className="text-xs text-indigo-300 font-mono">192.168.0.200 (IP Fija)</div>
               </div>
               <p className="text-[11px] text-white/60">
                 Host físico principal conectado vía cable Cat6 directo al router. Alberga los 7 stacks de contenedores.
@@ -231,10 +250,10 @@ export default function NetworkTopology() {
             <div className="space-y-2.5">
               <div 
                 onClick={() => setSelectedNode({
-                  title: "Workstation PC",
+                  title: "Notebook HP 250 G7 (Santino)",
                   type: "Estación de Trabajo Windows 11",
                   ip: "192.168.1.50",
-                  mac: "02:00:00:00:00:06",
+                  mac: "CF:30:49:12:88:AA",
                   features: ["Conexión WiFi 5 GHz / Ethernet", "Latencia al servidor: 2.1 ms", "Visualización activa del panel"]
                 })}
                 className="p-3.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-all cursor-pointer flex items-center justify-between"
@@ -242,7 +261,7 @@ export default function NetworkTopology() {
                 <div className="flex items-center gap-3">
                   <Laptop className="w-5 h-5 text-emerald-400" />
                   <div>
-                    <div className="font-semibold text-xs text-white">Workstation PC</div>
+                    <div className="font-semibold text-xs text-white">Notebook HP 250 G7</div>
                     <div className="text-[10px] font-mono text-white/50">192.168.1.50 · Windows 11</div>
                   </div>
                 </div>
@@ -251,10 +270,10 @@ export default function NetworkTopology() {
 
               <div 
                 onClick={() => setSelectedNode({
-                  title: "iPhone 11 (Admin)",
+                  title: "iPhone 11 (Santino)",
                   type: "Dispositivo Móvil iOS",
-                  ip: "192.168.1.150",
-                  mac: "02:00:00:00:00:03",
+                  ip: "192.168.0.246",
+                  mac: "86:2D:A6:15:03:4F",
                   features: ["WiFi 5 GHz (Señal: -42 dBm)", "App Home Assistant conectada", "Tailscale client activo"]
                 })}
                 className="p-3.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-all cursor-pointer flex items-center justify-between"
@@ -263,7 +282,7 @@ export default function NetworkTopology() {
                   <Smartphone className="w-5 h-5 text-blue-400" />
                   <div>
                     <div className="font-semibold text-xs text-white">iPhone 11</div>
-                    <div className="text-[10px] font-mono text-white/50">192.168.1.150 · iOS</div>
+                    <div className="text-[10px] font-mono text-white/50">192.168.0.246 · iOS</div>
                   </div>
                 </div>
                 <span className="text-[10px] font-mono text-blue-400 font-bold">4ms</span>
@@ -273,8 +292,8 @@ export default function NetworkTopology() {
                 onClick={() => setSelectedNode({
                   title: "Samsung Galaxy A52",
                   type: "Dispositivo Móvil Android",
-                  ip: "192.168.1.110",
-                  mac: "02:00:00:00:00:04",
+                  ip: "192.168.0.110",
+                  mac: "66:3C:28:90:11:02",
                   features: ["WiFi 5 GHz (Señal: -58 dBm)", "En red local", "DNS apuntando a Pi-hole"]
                 })}
                 className="p-3.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-all cursor-pointer flex items-center justify-between"
@@ -283,7 +302,7 @@ export default function NetworkTopology() {
                   <Smartphone className="w-5 h-5 text-indigo-400" />
                   <div>
                     <div className="font-semibold text-xs text-white">Samsung Galaxy A52</div>
-                    <div className="text-[10px] font-mono text-white/50">192.168.1.110 · Android</div>
+                    <div className="text-[10px] font-mono text-white/50">192.168.0.110 · Android</div>
                   </div>
                 </div>
                 <span className="text-[10px] font-mono text-indigo-400 font-bold">12ms</span>
@@ -293,8 +312,8 @@ export default function NetworkTopology() {
                 onClick={() => setSelectedNode({
                   title: "iPhone 15",
                   type: "Dispositivo Móvil iOS",
-                  ip: "192.168.1.125",
-                  mac: "02:00:00:00:00:05",
+                  ip: "192.168.0.125",
+                  mac: "46:64:96:D7:99:93",
                   features: ["WiFi 5 GHz (Señal: -52 dBm)", "En red local"]
                 })}
                 className="p-3.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-all cursor-pointer flex items-center justify-between"
@@ -303,7 +322,7 @@ export default function NetworkTopology() {
                   <Smartphone className="w-5 h-5 text-blue-400" />
                   <div>
                     <div className="font-semibold text-xs text-white">iPhone 15</div>
-                    <div className="text-[10px] font-mono text-white/50">192.168.1.125 · iOS</div>
+                    <div className="text-[10px] font-mono text-white/50">192.168.0.125 · iOS</div>
                   </div>
                 </div>
                 <span className="text-[10px] font-mono text-blue-400 font-bold">9ms</span>
@@ -409,3 +428,4 @@ export default function NetworkTopology() {
     </div>
   );
 }
+

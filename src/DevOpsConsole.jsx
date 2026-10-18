@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+﻿import React, { useState, useRef, useEffect } from "react";
 import {
   RotateCw, Trash2, Shield, RefreshCw, Archive, Check,
   AlertCircle, Sparkles, CheckCircle2, Server, Box,
@@ -298,3 +298,4 @@ export default function DevOpsConsole() {
     </div>
   );
 }
+

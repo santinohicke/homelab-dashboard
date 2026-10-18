@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   Shield, ShieldCheck, ShieldAlert, Lock, Key, Globe, Server, Terminal,
   RefreshCw, CheckCircle2, AlertCircle, AlertTriangle, Eye, EyeOff,
@@ -26,26 +26,26 @@ export default function SecurityVault() {
   // SSL Certificates list
   const sslCertificates = [
     {
-      domain: "*.homelab.local",
+      domain: "*.santino.lab",
       issuer: "Let's Encrypt Authority X3 / Local CA",
       tlsVersion: "TLS 1.3 / ChaCha20-Poly1305",
       type: "Wildcard SAN",
       status: "valid",
       validUntil: "2027-01-14",
       daysRemaining: 89,
-      coverage: ["panel.homelab.local", "ha.homelab.local", "vault.homelab.local", "kuma.homelab.local", "npm.homelab.local", "portainer.homelab.local"],
+      coverage: ["panel.santino.lab", "ha.santino.lab", "vault.santino.lab", "kuma.santino.lab", "npm.santino.lab", "portainer.santino.lab"],
       keySize: "ECDSA 384 bits",
       ocspStapling: true
     },
     {
-      domain: "vault.homelab.local",
+      domain: "vault.santino.lab",
       issuer: "Local CA Root & NPM Reverse Proxy",
       tlsVersion: "TLS 1.3 Strict",
       type: "Single Domain (HSTS 1 Year)",
       status: "valid",
       validUntil: "2027-01-14",
       daysRemaining: 89,
-      coverage: ["vault.homelab.local:443"],
+      coverage: ["vault.santino.lab:443"],
       keySize: "RSA 4096 bits",
       ocspStapling: true
     },
@@ -68,8 +68,8 @@ export default function SecurityVault() {
     { port: 22, proto: "TCP", service: "SSH OpenSSH 9.6p1", access: "Solo LAN & Tailscale", status: "open", firewall: "UFW Activo", rateLimit: "fail2ban 3 intentos" },
     { port: 80, proto: "TCP", service: "HTTP Nginx Proxy", access: "Redirige a HTTPS 443", status: "redirect", firewall: "Permitido", rateLimit: "N/A" },
     { port: 443, proto: "TCP", service: "HTTPS Nginx SSL Wildcard", access: "Público LAN / Ingress", status: "open", firewall: "Permitido (TLS 1.3)", rateLimit: "100 req/s" },
-    { port: 81, proto: "TCP", service: "Nginx Proxy Manager Admin", access: "Privado (Admin)", status: "restricted", firewall: "Restringido a LAN 192.168.1.0/24", rateLimit: "Protegido" },
-    { port: 53, proto: "UDP/TCP", service: "DNS Pi-hole FTL", access: "Servidor DNS LAN", status: "open", firewall: "Escuchando en 192.168.1.100", rateLimit: "Rate limit activado" },
+    { port: 81, proto: "TCP", service: "Nginx Proxy Manager Admin", access: "Privado (Admin)", status: "restricted", firewall: "Restringido a LAN 192.168.0.0/24", rateLimit: "Protegido" },
+    { port: 53, proto: "UDP/TCP", service: "DNS Pi-hole FTL", access: "Servidor DNS LAN", status: "open", firewall: "Escuchando en 192.168.0.200", rateLimit: "Rate limit activado" },
     { port: 8123, proto: "TCP", service: "Home Assistant Web & WS", access: "Proxy Inverso :443", status: "proxied", firewall: "Aislado por Docker Bridge", rateLimit: "Autenticación MFA" },
     { port: 8085, proto: "TCP", service: "Vaultwarden SQLite API", access: "Proxy Inverso :443", status: "proxied", firewall: "Aislado por Docker Bridge", rateLimit: "Zero-Knowledge" },
     { port: 3001, proto: "TCP", service: "Uptime Kuma Health", access: "Proxy Inverso :443", status: "proxied", firewall: "Aislado por Docker Bridge", rateLimit: "Auth requerida" },
@@ -92,7 +92,7 @@ export default function SecurityVault() {
           })));
         }
         if (data && data.ssl_certificate && typeof data.ssl_certificate.days_remaining === "number") {
-          setCertInfo(prev => (Array.isArray(prev) ? prev : sslCertificates).map(c => (c.domain && c.domain.includes("homelab")) ? {
+          setCertInfo(prev => (Array.isArray(prev) ? prev : sslCertificates).map(c => (c.domain && c.domain.includes("santino")) ? {
             ...c,
             daysRemaining: data.ssl_certificate.days_remaining
           } : c));
@@ -138,14 +138,14 @@ export default function SecurityVault() {
   const handleDownloadRootCA = () => {
     // Generate sample root CA download trigger
     const caContent = `-----BEGIN CERTIFICATE-----
-MIIBkDCB+wIJAKHH7...[Homelab Root CA 2026]...
-Valid for *.homelab.local / Homelab Server Node 01
+MIIBkDCB+wIJAKHH7...[Santino Homelab Root CA 2026]...
+Valid for *.santino.lab / Lenovo Server M93p Tiny
 -----END CERTIFICATE-----`;
     const blob = new Blob([caContent], { type: "application/x-x509-ca-cert" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "homelab-root-ca.crt";
+    a.download = "santino-homelab-root-ca.crt";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -153,42 +153,68 @@ Valid for *.homelab.local / Homelab Server Node 01
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn">
-      {/* HEADER BANNER */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-indigo-950/40 via-purple-950/20 to-slate-900/60 border border-white/10 backdrop-blur-2xl glass-shine relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-semibold">
-              <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
-              <span>Security Operations & Hardening</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-              Bóveda de Seguridad & Auditoría
-            </h1>
-            <p className="text-xs sm:text-sm text-white/60 max-w-2xl leading-relaxed">
-              Monitoreo continuo de cifrado TLS 1.3, mitigación de ataques por fuerza bruta con Fail2ban, estado de la base de datos de Vaultwarden y auditoría de puertos en el servidor Lenovo ThinkCentre.
-            </p>
+    <div className="space-y-6 animate-fadeIn pb-12">
+      {/* 1. TOP CONTROL BAR */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-shine">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-rose-500/15 flex items-center justify-center text-rose-400 border border-rose-500/20 shrink-0">
+            <ShieldCheck className="w-5 h-5" />
           </div>
+          <div>
+            <div className="font-bold text-white text-base flex items-center gap-2">
+              <span>Defensa Perimetral & Bóveda Cifrada</span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Score A+ (98%)
+              </span>
+            </div>
+            <div className="text-xs text-white/50 font-mono">
+              Auditoría TLS 1.3 · Mitigación Fail2ban · Zero-Trust Ingress · Vaultwarden
+            </div>
+          </div>
+        </div>
 
-          {/* QUICK STATS CARDS */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-2xl bg-white/[0.05] border border-white/10 text-center">
-              <div className="text-[11px] text-white/50 uppercase font-semibold">Score Seguridad</div>
-              <div className="text-2xl font-black text-emerald-400 font-mono mt-0.5">A+ (98%)</div>
-              <div className="text-[10px] text-emerald-300/80 mt-0.5">Zero-Trust Activo</div>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-white/[0.05] border border-white/10 text-center">
-              <div className="text-[11px] text-white/50 uppercase font-semibold">IPs Bloqueadas</div>
-              <div className="text-2xl font-black text-rose-400 font-mono mt-0.5">{bannedIps.length}</div>
-              <div className="text-[10px] text-rose-300/80 mt-0.5">Fail2ban Activo</div>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-white/[0.05] border border-white/10 text-center col-span-2 sm:col-span-1">
-              <div className="text-[11px] text-white/50 uppercase font-semibold">SSL Wildcard</div>
-              <div className="text-2xl font-black text-cyan-400 font-mono mt-0.5">89 Días</div>
-              <div className="text-[10px] text-cyan-300/80 mt-0.5">Auto-renovación</div>
-            </div>
-          </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleRunPortScan}
+            disabled={isScanningPorts}
+            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-mono text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-rose-400 ${isScanningPorts ? "animate-spin" : ""}`} />
+            <span>{isScanningPorts ? "Auditoría en curso..." : "Auditar Puertos"}</span>
+          </button>
+          <button
+            onClick={handleDownloadRootCA}
+            className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 font-mono text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
+            title="Descargar Certificado Raíz Local"
+          >
+            <Download className="w-3.5 h-3.5 text-rose-400" />
+            <span>Certificado CA</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. STATS CARDS */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+          <div className="text-[11px] text-white/50 uppercase font-semibold">Score Seguridad</div>
+          <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono mt-0.5">A+ (98%)</div>
+          <div className="text-[10px] text-emerald-300/80 mt-0.5">Zero-Trust Activo</div>
+        </div>
+        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+          <div className="text-[11px] text-white/50 uppercase font-semibold">IPs Bloqueadas</div>
+          <div className="text-2xl sm:text-3xl font-black text-rose-400 font-mono mt-0.5">{bannedIps.length}</div>
+          <div className="text-[10px] text-rose-300/80 mt-0.5">Fail2ban Activo</div>
+        </div>
+        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+          <div className="text-[11px] text-white/50 uppercase font-semibold">SSL Wildcard</div>
+          <div className="text-2xl sm:text-3xl font-black text-cyan-400 font-mono mt-0.5">{certInfo[0]?.daysRemaining ?? 89}d</div>
+          <div className="text-[10px] text-cyan-300/80 mt-0.5">*.santino.lab</div>
+        </div>
+        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+          <div className="text-[11px] text-white/50 uppercase font-semibold">Puertos Abiertos</div>
+          <div className="text-2xl sm:text-3xl font-black text-purple-400 font-mono mt-0.5">{portsList.filter(p => p.status === 'open').length}</div>
+          <div className="text-[10px] text-purple-300/80 mt-0.5">Filtrados por UFW</div>
         </div>
       </div>
 
@@ -203,7 +229,7 @@ Valid for *.homelab.local / Homelab Server Node 01
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 Auditoría de Certificados SSL & Cifrado TLS
               </h2>
-              <p className="text-xs text-white/50">Cifrado de grado bancario para todos los subdominios de <span className="text-white/80 font-mono">*.homelab.local</span></p>
+              <p className="text-xs text-white/50">Cifrado de grado bancario para todos los subdominios de <span className="text-white/80 font-mono">*.santino.lab</span></p>
             </div>
           </div>
 
@@ -446,7 +472,7 @@ Valid for *.homelab.local / Homelab Server Node 01
 
           <div className="pt-4">
             <a
-              href="https://vault.homelab.local"
+              href="https://vault.santino.lab"
               target="_blank"
               rel="noreferrer"
               className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-600/30 cursor-pointer"
@@ -460,3 +486,4 @@ Valid for *.homelab.local / Homelab Server Node 01
     </div>
   );
 }
+

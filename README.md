@@ -29,7 +29,7 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 │                           DYNAMIC ISLAND WIDGET                             │
 │       [Server Online]      ·      [4ms Latencia]      ·     [03:30 ART]     │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ [Centro Control] [Radar IT] [Métricas] [DevOps] [Seguridad] [Red] [Backups] │
+│ [Centro Control] [Radar IT] [Telemetría IA] [Métricas] [DevOps] [Seguridad] [Red] [Backups] │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -47,7 +47,30 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 
 ---
 
-### 2. Métricas & Observabilidad Analítica
+### 2. Radar Autónomo IT · Pasantías & Part-Time 24/7 (Google Gemini AI)
+* **Criterios Estrictos de Filtrado**:
+  * **Jornada Obligatoria**: Exclusivamente Part-Time / Media Jornada (descarta de forma tajante jornadas full-time para compatibilidad con la facultad).
+  * **Ubicación & Modalidad**: Remoto o presencial/híbrido **estrictamente en CABA (Ciudad Autónoma de Buenos Aires) o GBA inmediato**, descartando cualquier rol presencial fuera de Buenos Aires.
+  * **Ramas Tecnológicas de Interés**: Puestos iniciales de IT/Sistemas/Ingeniería Informática con preferencia en ramas de infraestructura y hardware menos propensas a la automatización por IA: Redes, Telecomunicaciones, Sistemas Embebidos, Electrónica, Soporte de Infraestructura, C/C++, Rust, Cloud y QA.
+* **Multi-Portal de Rastreo**: Monitoreo de la Bolsa de Empleo de la Universidad Católica Argentina (UCA Campus HiringRoom), LinkedIn Jobs Argentina (Part-Time / Trainee / Embebidos CABA) y Get on Board Part-Time.
+* **Gestión de Postulaciones**: Acciones directas de *Postularse / Postulado* y *Descartar* con persistencia SQLite y filtro dedicado *"Mis Postulaciones"*.
+* **Notificaciones Web Push Nativas para iPhone (PWA Standalone)**: Integración con Service Worker (`sw.js`), Web Push API y Badging en iOS 16.4+ para recibir alertas inmediatas en el celular sin servicios de terceros.
+
+---
+
+### 3. Telemetría & Observabilidad de IA (Google Gemini 3.1 Flash-Lite)
+* **Medición Real de Consumo de Tokens (Sin Datos Hardcodeados)**: Registro analítico de tokens consumidos (Prompt, Completion y Total) por inferencia, con persistencia en tabla SQLite `ai_usage_logs`.
+* **Límites de Cuota Free Tier & Rate Limits**:
+  * **RPD (Requests per Day)**: 1.500 solicitudes diarias máximas.
+  * **RPM (Requests per Minute)**: 15 solicitudes por minuto máximas.
+  * **TPM (Tokens per Minute)**: 1.000.000 tokens por minuto.
+* **Gráfica Temporal SVG de Consumo (24h)**: Curva cúbica Bézier de consumo de tokens distribuida por horas en las últimas 24 horas.
+* **Temporizador de Reseteo de Cuota**: Contador regresivo en tiempo real hacia la medianoche UTC (00:00 UTC) donde se renueva el cupo diario gratuito de Google AI Studio.
+* **Herramienta de Diagnóstico en Tiempo Real**: Botón de prueba de inferencia (`POST /api/v1/ai/test`) con medición de latencia en milisegundos y consumo de tokens en vivo.
+
+---
+
+### 4. Métricas & Observabilidad Analítica
 * **Selector de 5 Intervalos Temporales**: Visualización instantánea en `1H`, `24H`, `7D`, `30D` y `HISTÓRICO`.
 * **Filtro de Secciones**: Vista consolidada o segmentada por *Hardware*, *Red & WiFi*, *Docker*, *Seguridad* y *SLA*.
 * **Comparativa Temporal ("Hoy vs Ayer / Período Anterior")**: Alterna una curva discontinua translúcida (`stroke-dasharray="4 4"`) superpuesta a la métrica actual para detectar anomalías de tráfico o picos térmicos al instante.
@@ -55,7 +78,7 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 
 ---
 
-### 3. Consola de Operaciones & DevOps
+### 5. Consola de Operaciones & DevOps
 * **Botones de Mantenimiento con 1 Clic**:
   * *Limpiar Docker*: Ejecuta poda de imágenes huérfanas (`docker system prune -af`).
   * *Vaciar Caché DNS*: Purga la memoria FTL de Pi-hole.
@@ -65,7 +88,7 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 
 ---
 
-### 4. Bóveda de Seguridad & Auditoría
+### 6. Bóveda de Seguridad & Auditoría
 * **Filtrado DNS en Tiempo Real (Pi-hole FTL v6)**: Tarjeta interactiva con recuento de consultas bloqueadas del día, porcentaje de telemetría filtrada y lectura en vivo de la base de datos de gravedad (79.7k dominios). Incluye control de pausa interactiva de 5 minutos y reanudación inmediata.
 * **Auditoría de Certificados SSL**: Días restantes antes del vencimiento (Let's Encrypt / Wildcard), algoritmo de curva elíptica ECDSA 384 bits y versión de protocolo TLS 1.3.
 * **Descargador de Certificado CA Raíz**: Botón de un clic para exportar el certificado de confianza local en formato `.crt` para celulares y laptops.
@@ -75,7 +98,7 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 
 ---
 
-### 5. Topología de Red & Mapa de Dispositivos
+### 7. Topología de Red & Mapa de Dispositivos
 * **Malla WireGuard (Tailscale VPN) & Funnel**: Visualización de clientes autorizados en la malla peer-to-peer con filtrado y agregación automática de proxies Anycast de Tailscale Funnel (para evitar saturar la interfaz y destacar únicamente los dispositivos clientes reales).
 * **Diagrama en Árbol Interactivo**: Visualización de la jerarquía completa: Gateway de Fibra Óptica -> Servidor Lenovo -> Docker Bridge Virtual (`172.20.0.0/16`) -> Ramas WiFi para cada móvil/PC. Al clickear cualquier nodo se despliega una ficha técnica con IPs, MACs y puertos.
 * **Matriz de Ping Cruzado**: Medición interactiva de latencia ICMP entre nodos con botón de testeo en vivo.
@@ -83,19 +106,10 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 
 ---
 
-### 6. Gestor de Backups & Recuperación (Disaster Recovery)
+### 8. Gestor de Backups & Recuperación (Disaster Recovery)
 * **Calendario Mensual Visual**: Cuadrícula de 31 días con indicadores de ejecución exitosa del cron de las 03:00 AM.
 * **Explorador de Snapshots**: Listado de respaldos comprimidos (`.tar.gz`, `.sqlite.bak`), tamaño en disco, fecha, botón de descarga y verificación criptográfica SHA-256.
 * **Simulador de Restauración Asistida**: Asistente guiado en 4 pasos para ensayar la recuperación de un contenedor en menos de 5 minutos ante emergencias.
-
----
-
-### 7. Radar Autónomo IT · Pasantías & Part-Time 24/7 (Google Gemini AI)
-* **Agente de Vigilancia Web Continuo**: Motor autónomo ejecutado en segundo plano que rastrea periódicamente portales de empleo tecnológico (Get on Board, bolsas universitarias).
-* **Filtrado Inteligente con Google Gemini 3.1 Flash-Lite**: Procesa listados de empleo descartando automáticamente roles sénior (+2 años) y seleccionando únicamente vacantes iniciales, pasantías, trainees y empleos de medio tiempo (part-time) compatibles con cursadas universitarias.
-* **Política Estricta Zero-Billing ($0.00)**: Diseñado para operar exclusivamente dentro de la capa gratuita (Free Tier) de Google AI Studio, con latencia optimizada (`thinkingBudget: 0`) y desconexión absoluta de facturación.
-* **Notificaciones Web Push Nativas para iPhone (PWA Standalone)**: Integración con Service Worker (`sw.js`), Web Push API y Badging en iOS 16.4+ para recibir alertas inmediatas en el celular sin requerir servicios de mensajería externos de terceros.
-* **Gestor de Portales & Criterios**: Panel interactivo para agregar nuevas URLs a monitorear y ajustar prompts de búsqueda en tiempo real.
 
 ---
 

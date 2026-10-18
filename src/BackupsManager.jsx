@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   Archive, Calendar, Download, RefreshCw, CheckCircle2, AlertCircle,
   FileText, HardDrive, Database, ShieldCheck, Play, ArrowRight,
-  Clock, Check, Sparkles, Terminal, RotateCw, AlertTriangle
+  Clock, Check, Sparkles, Terminal, RotateCw, AlertTriangle, X
 } from "lucide-react";
 
 export default function BackupsManager() {
@@ -124,7 +124,7 @@ export default function BackupsManager() {
       `[00:01] Verificando checksum SHA-256 de ${recoverySnapshot}... [OK - INTEGRIDAD VÁLIDA]`,
       `[00:02] Deteniendo contenedor actual docker stop ${recoveryService}...`,
       `[00:03] Creando punto de salvaguarda temporal de emergencia (/tmp/rollback-pre-restore)...`,
-      `[00:04] Descomprimiendo archivos en /opt/homelab/data/${recoveryService}...`,
+      `[00:04] Descomprimiendo archivos en /home/santino/infra/data/${recoveryService}...`,
       `[00:05] Restaurando permisos chown -R 1000:1000 y SQLite WAL checkpoints...`,
       `[00:06] Reiniciando contenedor docker start ${recoveryService}...`,
       `[00:07] Ejecutando healthcheck HTTP /api/healthz... [STATUS 200 OK]`,
@@ -134,46 +134,85 @@ export default function BackupsManager() {
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn">
-      {/* HEADER BANNER */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-emerald-950/40 via-teal-950/20 to-slate-900/60 border border-white/10 backdrop-blur-2xl glass-shine relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Disaster Recovery & Data Protection</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-              Gestor de Backups & Recuperación
-            </h1>
-            <p className="text-xs sm:text-sm text-white/60 max-w-2xl leading-relaxed">
-              Copias de seguridad automatizadas con volcado SQLite atómico, compresión gzip y sumas SHA-256 en /opt/homelab/backups/.
-            </p>
+    <div className="space-y-6 animate-fadeIn pb-12">
+      {/* 1. TOP CONTROL BAR */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-shine">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-amber-500/15 flex items-center justify-center text-amber-400 border border-amber-500/20 shrink-0">
+            <Archive className="w-5 h-5" />
           </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <button
-              onClick={handleCreateSnapshotNow}
-              disabled={isCreatingSnapshot}
-              className="px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 cursor-pointer disabled:opacity-50"
-            >
-              <Archive className={`w-4 h-4 ${isCreatingSnapshot ? "animate-spin" : ""}`} />
-              <span>{isCreatingSnapshot ? "Creando Backup Real..." : "Disparar Snapshot Ahora"}</span>
-            </button>
+          <div>
+            <div className="font-bold text-white text-base flex items-center gap-2">
+              <span>Gestor de Backups & Disaster Recovery</span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Cron Diario 03:00 AM
+              </span>
+            </div>
+            <div className="text-xs text-white/50 font-mono">
+              Volcado atómico SQLite · Compresión gzip · Checksums SHA-256 en /opt/homelab/backups/
+            </div>
           </div>
         </div>
 
-        {snapshotFeedback && (
-          <div className={`mt-4 p-3 rounded-xl border text-xs font-mono flex items-center gap-2 ${
-            snapshotFeedback.type === "success" 
-              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" 
-              : "bg-rose-500/20 text-rose-300 border-rose-500/30"
-          }`}>
-            {snapshotFeedback.type === "success" ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchRealBackups}
+            disabled={isLoading}
+            className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white font-mono text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isLoading ? "animate-spin" : ""}`} />
+            <span>Refrescar</span>
+          </button>
+          <button
+            onClick={handleCreateSnapshotNow}
+            disabled={isCreatingSnapshot}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-amber-500/20 disabled:opacity-50"
+          >
+            <Archive className={`w-3.5 h-3.5 ${isCreatingSnapshot ? "animate-spin" : ""}`} />
+            <span>{isCreatingSnapshot ? "Creando Backup..." : "Snapshot Manual"}</span>
+          </button>
+        </div>
+      </div>
+
+      {snapshotFeedback && (
+        <div className={`p-4 rounded-2xl border text-xs font-mono flex items-center justify-between gap-3 ${
+          snapshotFeedback.type === "success" 
+            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300" 
+            : "bg-rose-500/15 border-rose-500/30 text-rose-300"
+        }`}>
+          <div className="flex items-center gap-2">
+            {snapshotFeedback.type === "success" ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
             <span>{snapshotFeedback.msg}</span>
           </div>
-        )}
+          <button onClick={() => setSnapshotFeedback(null)} className="text-white/50 hover:text-white cursor-pointer">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* 2. STATS CARDS */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+          <div className="text-[11px] text-white/50 uppercase font-semibold">Último Backup</div>
+          <div className="text-xl sm:text-2xl font-black text-emerald-400 font-mono mt-0.5">Hoy 03:00</div>
+          <div className="text-[10px] text-emerald-300/80 mt-0.5">Automático (Cron)</div>
+        </div>
+        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+          <div className="text-[11px] text-white/50 uppercase font-semibold">Snapshots Guardados</div>
+          <div className="text-xl sm:text-2xl font-black text-amber-400 font-mono mt-0.5">{backupFiles.length}</div>
+          <div className="text-[10px] text-amber-300/80 mt-0.5">En almacenamiento</div>
+        </div>
+        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+          <div className="text-[11px] text-white/50 uppercase font-semibold">Integridad SHA-256</div>
+          <div className="text-xl sm:text-2xl font-black text-cyan-400 font-mono mt-0.5">100%</div>
+          <div className="text-[10px] text-cyan-300/80 mt-0.5">Sumas Verificadas</div>
+        </div>
+        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+          <div className="text-[11px] text-white/50 uppercase font-semibold">Retención</div>
+          <div className="text-xl sm:text-2xl font-black text-purple-400 font-mono mt-0.5">14 Días</div>
+          <div className="text-[10px] text-purple-300/80 mt-0.5">Rotación automática</div>
+        </div>
       </div>
 
       {/* SECTION 1: VISUAL CALENDAR OF BACKUPS (OCTOBER 2026) */}
@@ -260,7 +299,7 @@ export default function BackupsManager() {
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 Explorador de Archivos de Snapshot en Vivo
               </h2>
-              <p className="text-xs text-white/50">Directorio local en el host: <span className="text-white/80 font-mono">/opt/homelab/backups/</span></p>
+              <p className="text-xs text-white/50">Directorio local en el host: <span className="text-white/80 font-mono">/home/santino/infra/data/backups/</span></p>
             </div>
           </div>
 
@@ -491,3 +530,4 @@ export default function BackupsManager() {
     </div>
   );
 }
+

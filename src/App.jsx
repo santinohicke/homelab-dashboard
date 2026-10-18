@@ -15,6 +15,7 @@ import SecurityVault from "./SecurityVault.jsx";
 import NetworkTopology from "./NetworkTopology.jsx";
 import BackupsManager from "./BackupsManager.jsx";
 import AgentRadar from "./AgentRadar.jsx";
+import AIObservatory from "./AIObservatory.jsx";
 
 // ============================================================================
 // REAL HOMELAB SHARED DATA
@@ -1367,6 +1368,7 @@ export function AppleIslandDesign() {
               <div className="text-xs uppercase tracking-widest text-zinc-400 font-mono font-semibold mb-1">
                 {dashboardSection === "control" && "HOMELAB · SERVIDOR LENOVO"}
                 {dashboardSection === "radar" && "VIGILANCIA IA · PASANTÍAS & EMPLEOS IT"}
+                {dashboardSection === "ai" && "INTELIGENCIA ARTIFICIAL · OBSERVABILIDAD & CUOTA"}
                 {dashboardSection === "metrics" && "OBSERVABILIDAD · TELEMETRÍA HISTÓRICA"}
                 {dashboardSection === "devops" && "OPERACIONES · AUTOMATIZACIÓN & TERMINAL"}
                 {dashboardSection === "security" && "CENTRO DE DEFENSA · CIFRADO & HARDENING"}
@@ -1376,6 +1378,7 @@ export function AppleIslandDesign() {
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
                 {dashboardSection === "control" && "Centro de Control"}
                 {dashboardSection === "radar" && "Radar Autónomo IT"}
+                {dashboardSection === "ai" && "Telemetría & Consumo de IA"}
                 {dashboardSection === "metrics" && "Métricas & Analíticas"}
                 {dashboardSection === "devops" && "Consola de Operaciones & DevOps"}
                 {dashboardSection === "security" && "Bóveda de Seguridad & Auditoría"}
@@ -1389,6 +1392,7 @@ export function AppleIslandDesign() {
               {[
                 { id: "control", label: "Centro de Control", icon: Sliders, color: "text-cyan-400" },
                 { id: "radar", label: "Radar IT & Pasantías", icon: Radar, color: "text-amber-400" },
+                { id: "ai", label: "Telemetría IA", icon: Sparkles, color: "text-purple-400" },
                 { id: "metrics", label: "Métricas & Gráficos", icon: BarChart3, color: "text-purple-400" },
                 { id: "devops", label: "Consola & DevOps", icon: Terminal, color: "text-emerald-400" },
                 { id: "security", label: "Seguridad & Auditoría", icon: ShieldCheck, color: "text-rose-400" },
@@ -2403,6 +2407,10 @@ export function AppleIslandDesign() {
         <TabErrorBoundary key={dashboardSection}>
           {dashboardSection === "radar" && (
             <AgentRadar />
+          )}
+
+          {dashboardSection === "ai" && (
+            <AIObservatory />
           )}
 
           {dashboardSection === "metrics" && (

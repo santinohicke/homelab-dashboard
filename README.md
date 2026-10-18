@@ -48,14 +48,27 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 ---
 
 ### 2. Radar Autónomo IT · Pasantías & Part-Time 24/7 (Google Gemini AI)
-* **Vacantes 100% Reales (Zero-Mock)**: Extracción directa del estado embebido `window.__STATE__` en la Bolsa de la Universidad Católica Argentina (UCA Campus HiringRoom), LinkedIn Jobs y Get on Board, descartando de forma tajante datos sintéticos o alucinaciones.
+* **Vacantes 100% Reales (Zero-Mock)**: Extracción directa del estado embebido `window.__STATE__` en bolsas universitarias (UCA Campus, Universidad de Belgrano), LinkedIn Jobs y Get on Board, descartando de forma tajante datos sintéticos o alucinaciones.
 * **Criterios Estrictos de Filtrado**:
   * **Jornada Obligatoria**: Exclusivamente Part-Time / Media Jornada (descarta jornadas completas o full-time de 8-9h).
   * **Ubicación & Modalidad**: Remoto o presencial/híbrido **estrictamente en CABA (Ciudad Autónoma de Buenos Aires) o GBA cercano**, descartando puestos presenciales fuera de Buenos Aires.
   * **Ramas Tecnológicas de Interés**: Redes, Telecomunicaciones, Sistemas Embebidos, Electrónica, Soporte de Infraestructura, C/C++, Rust, Cloud y QA.
+* **Blindaje Anti-Estafas y Prevención de Malware (Cero-Trust)**:
+  * El prompt de inferencia de Gemini descarta activamente cualquier vacante que exija descargas de archivos ejecutables (.exe, .zip), librerías sospechosas o clones de repositorios desconocidos para supuestas "pruebas técnicas".
+  * Descarta reclutadores con contacto exclusivo por canales informales (Telegram, WhatsApp o correos @gmail) sin respaldo corporativo.
+  * Solo admite empresas con personería jurídica verificable, convenios universitarios formales y ATS corporativos.
+* **Multi-Portal de 9 Fuentes Auditadas**:
+  1. *Bolsa de Empleo Campus UCA* (`ucaecono.hiringroomcampus.com`)
+  2. *Bolsa de Empleo Campus Universidad de Belgrano* (`ub.hiringroomcampus.com`)
+  3. *LinkedIn Jobs: Pasantías & Part-Time IT CABA*
+  4. *LinkedIn Jobs: Redes, Soporte & Electrónica*
+  5. *LinkedIn Jobs: Pasantías de Ingeniería & Tecnología*
+  6. *LinkedIn Jobs: Trainee / Junior Infraestructura & DevOps*
+  7. *LinkedIn Jobs: Programación Embebida, Firmware & IoT*
+  8. *Get on Board: Pasantías & Part-Time Tech*
+  9. *Get on Board: Sysadmin, DevOps & Cloud*
 * **Filtros Simplificados**: Navegación canónica reducida a `Todas`, `Nuevas` y `Mis Postulaciones`.
 * **Seguimiento de Postulaciones y Rechazos ("Me rechazaron")**:
-  * Acciones de postulación directa con registro de fecha y estado en base SQLite.
   * En "Mis Postulaciones", botón de acción "Me rechazaron" que etiqueta la vacante con el badge `Rechazada` (color rubí/rosa) y opción de deshacer ("Desmarcar rechazo"), manteniéndolas en el flujo sin crear secciones redundantes.
   * Vacantes abiertas señaladas con estado `Postulado · En espera`.
 * **Métricas Reales en Vivo**: Cuadrícula de 6 métricas extraídas en tiempo real de SQLite: *Ofertas Analizadas*, *Nuevas sin Leer*, *Mis Postulaciones*, *En Espera*, *Rechazadas* y *Portales en Vigilancia*.

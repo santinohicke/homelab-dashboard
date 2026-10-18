@@ -157,44 +157,79 @@ def init_db():
     conn.commit()
 
     # Seed default targets if none exist
-    cur.execute("SELECT COUNT(*) FROM agent_targets")
-    if cur.fetchone()[0] == 0:
-        targets_seed = [
-            (
-                "UCA - Bolsa de Empleo Campus",
-                "https://ucaecono.hiringroomcampus.com/jobs",
-                "UCA Oficial",
-                "Bolsa oficial de la facultad. Pasantías y empleos part-time en tecnología, redes, sistemas o soporte en CABA.",
-                6
-            ),
-            (
-                "LinkedIn Jobs - Pasantías & Part-Time IT",
-                "https://www.linkedin.com/jobs/search?keywords=sistemas&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I",
-                "LinkedIn Argentina",
-                "Pasantías y empleos part-time en Buenos Aires de sistemas, redes, hardware, firmware o soporte.",
-                6
-            ),
-            (
-                "LinkedIn Jobs - Redes, Soporte & Electrónica",
-                "https://www.linkedin.com/jobs/search?keywords=redes%20o%20soporte%20o%20electronica&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I",
-                "LinkedIn Redes/Hardware",
-                "Pasantías y medio tiempo en redes, soporte técnico, electrónica, firmware o telecomunicaciones en CABA.",
-                6
-            ),
-            (
-                "Get on Board - Empleos Part-Time IT",
-                "https://www.getonbrd.com/empleos-part-time",
-                "Get on Board",
-                "Busca empleos part-time o medio tiempo compatibles con cursada universitaria en tecnología y sistemas.",
-                6
-            )
-        ]
-        for name, url, cat, crit, int_h in targets_seed:
+    targets_seed = [
+        (
+            "UCA - Bolsa de Empleo Campus",
+            "https://ucaecono.hiringroomcampus.com/jobs",
+            "UCA Oficial",
+            "Bolsa oficial de la facultad. Pasantías y empleos part-time en tecnología, redes, sistemas o soporte en CABA.",
+            6
+        ),
+        (
+            "Universidad de Belgrano - Bolsa Campus CABA",
+            "https://ub.hiringroomcampus.com/jobs",
+            "Bolsa Universitaria",
+            "Pasantías formales bajo ley de pasantías educativas en sistemas, redes, telecomunicaciones y soporte en CABA.",
+            6
+        ),
+        (
+            "LinkedIn Jobs - Pasantías & Part-Time IT",
+            "https://www.linkedin.com/jobs/search?keywords=sistemas&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I",
+            "LinkedIn Argentina",
+            "Pasantías y empleos part-time en Buenos Aires de sistemas, redes, hardware, firmware o soporte.",
+            6
+        ),
+        (
+            "LinkedIn Jobs - Redes, Soporte & Electrónica",
+            "https://www.linkedin.com/jobs/search?keywords=redes%20o%20soporte%20o%20electronica&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I",
+            "LinkedIn Redes/Hardware",
+            "Pasantías y medio tiempo en redes, soporte técnico, electrónica, firmware o telecomunicaciones en CABA.",
+            6
+        ),
+        (
+            "LinkedIn Jobs - Pasantías Ingeniería & Tecnología",
+            "https://www.linkedin.com/jobs/search?keywords=pasantia%20tecnologia%20o%20ingenieria&location=Buenos%20Aires%2C%20Argentina&f_JT=I",
+            "LinkedIn Pasantías",
+            "Pasantías universitarias de ingeniería informática, telecomunicaciones, cloud y sistemas corporativos en CABA.",
+            6
+        ),
+        (
+            "LinkedIn Jobs - Trainee / Junior Infraestructura & DevOps",
+            "https://www.linkedin.com/jobs/search?keywords=trainee%20o%20junior%20infraestructura%20o%20cloud&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I",
+            "LinkedIn Infra/Cloud",
+            "Puestos trainee o junior part-time de Linux, redes, administración de servidores y cloud en CABA.",
+            6
+        ),
+        (
+            "LinkedIn Jobs - Programación Embebida, Firmware & IoT",
+            "https://www.linkedin.com/jobs/search?keywords=embebidos%20o%20firmware%20o%20iot&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I",
+            "LinkedIn Hardware/Embebidos",
+            "Oportunidades de electrónica, firmware, microcontroladores y programación de bajo nivel C/C++ en Buenos Aires.",
+            6
+        ),
+        (
+            "Get on Board - Pasantías & Part-Time IT",
+            "https://www.getonbrd.com/empleos-part-time",
+            "Get on Board",
+            "Busca empleos part-time o medio tiempo compatibles con cursada universitaria en tecnología y sistemas.",
+            6
+        ),
+        (
+            "Get on Board - Sysadmin, DevOps & Cloud",
+            "https://www.getonbrd.com/empleos-sysadmin-devops",
+            "Get on Board DevOps",
+            "Administración de servidores Linux, redes, DevOps y soporte de infraestructura en empresas auditadas.",
+            6
+        )
+    ]
+    for name, url, cat, crit, int_h in targets_seed:
+        cur.execute("SELECT id FROM agent_targets WHERE url = ?", (url,))
+        if not cur.fetchone():
             cur.execute("""
                 INSERT INTO agent_targets (name, url, category, criteria, interval_hours, last_checked, active)
                 VALUES (?, ?, ?, ?, ?, 0, 1)
             """, (name, url, cat, crit, int_h))
-        conn.commit()
+    conn.commit()
 
     conn.close()
 
@@ -645,9 +680,12 @@ def run_agent_job_scraper(target_id=None, force=False):
         try:
             if "hiringroomcampus.com" in t_url:
                 # Direct extraction from HiringRoom's embedded JSON state across relevant categories
+                parsed_t = urllib.parse.urlparse(t_url)
+                base_host = f"{parsed_t.scheme}://{parsed_t.netloc}"
+                base_jobs_url = f"{base_host}/jobs"
                 raw_jobs = []
-                for sub_q in ["", "sistemas", "tecnologia", "desarrollo", "ingenieria", "redes"]:
-                    sub_url = "https://ucaecono.hiringroomcampus.com/jobs"
+                for sub_q in ["", "sistemas", "tecnologia", "desarrollo", "ingenieria", "redes", "soporte"]:
+                    sub_url = base_jobs_url
                     if sub_q:
                         sub_url += f"?q={urllib.parse.quote(sub_q)}"
                     try:
@@ -656,9 +694,7 @@ def run_agent_job_scraper(target_id=None, force=False):
                             s_html = sr.read().decode('utf-8', errors='ignore')
                             idx = s_html.find("window.__STATE__ = ")
                             if idx != -1:
-                                end = s_html.find(";</script>", idx)
-                                if end == -1: end = s_html.find("\n", idx)
-                                d = json.loads(s_html[idx + len("window.__STATE__ = "):end].strip())
+                                d, _ = json.JSONDecoder().raw_decode(s_html[idx + len("window.__STATE__ = "):].strip())
                                 for j in d.get("data", []):
                                     slug = j.get("url")
                                     if slug and not any(x.get("url") == slug for x in raw_jobs):
@@ -674,7 +710,7 @@ def run_agent_job_scraper(target_id=None, force=False):
                     city = j.get("city", "")
                     area = j.get("job_area", "")
                     slug = j.get("url", "")
-                    job_lines.append(f"PUESTO: {name} | EMPRESA: {company} | MODALIDAD: {job_type} | AREA: {area} | CIUDAD: {city} [LINK: https://ucaecono.hiringroomcampus.com/jobs/{slug}]")
+                    job_lines.append(f"PUESTO: {name} | EMPRESA: {company} | MODALIDAD: {job_type} | AREA: {area} | CIUDAD: {city} [LINK: {base_jobs_url}/{slug}]")
                 content = '\n'.join(job_lines[:80])
             else:
                 req = urllib.request.Request(t_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
@@ -701,7 +737,13 @@ Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin e
    - DESCARTA carreras no afines (Contaduria, Finanzas, Abogacia, Recursos Humanos, Marketing, Ventas puras).
    - DESCARTA puestos senior, semi-senior o que exijan mas de 2 anos de experiencia laboral previa.
 4. ESTRICTAMENTE PROHIBIDO INVENTAR O HARDCODEAR PUESTOS: Usa UNICAMENTE los puestos y enlaces reales provistos en el listado. El campo 'link' debe ser exactamente la URL extraida de [LINK: ...]. Si ninguna oferta cumple los criterios, devuelve la lista vacia [].
-5. Responde estrictamente con un JSON valido (sin formato markdown adicional):
+5. SEGURIDAD Y PREVENCION ESTRICTA DE ESTAFAS / MALWARE (CERO-TRUST):
+   - DESCARTA de forma inmediata cualquier oferta sospechosa o potencialmente fraudulenta:
+     * Si exige descargar o ejecutar archivos (.exe, .msi, .bat, .zip), paquetes de dependencias desconocidas o clonar repositorios no verificados como "prueba tecnica" o para acceder a la entrevista.
+     * Si el reclutador o la oferta exige contacto informal exclusivo (Telegram, WhatsApp o correos personales gratuitos @gmail/@hotmail) sin mediar correo corporativo o ATS oficial.
+     * Si incluye promesas de dinero facil, esquemas de criptomonedas, pagos por adelantado o transferencias bancarias.
+   - ADMITE UNICAMENTE empresas formales, consultoras reconocidas, bolsas universitarias auditadas o procesos corporativos con enlaces oficiales verificables.
+6. Responde estrictamente con un JSON valido (sin formato markdown adicional):
 {{
   "encontrados": [
     {{

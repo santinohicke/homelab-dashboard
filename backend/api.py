@@ -132,6 +132,12 @@ def init_db():
             conn.commit()
         except Exception:
             pass
+    if "is_rejected" not in af_cols:
+        try:
+            cur.execute("ALTER TABLE agent_findings ADD COLUMN is_rejected INTEGER DEFAULT 0")
+            conn.commit()
+        except Exception:
+            pass
 
     # AI usage and token telemetry tracking
     cur.execute("""
@@ -637,14 +643,48 @@ def run_agent_job_scraper(target_id=None, force=False):
     for t in targets:
         t_id, t_name, t_url, t_criteria, t_last_chk, t_last_hash = t
         try:
-            req = urllib.request.Request(t_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-            with urllib.request.urlopen(req, timeout=14) as r:
-                html = r.read().decode('utf-8', errors='ignore')
+            if "hiringroomcampus.com" in t_url:
+                # Direct extraction from HiringRoom's embedded JSON state across relevant categories
+                raw_jobs = []
+                for sub_q in ["", "sistemas", "tecnologia", "desarrollo", "ingenieria", "redes"]:
+                    sub_url = "https://ucaecono.hiringroomcampus.com/jobs"
+                    if sub_q:
+                        sub_url += f"?q={urllib.parse.quote(sub_q)}"
+                    try:
+                        sub_req = urllib.request.Request(sub_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                        with urllib.request.urlopen(sub_req, timeout=10) as sr:
+                            s_html = sr.read().decode('utf-8', errors='ignore')
+                            idx = s_html.find("window.__STATE__ = ")
+                            if idx != -1:
+                                end = s_html.find(";</script>", idx)
+                                if end == -1: end = s_html.find("\n", idx)
+                                d = json.loads(s_html[idx + len("window.__STATE__ = "):end].strip())
+                                for j in d.get("data", []):
+                                    slug = j.get("url")
+                                    if slug and not any(x.get("url") == slug for x in raw_jobs):
+                                        raw_jobs.append(j)
+                    except Exception:
+                        pass
+                
+                job_lines = []
+                for j in raw_jobs:
+                    name = j.get("name", "")
+                    company = j.get("company", {}).get("name", "")
+                    job_type = j.get("job_type", "")
+                    city = j.get("city", "")
+                    area = j.get("job_area", "")
+                    slug = j.get("url", "")
+                    job_lines.append(f"PUESTO: {name} | EMPRESA: {company} | MODALIDAD: {job_type} | AREA: {area} | CIUDAD: {city} [LINK: https://ucaecono.hiringroomcampus.com/jobs/{slug}]")
+                content = '\n'.join(job_lines[:80])
+            else:
+                req = urllib.request.Request(t_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                with urllib.request.urlopen(req, timeout=14) as r:
+                    html = r.read().decode('utf-8', errors='ignore')
 
-            parser = JobPageExtractor(t_url)
-            parser.feed(html)
-            raw_lines = [l for l in parser.get_content().split('\n') if len(l) > 3]
-            content = '\n'.join(raw_lines[:160])
+                parser = JobPageExtractor(t_url)
+                parser.feed(html)
+                raw_lines = [l for l in parser.get_content().split('\n') if len(l) > 3]
+                content = '\n'.join(raw_lines[:160])
             
             content_hash = str(hash(content))
             if not force and content_hash == t_last_hash:
@@ -658,8 +698,10 @@ Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin e
    - Si es Presencial o Hibrido: DEBE SER OBLIGATORIAMENTE en CABA (Ciudad Autonoma de Buenos Aires) o Gran Buenos Aires cercano, Argentina. DESCARTA puestos presenciales/hibridos en otras provincias o paises (ej. Chile, Colombia, Mendoza, etc.).
 3. RAMAS DE INTERES:
    - Primer empleo para estudiante de Ingenieria Informatica: Redes / Telecomunicaciones, Soporte Tecnico / SysAdmin, Electronica / Hardware, Programacion Embebida / Firmware / IoT, Bajo Nivel (C/C++, Rust), Infraestructura, Cloud, DevOps, Ciberseguridad, QA / Testing, Datos, o Desarrollo de Software general.
+   - DESCARTA carreras no afines (Contaduria, Finanzas, Abogacia, Recursos Humanos, Marketing, Ventas puras).
    - DESCARTA puestos senior, semi-senior o que exijan mas de 2 anos de experiencia laboral previa.
-4. Responde estrictamente con un JSON valido (sin formato markdown adicional):
+4. ESTRICTAMENTE PROHIBIDO INVENTAR O HARDCODEAR PUESTOS: Usa UNICAMENTE los puestos y enlaces reales provistos en el listado. El campo 'link' debe ser exactamente la URL extraida de [LINK: ...]. Si ninguna oferta cumple los criterios, devuelve la lista vacia [].
+5. Responde estrictamente con un JSON valido (sin formato markdown adicional):
 {{
   "encontrados": [
     {{
@@ -1116,7 +1158,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
 
             if view == "applied":
                 cur.execute("""
-                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0)
+                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0), COALESCE(f.is_rejected, 0)
                     FROM agent_findings f
                     LEFT JOIN agent_targets t ON f.target_id = t.id
                     WHERE f.is_applied = 1 AND f.is_archived = 0
@@ -1125,7 +1167,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 """, (limit,))
             elif view == "archived":
                 cur.execute("""
-                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0)
+                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0), COALESCE(f.is_rejected, 0)
                     FROM agent_findings f
                     LEFT JOIN agent_targets t ON f.target_id = t.id
                     WHERE f.is_archived = 1
@@ -1134,7 +1176,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 """, (limit,))
             elif view == "all":
                 cur.execute("""
-                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0)
+                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0), COALESCE(f.is_rejected, 0)
                     FROM agent_findings f
                     LEFT JOIN agent_targets t ON f.target_id = t.id
                     ORDER BY f.timestamp DESC
@@ -1142,7 +1184,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 """, (limit,))
             else: # active (not archived)
                 cur.execute("""
-                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0)
+                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0), COALESCE(f.is_rejected, 0)
                     FROM agent_findings f
                     LEFT JOIN agent_targets t ON f.target_id = t.id
                     WHERE f.is_archived = ?
@@ -1152,14 +1194,23 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
 
             rows = cur.fetchall()
 
+            cur.execute("SELECT COUNT(*) FROM agent_findings")
+            total_scraped = cur.fetchone()[0]
+
             cur.execute("SELECT COUNT(*) FROM agent_findings WHERE is_read = 0 AND is_archived = 0")
             unread_count = cur.fetchone()[0]
 
             cur.execute("SELECT COUNT(*) FROM agent_findings WHERE is_applied = 1 AND is_archived = 0")
             applied_count = cur.fetchone()[0]
 
-            cur.execute("SELECT COUNT(*) FROM agent_findings WHERE is_archived = 0")
-            total_active = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM agent_findings WHERE is_applied = 1 AND is_rejected = 1 AND is_archived = 0")
+            rejected_count = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM agent_findings WHERE is_applied = 1 AND is_rejected = 0 AND is_archived = 0")
+            pending_count = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM agent_targets WHERE active = 1")
+            active_targets_count = cur.fetchone()[0]
 
             conn.close()
 
@@ -1178,15 +1229,26 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                     "link": r[8],
                     "is_read": bool(r[9]),
                     "is_archived": bool(r[10]),
-                    "is_applied": bool(r[11])
+                    "is_applied": bool(r[11]),
+                    "is_rejected": bool(r[12])
                 })
 
             self._send_json({
                 "status": "ok",
                 "findings": findings,
+                "stats": {
+                    "total_scraped": total_scraped,
+                    "unread_count": unread_count,
+                    "applied_count": applied_count,
+                    "rejected_count": rejected_count,
+                    "pending_count": pending_count,
+                    "active_targets_count": active_targets_count
+                },
                 "unread_count": unread_count,
                 "applied_count": applied_count,
-                "total_count": total_active
+                "rejected_count": rejected_count,
+                "pending_count": pending_count,
+                "total_count": total_scraped
             })
             return
 
@@ -1589,7 +1651,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             if f_id is not None:
                 conn = sqlite3.connect(DB_PATH)
                 cur = conn.cursor()
-                cur.execute("UPDATE agent_findings SET is_applied = 1, is_read = 1 WHERE id = ?", (f_id,))
+                cur.execute("UPDATE agent_findings SET is_applied = 1, is_read = 1, is_rejected = 0 WHERE id = ?", (f_id,))
                 conn.commit()
                 conn.close()
             self._send_json({"status": "ok"})
@@ -1609,13 +1671,53 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             if f_id is not None:
                 conn = sqlite3.connect(DB_PATH)
                 cur = conn.cursor()
-                cur.execute("UPDATE agent_findings SET is_applied = 0 WHERE id = ?", (f_id,))
+                cur.execute("UPDATE agent_findings SET is_applied = 0, is_rejected = 0 WHERE id = ?", (f_id,))
                 conn.commit()
                 conn.close()
             self._send_json({"status": "ok"})
             return
 
-        # 15. AGENT: DISCARD FINDING
+        # 15. AGENT: MARK AS REJECTED (ME RECHAZARON)
+        if path == "/api/v1/agent/reject":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = {}
+            if content_length > 0:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                except Exception:
+                    pass
+            
+            f_id = body.get("id")
+            if f_id is not None:
+                conn = sqlite3.connect(DB_PATH)
+                cur = conn.cursor()
+                cur.execute("UPDATE agent_findings SET is_rejected = 1, is_applied = 1, is_read = 1 WHERE id = ?", (f_id,))
+                conn.commit()
+                conn.close()
+            self._send_json({"status": "ok"})
+            return
+
+        # 16. AGENT: UNMARK REJECTED
+        if path == "/api/v1/agent/unreject":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = {}
+            if content_length > 0:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                except Exception:
+                    pass
+            
+            f_id = body.get("id")
+            if f_id is not None:
+                conn = sqlite3.connect(DB_PATH)
+                cur = conn.cursor()
+                cur.execute("UPDATE agent_findings SET is_rejected = 0 WHERE id = ?", (f_id,))
+                conn.commit()
+                conn.close()
+            self._send_json({"status": "ok"})
+            return
+
+        # 17. AGENT: DISCARD FINDING
         if path == "/api/v1/agent/discard":
             content_length = int(self.headers.get("Content-Length", 0))
             body = {}

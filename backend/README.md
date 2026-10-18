@@ -53,12 +53,13 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 ### Agente Autónomo de Investigación IT & Pasantías (Gemini AI Zero-Billing)
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
-| `GET` | `/api/v1/agent/findings` | Devuelve las convocatorias detectadas ordenadas por fecha (`?view=applied` para postuladas). |
+| `GET` | `/api/v1/agent/findings` | Devuelve convocatorias reales ordenadas por fecha con objeto `stats` (totales, aplicados, pendientes, rechazados). |
 | `GET` | `/api/v1/agent/targets` | Lista de portales web y fuentes de empleo configuradas con sus intervalos. |
 | `POST` | `/api/v1/agent/run` | Fuerza la ejecución inmediata del scraper y análisis con Google Gemini 3.1 Flash-Lite. |
-| `POST` | `/api/v1/agent/apply` | Marca una convocatoria como postulado (`is_applied = 1`, `is_read = 1`). |
-| `POST` | `/api/v1/agent/unapply` | Desmarca la postulación activa (`is_applied = 0`). |
-| `POST` | `/api/v1/agent/discard` | Descarta/archiva una oferta (`is_archived = 1`). |
+| `POST` | `/api/v1/agent/apply` | Marca una convocatoria como postulado (`is_applied = 1`, `is_read = 1`, `is_rejected = 0`). |
+| `POST` | `/api/v1/agent/unapply` | Desmarca la postulación activa (`is_applied = 0`, `is_rejected = 0`). |
+| `POST` | `/api/v1/agent/reject` | Registra el rechazo de una postulación (`is_rejected = 1`, `is_applied = 1`, `is_read = 1`). |
+| `POST` | `/api/v1/agent/unreject` | Desmarca el rechazo volviendo la postulación a estado en espera (`is_rejected = 0`). |
 | `POST` | `/api/v1/agent/mark-read` | Marca una oferta (`{"id": N}`) o todas (`{"all": true}`) como leídas. |
 | `POST` | `/api/v1/agent/archive` | Archiva una oferta (`{"id": N}`) de la vista activa. |
 | `POST` | `/api/v1/agent/targets` | Agrega un nuevo portal o URL con criterios personalizados de búsqueda. |

@@ -195,7 +195,14 @@ docker run -d --name homelab-dashboard -p 3000:80 --restart unless-stopped homel
 ---
 
 ## Soporte PWA y Web Push en iPhone y Android
-El proyecto incluye `manifest.json`, iconos de alta resolución (`apple-touch-icon.png`, `icon-192.png`, `icon-512.png`) y meta-tags adaptados para **Notch y Safe Area** (`viewport-fit=cover`). La cápsula interactiva **Dynamic Island** calcula dinámicamente su cota superior mediante `calc(env(safe-area-inset-top) + 10px)` para librar completamente el altavoz frontal y los sensores TrueDepth en dispositivos iOS con notch (como iPhone 11 y superiores). Al seleccionar *"Agregar a la pantalla de inicio"* en Safari o Chrome, el dashboard se comporta como una aplicación nativa a pantalla completa sin barra de navegación del explorador.
+El proyecto incluye `manifest.json`, suite completa de iconos de alta resolución (`apple-touch-icon.png`, `apple-touch-icon-180x180.png`, `apple-touch-icon-precomposed.png`, `icon-192.png`, `icon-512.png`, `favicon.ico`) y meta-tags adaptados para **Notch y Safe Area** (`viewport-fit=cover`). La cápsula interactiva **Dynamic Island** calcula dinámicamente su cota superior mediante `calc(env(safe-area-inset-top) + 10px)` para librar completamente el altavoz frontal y los sensores TrueDepth en dispositivos iOS con notch (como iPhone 11 y superiores). Al seleccionar *"Agregar a la pantalla de inicio"* en Safari o Chrome, el dashboard se comporta como una aplicación nativa a pantalla completa sin barra de navegación del explorador.
+
+### Iconografía Homelab para Pantalla de Inicio en iOS
+* **Icono de Bastidor con Luces LED**: Diseñado específicamente en formato RGB de 24 bits totalmente opaco (sin canal alfa susceptible a inconsistencias en WebKit) con resolución retina (180x180 px y 512x512 px). Representa un gabinete de servidor homelab con rieles laterales, tornillos de anclaje, ranuras de ventilación y tres luces LED diferenciadas:
+  - Unidad 1: Cyan (`#00ebff`)
+  - Unidad 2: Lavanda / Índigo (`#9682ff`)
+  - Unidad 3: Verde Esmeralda (`#10eb96`)
+* **Matriz de Compatibilidad WebKit**: Se sirven explícitamente las variantes `/apple-touch-icon-180x180.png`, `/apple-touch-icon-precomposed.png`, `/apple-touch-icon.png` y `/favicon.ico` con directivas Nginx de caché y control de fallback (`try_files $uri =404;`), impidiendo que peticiones de iconos reciban respuestas HTML y asegurando que iOS cargue siempre la imagen real en lugar del monograma de texto por defecto.
 
 ### Notificaciones Push en iOS (iOS 16.4+)
 En cumplimiento estricto con las especificaciones de seguridad de Apple WebKit:

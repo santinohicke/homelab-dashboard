@@ -99,20 +99,52 @@ export default function AgentRadar() {
   };
 
   const handleRunScan = async (targetId = null) => {
+    if (scanning) return;
     try {
       setScanning(true);
       setScanResult(null);
+
       const res = await fetch("/api/v1/agent/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(targetId ? { target_id: targetId } : {})
       });
+
+      if (!res.ok) {
+        throw new Error(`Error en el servidor (código HTTP ${res.status}).`);
+      }
+
       const data = await res.json();
-      setScanResult(data);
-      await fetchData();
+
+      // If backend started task in background, poll /api/v1/agent/status until complete
+      if (data.status === "started" || data.scanning) {
+        let attempts = 0;
+        const maxAttempts = 40; // 40 * 2.5s = 100s max polling limit
+        const pollInterval = setInterval(async () => {
+          attempts += 1;
+          try {
+            const stRes = await fetch("/api/v1/agent/status");
+            if (stRes.ok) {
+              const stData = await stRes.json();
+              if (!stData.scanning || attempts >= maxAttempts) {
+                clearInterval(pollInterval);
+                setScanning(false);
+                setScanResult(stData.last_result || { status: "ok", new_findings: 0 });
+                await fetchData();
+              }
+            }
+          } catch (pollErr) {
+            console.warn("Error en sondeo de estado de rastreo:", pollErr);
+          }
+        }, 2500);
+      } else {
+        setScanResult(data);
+        setScanning(false);
+        await fetchData();
+      }
     } catch (err) {
-      setScanResult({ status: "error", message: String(err) });
-    } finally {
+      console.error("Error al ejecutar scraper:", err);
+      setScanResult({ status: "error", message: err.message || "Fallo de conexión al ejecutar rastreo." });
       setScanning(false);
     }
   };

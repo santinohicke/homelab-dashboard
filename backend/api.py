@@ -31,6 +31,11 @@ MAINTENANCE_FLAG = os.path.join(DATA_DIR, "maintenance.flag")
 
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
+# Global background scanner state
+_agent_is_scanning = False
+_agent_scan_lock = threading.Lock()
+_agent_last_result = {"status": "idle", "new_findings": 0, "timestamp": int(time.time()), "message": "Listo"}
+
 def sanitize_utf8_accents(text):
     if not text or not isinstance(text, str):
         return ""
@@ -700,13 +705,13 @@ def run_agent_job_scraper(target_id=None, force=False):
                 base_host = f"{parsed_t.scheme}://{parsed_t.netloc}"
                 base_jobs_url = f"{base_host}/jobs"
                 raw_jobs = []
-                for sub_q in ["", "sistemas", "tecnologia", "desarrollo", "ingenieria", "redes", "infraestructura", "telecomunicaciones"]:
+                for sub_q in ["", "sistemas", "tecnologia"]:
                     sub_url = base_jobs_url
                     if sub_q:
                         sub_url += f"?q={urllib.parse.quote(sub_q)}"
                     try:
                         sub_req = urllib.request.Request(sub_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-                        with urllib.request.urlopen(sub_req, timeout=10) as sr:
+                        with urllib.request.urlopen(sub_req, timeout=6) as sr:
                             raw_b = sr.read()
                             try:
                                 s_html = raw_b.decode('utf-8')
@@ -734,7 +739,7 @@ def run_agent_job_scraper(target_id=None, force=False):
                 content = '\n'.join(job_lines[:80])
             else:
                 req = urllib.request.Request(t_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-                with urllib.request.urlopen(req, timeout=14) as r:
+                with urllib.request.urlopen(req, timeout=6) as r:
                     raw_b = r.read()
                     try:
                         html = raw_b.decode('utf-8')
@@ -1245,6 +1250,17 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             self._send_json(get_pihole_live_stats())
             return
 
+        # 11B. AGENT STATUS (Live Background Scraping State)
+        if path == "/api/v1/agent/status":
+            global _agent_is_scanning, _agent_last_result
+            with _agent_scan_lock:
+                self._send_json({
+                    "status": "ok",
+                    "scanning": _agent_is_scanning,
+                    "last_result": _agent_last_result
+                })
+            return
+
         # 12. AGENT FINDINGS (IT Internships & Part-time Opportunities)
         if path == "/api/v1/agent/findings":
             is_archived = int(query.get("archived", ["0"])[0])
@@ -1721,7 +1737,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 self._send_json({"status": "error", "message": str(e)}, 500)
                 return
 
-        # 8. AGENT: RUN SCRAPER NOW
+        # 8. AGENT: RUN SCRAPER NOW (Non-blocking background thread)
         if path == "/api/v1/agent/run":
             content_length = int(self.headers.get("Content-Length", 0))
             body = {}
@@ -1731,8 +1747,51 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
             target_id = body.get("target_id")
-            result = run_agent_job_scraper(target_id=target_id, force=True)
-            self._send_json(result)
+
+            global _agent_is_scanning, _agent_last_result
+            with _agent_scan_lock:
+                if _agent_is_scanning:
+                    self._send_json({
+                        "status": "already_running",
+                        "message": "El rastreo de portales ya está en ejecución...",
+                        "scanning": True
+                    })
+                    return
+                _agent_is_scanning = True
+                _agent_last_result = {
+                    "status": "running",
+                    "new_findings": 0,
+                    "timestamp": int(time.time()),
+                    "message": "Rastreando portales de empleo..."
+                }
+
+            def bg_scraper_task():
+                global _agent_is_scanning, _agent_last_result
+                try:
+                    res = run_agent_job_scraper(target_id=target_id, force=True)
+                    with _agent_scan_lock:
+                        _agent_last_result = res
+                except Exception as e:
+                    print(f"[Agent Scraper Background Error]: {e}", file=sys.stderr)
+                    with _agent_scan_lock:
+                        _agent_last_result = {
+                            "status": "error",
+                            "message": str(e),
+                            "new_findings": 0,
+                            "timestamp": int(time.time())
+                        }
+                finally:
+                    with _agent_scan_lock:
+                        _agent_is_scanning = False
+
+            t = threading.Thread(target=bg_scraper_task, daemon=True)
+            t.start()
+
+            self._send_json({
+                "status": "started",
+                "message": "Rastreo autónomo iniciado en segundo plano",
+                "scanning": True
+            })
             return
 
         # 9. AGENT: MARK FINDING READ

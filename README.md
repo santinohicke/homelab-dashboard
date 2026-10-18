@@ -39,7 +39,10 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 
 ### 1. Centro de Control
 * **Dynamic Island Expandible**: Cabecera interactiva con efecto de morphing físico (altura dinámica según contenido), selector de estado y widgets rápidos.
-* **Rack 3D Interactivo de Contenedores**: Modelo tridimensional de gabinete de rack 19" con rieles extensibles en perspectiva CSS 3D. Al hacer clic en cualquier unidad (Dashboard, HA, Vaultwarden, Kuma, NPM, Pi-hole, Portainer), se abre una terminal de **Logs en Tiempo Real** con opción de copiar y reiniciar el contenedor.
+* **Rack 3D Interactivo de Contenedores**: Modelo tridimensional de gabinete de rack 19" con rieles extensibles en perspectiva CSS 3D. Al hacer clic en cualquier unidad (Dashboard, HA, Vaultwarden, Kuma, NPM, Pi-hole, Portainer, Cloudflared):
+  * **Inteligencia Cromática Semántica**: Analizador semántico de logs (`getLogLineClass`) que clasifica líneas por prioridad (verde esmeralda para estados nominales, arranque y códigos 200/OK; ámbar para advertencias; rojo rosa restringido a fallos críticos genuinos). Elimina falsos positivos causados por nombres de servicios (`fail2ban`) o estadísticas de ping ICMP (`0 errors`).
+  * **Ergonomía Móvil Adaptativa**: En dispositivos móviles (<1024px), la tarjeta se expande verticalmente colocando el bastidor 3D interactivo arriba y la terminal de logs en flujo estándar abajo sin tapar el modelo tridimensional.
+  * **Acciones en Vivo**: Botones para copiar logs, refrescar stream y reiniciar contenedores directamente vía Portainer API.
 * **Monitoreo Uptime Kuma**: Franja de disponibilidad histórica de 30 días con badges de latencia ICMP/HTTP por microservicio.
 * **Desglose de Almacenamiento SSD**: Gráfica de barra apilada multi-segmento que clasifica el uso del disco `/dev/sda3` (Sistema Operativo, Capas Docker, Logs y Espacio Libre).
 * **Estimador de Consumo Eléctrico & Costo en Pesos ($ ARS)**: Cálculo en tiempo real de la potencia en vatios del procesador Intel (~16W a 22W), proyección mensual en kWh, tarifa configurable y comparativa de ahorro de energía (~92%) frente a una PC de escritorio convencional.

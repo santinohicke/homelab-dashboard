@@ -19,20 +19,20 @@ import BackupsManager from "./BackupsManager.jsx";
 // REAL HOMELAB SHARED DATA
 // ============================================================================
 export const FAMILY_MEMBERS = [
-  { name: "iPhone 11", device: "iOS · 192.168.1.150", ip: "192.168.1.150", isHome: true, ping: "4ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-42 dBm", mac: "02:00:00:00:00:03" },
-  { name: "Samsung Galaxy A52", device: "Android · 192.168.1.110", ip: "192.168.1.110", isHome: true, ping: "12ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-58 dBm", mac: "02:00:00:00:00:04" },
-  { name: "iPhone 15", device: "iOS · 192.168.1.125", ip: "192.168.1.125", isHome: true, ping: "9ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-52 dBm", mac: "02:00:00:00:00:05" },
-  { name: "Workstation PC", device: "Windows 11 · 192.168.1.50", ip: "192.168.1.50", isHome: true, ping: "2ms", icon: Laptop, color: "from-emerald-500 to-teal-600", signal: "-38 dBm", mac: "02:00:00:00:00:06" },
-  { name: "Panel Control Moto e7", device: "Wallmount · 192.168.1.220", ip: "192.168.1.220", isHome: false, ping: "OFF", icon: Tablet, color: "from-purple-500 to-pink-600", signal: "N/A", mac: "02:00:00:00:00:07" }
+  { name: "iPhone 11", device: "iOS · 192.168.0.246", ip: "192.168.0.246", isHome: true, ping: "4ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-42 dBm", mac: "86:2D:A6:15:03:4F" },
+  { name: "Samsung Galaxy A52", device: "Android · 192.168.0.110", ip: "192.168.0.110", isHome: true, ping: "12ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-58 dBm", mac: "66:3C:28:90:11:02" },
+  { name: "iPhone 15", device: "iOS · 192.168.0.125", ip: "192.168.0.125", isHome: true, ping: "9ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-52 dBm", mac: "46:64:96:D7:99:93" },
+  { name: "Notebook HP 250 G7", device: "Windows 11 · 192.168.0.210", ip: "192.168.0.210", isHome: true, ping: "2ms", icon: Laptop, color: "from-emerald-500 to-teal-600", signal: "-38 dBm", mac: "CF:30:49:12:88:AA" },
+  { name: "Panel Control Moto e7", device: "Wallmount · 192.168.0.150", ip: "192.168.0.150", isHome: false, ping: "OFF", icon: Tablet, color: "from-purple-500 to-pink-600", signal: "N/A", mac: "04:A6:71:B2:C3:D4" }
 ];
 
 export const SERVICES = [
-  { name: "Vaultwarden", desc: "Bóveda HTTPS Cifrada", domain: "vault.homelab.local", url: "https://vault.homelab.local", icon: Lock, ping: 23, port: "443 / 8080", color: "purple" },
-  { name: "Home Assistant", desc: "Domótica & Sensores IoT", domain: "ha.homelab.local", url: "https://ha.homelab.local", icon: Zap, ping: 5, port: "8123", color: "blue" },
-  { name: "Uptime Kuma", desc: "Monitoreo & 10 Pings", domain: "kuma.homelab.local", url: "https://kuma.homelab.local", icon: Activity, ping: 4, port: "3001", color: "emerald" },
-  { name: "Portainer CE", desc: "Control Docker Engine", domain: "portainer.homelab.local", url: "https://portainer.homelab.local", icon: Radio, ping: 17, port: "9443", color: "cyan" },
-  { name: "Pi-hole Admin", desc: "Filtro DNS & Adblock", domain: "pihole.homelab.local", url: "https://pihole.homelab.local", icon: Shield, ping: 13, port: "80 / 53", color: "rose" },
-  { name: "Nginx Proxy", desc: "Ruteo & Certificados SSL", domain: "npm.homelab.local", url: "https://npm.homelab.local", icon: Server, ping: 4, port: "81", color: "cyan" }
+  { name: "Vaultwarden", desc: "Bóveda HTTPS Cifrada", domain: "vault.santino.lab", url: "https://vault.santino.lab", icon: Lock, ping: 23, port: "443 / 8080", color: "purple" },
+  { name: "Home Assistant", desc: "Domótica & Sensores IoT", domain: "ha.santino.lab", url: "https://ha.santino.lab", icon: Zap, ping: 5, port: "8123", color: "blue" },
+  { name: "Uptime Kuma", desc: "Monitoreo & 10 Pings", domain: "kuma.santino.lab", url: "https://kuma.santino.lab", icon: Activity, ping: 4, port: "3001", color: "emerald" },
+  { name: "Portainer CE", desc: "Control Docker Engine", domain: "portainer.santino.lab", url: "https://portainer.santino.lab", icon: Radio, ping: 17, port: "9443", color: "cyan" },
+  { name: "Pi-hole Admin", desc: "Filtro DNS & Adblock", domain: "pihole.santino.lab", url: "https://pihole.santino.lab", icon: Shield, ping: 13, port: "80 / 53", color: "rose" },
+  { name: "Nginx Proxy", desc: "Ruteo & Certificados SSL", domain: "npm.santino.lab", url: "https://npm.santino.lab", icon: Server, ping: 4, port: "81", color: "cyan" }
 ];
 
 export const DOCKER_RACK_UNITS = [
@@ -47,7 +47,7 @@ export const DOCKER_RACK_UNITS = [
     type: "server", 
     status: "running",
     colorLed: "bg-cyan-400",
-    url: "https://panel.homelab.local",
+    url: "https://panel.santino.lab",
     desc: "Interfaz gráfica oficial del Homelab compilada en React/Vite sobre Nginx Alpine."
   },
   { 
@@ -61,7 +61,7 @@ export const DOCKER_RACK_UNITS = [
     type: "vents", 
     status: "running",
     colorLed: "bg-blue-400",
-    url: "https://ha.homelab.local",
+    url: "https://ha.santino.lab",
     desc: "Centro de automatización residencial con integraciones de luces, sensores e historial de presencia."
   },
   { 
@@ -75,7 +75,7 @@ export const DOCKER_RACK_UNITS = [
     type: "bays", 
     status: "running",
     colorLed: "bg-purple-400",
-    url: "https://vault.homelab.local",
+    url: "https://vault.santino.lab",
     desc: "Gestor de contraseñas Bitwarden autoalojado con cifrado Zero-Knowledge end-to-end."
   },
   { 
@@ -89,7 +89,7 @@ export const DOCKER_RACK_UNITS = [
     type: "ports", 
     status: "running",
     colorLed: "bg-emerald-400",
-    url: "https://kuma.homelab.local",
+    url: "https://kuma.santino.lab",
     desc: "Monitoreo continuo de latencia cada 20 segundos y pings ICMP/HTTP de todos los nodos locales."
   },
   { 
@@ -103,7 +103,7 @@ export const DOCKER_RACK_UNITS = [
     type: "ports", 
     status: "running",
     colorLed: "bg-cyan-400",
-    url: "https://npm.homelab.local",
+    url: "https://npm.santino.lab",
     desc: "Servidor proxy inverso Nginx con certificados SSL Wildcard renovados por Let's Encrypt."
   },
   { 
@@ -117,7 +117,7 @@ export const DOCKER_RACK_UNITS = [
     type: "vents", 
     status: "running",
     colorLed: "bg-rose-400",
-    url: "https://pihole.homelab.local",
+    url: "https://pihole.santino.lab",
     desc: "Bloqueador DNS a nivel de red completa con listas de gravedad para telemetría y anuncios."
   },
   { 
@@ -131,7 +131,7 @@ export const DOCKER_RACK_UNITS = [
     type: "server", 
     status: "running",
     colorLed: "bg-cyan-400",
-    url: "https://portainer.homelab.local",
+    url: "https://portainer.santino.lab",
     desc: "Consola de administración gráfica para contenedores, volúmenes, imágenes y redes del host."
   },
   { 
@@ -175,19 +175,19 @@ function generateFallbackLogs(unit) {
     case "c_dash":
       return [
         `[${now}] [nginx/alpine] worker process 14 started`,
-        `[${now}] [nginx] 192.168.1.50 - "GET / HTTP/1.1" 200 1410`,
-        `[${now}] [nginx] 192.168.1.150 - "GET /kuma-status.json HTTP/1.1" 200 842`,
+        `[${now}] [nginx] 192.168.0.210 - "GET / HTTP/1.1" 200 1410`,
+        `[${now}] [nginx] 192.168.0.246 - "GET /kuma-status.json HTTP/1.1" 200 842`,
         `[${now}] [proxy] Forwarding upstream connection to /api/ha/states -> :8123 [200 OK]`,
         `[${now}] [proxy] Forwarding upstream connection to /api/portainer/ -> :9443 [200 OK]`,
-        `[${now}] [vite-hmr] Connected client on WebSocket wss://lab.homelab.local:443`,
+        `[${now}] [vite-hmr] Connected client on WebSocket wss://lab.santino.lab:443`,
         `[${now}] [healthcheck] HTTP /healthz returned 200 (latency: 1.2ms)`
       ];
     case "c_ha":
       return [
         `[${now}] [homeassistant.core] Starting Home Assistant 2026.8.2`,
-        `[${now}] [homeassistant.components.websocket_api] Client connected from 192.168.1.100`,
+        `[${now}] [homeassistant.components.websocket_api] Client connected from 192.168.0.200`,
         `[${now}] [homeassistant.components.weather] Updating weather data from Met.no for zone.casa`,
-        `[${now}] [homeassistant.components.device_tracker] ARP scan detected 5 active clients in 192.168.1.0/24`,
+        `[${now}] [homeassistant.components.device_tracker] ARP scan detected 5 active clients in 192.168.0.0/24`,
         `[${now}] [homeassistant.components.sensor] speedtest_descarga: 294.8 Mbit/s | speedtest_subida: 52.4 Mbit/s`,
         `[${now}] [homeassistant.core] Event loop nominal, 0 pending tasks`
       ];
@@ -321,12 +321,12 @@ export function DockerContainers3DRack() {
           method: "POST"
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setActionFeedback({ type: "success", msg: `Contenedor ${unit.label} reiniciado con éxito en Portainer.` });
+        setActionFeedback({ type: "success", msg: `✅ Contenedor ${unit.label} reiniciado con éxito en Portainer.` });
         setTimeout(fetchContainers, 2000);
         if (showLogs) setTimeout(fetchLogs, 1500);
       } else {
         await new Promise(r => setTimeout(r, 1400));
-        setActionFeedback({ type: "success", msg: `Contenedor ${unit.label} reiniciado con éxito.` });
+        setActionFeedback({ type: "success", msg: `✅ Contenedor ${unit.label} reiniciado con éxito.` });
       }
     } catch (err) {
       console.error("Error al reiniciar contenedor:", err);
@@ -603,7 +603,7 @@ export function DockerContainers3DRack() {
                 </button>
 
                 <a 
-                  href="https://portainer.homelab.local"
+                  href="https://portainer.santino.lab"
                   target="_blank"
                   rel="noreferrer"
                   className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 hover:text-white text-[11px] font-mono flex items-center gap-1"
@@ -854,6 +854,7 @@ export function AppleIslandDesign() {
   // Pi-hole Interactive Pause state
   const [piholePaused, setPiholePaused] = useState(false);
   const [piholeTimer, setPiholeTimer] = useState(300);
+  const [piholeStats, setPiholeStats] = useState(null);
 
   // Live Server Hardware Telemetry Oscillations (around real Lenovo Server baseline)
   const [cpuUsage, setCpuUsage] = useState(14);
@@ -908,17 +909,35 @@ export function AppleIslandDesign() {
     }
   };
 
+  const fetchPiholeStats = async () => {
+    try {
+      const res = await fetch("/api/v1/pihole");
+      if (res.ok) {
+        const data = await res.json();
+        setPiholeStats(data);
+        if (data.blocking_enabled !== undefined) {
+          setPiholePaused(!data.blocking_enabled);
+        }
+      }
+    } catch (err) {
+      // offline fallback
+    }
+  };
+
   useEffect(() => {
     fetchHaStates();
     fetchKumaStatus();
     fetchDockerStorage();
+    fetchPiholeStats();
     const timerHa = setInterval(fetchHaStates, 10000);
     const timerKuma = setInterval(fetchKumaStatus, 8000);
     const timerStorage = setInterval(fetchDockerStorage, 25000);
+    const timerPihole = setInterval(fetchPiholeStats, 10000);
     return () => {
       clearInterval(timerHa);
       clearInterval(timerKuma);
       clearInterval(timerStorage);
+      clearInterval(timerPihole);
     };
   }, []);
 
@@ -977,13 +996,20 @@ export function AppleIslandDesign() {
     return () => clearInterval(interval);
   }, [piholePaused]);
 
-  const togglePiholePause = () => {
-    if (piholePaused) {
-      setPiholePaused(false);
-      setPiholeTimer(300);
-    } else {
-      setPiholePaused(true);
-      setPiholeTimer(300);
+  const togglePiholePause = async () => {
+    try {
+      if (piholePaused) {
+        setPiholePaused(false);
+        setPiholeTimer(300);
+        await fetch("/api/v1/pihole/resume", { method: "POST" });
+      } else {
+        setPiholePaused(true);
+        setPiholeTimer(300);
+        await fetch("/api/v1/pihole/pause", { method: "POST" });
+      }
+      fetchPiholeStats();
+    } catch (err) {
+      console.error("Error al pausar/reanudar Pi-hole:", err);
     }
   };
 
@@ -1096,7 +1122,7 @@ export function AppleIslandDesign() {
       id: 3,
       category: "Red",
       title: "Túnel WireGuard P2P activo (Tailscale)",
-      desc: "Conexión directa establecida con workstation-pc (192.168.1.50) vía MagicDNS.",
+      desc: "Conexión directa establecida con desktop-judg38n (192.168.0.210) vía MagicDNS.",
       time: "Hace 45 min",
       status: "Conectado",
       icon: Network,
@@ -1117,7 +1143,7 @@ export function AppleIslandDesign() {
     {
       id: 5,
       category: "Red",
-      title: "Certificado SSL Wildcard *.homelab.local verificado",
+      title: "Certificado SSL Wildcard *.santino.lab verificado",
       desc: "Cifrado TLS 1.3 activo en Nginx Proxy Manager, renovación automática válida hasta 2036.",
       time: "Hace 2 horas",
       status: "Válido",
@@ -1217,7 +1243,7 @@ export function AppleIslandDesign() {
                   )}
                 </div>
                 <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-white/10 text-white/70 font-mono">
-                  {serverStatus === "disconnected" ? "OFFLINE" : "192.168.1.100"}
+                  {serverStatus === "disconnected" ? "OFFLINE" : "192.168.0.200"}
                 </span>
               </div>
               
@@ -1229,7 +1255,7 @@ export function AppleIslandDesign() {
                   </div>
                   <div>
                     <div className="text-white/50 text-[10px]">HOST HARDWARE</div>
-                    <div className="font-semibold text-white">Homelab Server</div>
+                    <div className="font-semibold text-white">Lenovo Server</div>
                     <div className="text-[10px] text-white/40">Core i3 · 3GB RAM</div>
                   </div>
                 </div>
@@ -1239,7 +1265,7 @@ export function AppleIslandDesign() {
                   </div>
                   <div>
                     <div className="text-white/50 text-[10px]">RED & TAILSCALE</div>
-                    <div className="font-semibold text-emerald-400">100.64.0.15</div>
+                    <div className="font-semibold text-emerald-400">100.64.0.10</div>
                     <div className="text-[10px] text-white/40">WireGuard Mesh OK</div>
                   </div>
                 </div>
@@ -1663,18 +1689,28 @@ export function AppleIslandDesign() {
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/5">
                   <div className="text-[10px] text-white/40 uppercase font-mono">Bloqueados Hoy</div>
-                  <div className="text-xl font-bold font-mono text-rose-400 mt-0.5">2,418</div>
-                  <div className="text-[10px] text-white/50 font-mono">18.4% del tráfico</div>
+                  <div className="text-xl font-bold font-mono text-rose-400 mt-0.5">
+                    {piholeStats?.blocked_today !== undefined ? piholeStats.blocked_today.toLocaleString() : "0"}
+                  </div>
+                  <div className="text-[10px] text-white/50 font-mono">
+                    {piholeStats?.percent_blocked !== undefined ? `${piholeStats.percent_blocked}% del tráfico` : "0% del tráfico"}
+                  </div>
                 </div>
                 <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/5">
                   <div className="text-[10px] text-white/40 uppercase font-mono">Lista de Gravedad</div>
-                  <div className="text-xl font-bold font-mono text-white mt-0.5">148.2k</div>
-                  <div className="text-[10px] text-white/50 font-mono">Dominios blacklisted</div>
+                  <div className="text-xl font-bold font-mono text-white mt-0.5">
+                    {piholeStats?.domains_being_blocked 
+                      ? `${(piholeStats.domains_being_blocked / 1000).toFixed(1)}k` 
+                      : "79.7k"}
+                  </div>
+                  <div className="text-[10px] text-white/50 font-mono">
+                    {piholeStats?.queries_today ? `${piholeStats.queries_today.toLocaleString()} consultas` : "Dominios activos"}
+                  </div>
                 </div>
               </div>
 
               <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] text-white/40 font-mono">
-                <span>DNS: 192.168.1.100</span>
+                <span>DNS: {piholeStats?.dns_ip || "192.168.0.200"}</span>
                 <span className={piholePaused ? "text-amber-400 font-semibold" : "text-emerald-400 font-semibold"}>
                   {piholePaused ? "Pausado temporalmente" : "Filtrado activo"}
                 </span>
@@ -1731,7 +1767,7 @@ export function AppleIslandDesign() {
               <div className="space-y-2 py-1">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-white/60">Dominio Cifrado:</span>
-                  <span className="font-mono text-cyan-300 font-semibold text-[11px]">*.homelab.local</span>
+                  <span className="font-mono text-cyan-300 font-semibold text-[11px]">*.santino.lab</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-white/60">Protocolo:</span>
@@ -2251,7 +2287,7 @@ export function AppleIslandDesign() {
                     </span>
                   </div>
                   <div className="text-xs text-white/50 font-mono">
-                    IP Tailscale: <span className="text-emerald-400 font-bold">100.64.0.15</span> · MagicDNS: homelab-node-01.ts.net
+                    IP Tailscale: <span className="text-emerald-400 font-bold">100.64.0.10</span> · MagicDNS: homelab-node-01.tailscale.net
                   </div>
                 </div>
               </div>
@@ -2263,7 +2299,7 @@ export function AppleIslandDesign() {
                   </div>
                 )}
                 <div className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/70">
-                  Cuenta: <span className="text-white font-medium">operator@homelab.local</span>
+                  Cuenta: <span className="text-white font-medium">admin@homelab.internal</span>
                 </div>
                 <div className="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-white/70">
                   Cifrado: <span className="text-emerald-400 font-medium">ChaCha20-Poly1305</span>
@@ -2288,7 +2324,7 @@ export function AppleIslandDesign() {
                 })) : [
                   {
                     name: "homelab-node-01",
-                    ip: "100.64.0.15",
+                    ip: "100.64.0.10",
                     os: "Ubuntu Server 24.04 LTS",
                     status: "Este Host (Self)",
                     active: true,
@@ -2297,26 +2333,26 @@ export function AppleIslandDesign() {
                   },
                   {
                     name: "workstation-pc",
-                    ip: "100.64.0.22",
-                    os: "Windows 11 Pro · Workstation",
+                    ip: "100.64.0.20",
+                    os: "Windows 11 · Workstation",
                     status: "Activo Directo",
                     active: true,
                     icon: Laptop,
                     details: "192.168.1.50:41641 · Tx: 7.8M / Rx: 13M"
                   },
                   {
-                    name: "iphone-admin",
-                    ip: "100.64.0.33",
-                    os: "iOS · iPhone 11",
+                    name: "mobile-device-ios",
+                    ip: "100.64.0.30",
+                    os: "iOS · Smartphone",
                     status: "En Malla",
                     active: true,
                     icon: Smartphone,
                     details: "Acceso Remoto Activo"
                   },
                   {
-                    name: "android-backup",
-                    ip: "100.64.0.44",
-                    os: "Android · Galaxy A51",
+                    name: "mobile-device-android",
+                    ip: "100.64.0.40",
+                    os: "Android · Smartphone",
                     status: "Inactivo (40d)",
                     active: false,
                     icon: Smartphone,

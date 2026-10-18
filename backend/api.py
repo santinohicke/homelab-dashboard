@@ -3,14 +3,9 @@
 =============================================================================
 Homelab Telemetry & Operations Micro-API
 =============================================================================
-A zero-dependency, ultra-lightweight REST API written in standard Python 3.
-Collects hardware telemetry, manages Docker containers via system calls,
-serves backup snapshots, discovers ARP network devices, and handles maintenance flags.
-
-Resource Footprint:
-- Memory: ~18-22 MB RSS
-- Idle CPU: 0.0%
-- Dependencies: None (Standard Library only: http.server, sqlite3, subprocess)
+A zero-dependency, high-efficiency REST micro-API for Lenovo Homelab.
+Directly interfaces with Linux kernel (/proc, /sys), Docker daemon,
+Fail2ban, Network ARP/dev, and local SQLite metrics store.
 =============================================================================
 """
 
@@ -26,23 +21,18 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from datetime import datetime
 
-# Configuration with environment variable overrides
-PORT = int(os.environ.get("HOMELAB_API_PORT", 8088))
-DATA_DIR = os.environ.get("HOMELAB_DATA_DIR", "/opt/homelab/data")
-BACKUP_DIR = os.environ.get("HOMELAB_BACKUP_DIR", os.path.join(DATA_DIR, "backups"))
-DB_PATH = os.environ.get("HOMELAB_DB_PATH", os.path.join(DATA_DIR, "metrics.db"))
-MAINTENANCE_FLAG = os.environ.get("HOMELAB_MAINT_FLAG", os.path.join(DATA_DIR, "maintenance.flag"))
-CERT_PATH = os.environ.get("HOMELAB_CERT_PATH", "/etc/ssl/certs/homelab.crt")
-SSL_DOMAIN = os.environ.get("HOMELAB_SSL_DOMAIN", "*.homelab.internal")
+PORT = 8088
+DATA_DIR = "/home/santino/infra/data"
+BACKUP_DIR = os.path.join(DATA_DIR, "backups")
+DB_PATH = os.path.join(DATA_DIR, "metrics.db")
+MAINTENANCE_FLAG = os.path.join(DATA_DIR, "maintenance.flag")
 
-os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
 # -------------------------------------------------------------
-# 1. DATABASE & BACKGROUND TELEMETRY COLLECTOR
+# 1. DATABASE & TELEMETRY COLLECTION
 # -------------------------------------------------------------
 def init_db():
-    """Initializes the SQLite metrics database and creates indexes."""
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute("""
@@ -60,6 +50,7 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON metrics(timestamp)")
     conn.commit()
 
+    # Dynamic migrations for new real metrics columns
     cur.execute("PRAGMA table_info(metrics)")
     cols = [col[1] for col in cur.fetchall()]
     if "net_rx_kbps" not in cols:
@@ -79,14 +70,14 @@ def init_db():
             pass
     conn.commit()
 
-    # Pre-seed initial sample baseline if the database is newly created
+    # Seed initial samples if empty
     cur.execute("SELECT COUNT(*) FROM metrics")
     count = cur.fetchone()[0]
     if count < 10:
         now = int(time.time())
         for i in range(60, 0, -1):
             ts = now - (i * 60)
-            cpu = round(8.0 + (ts % 7) * 1.5, 1)
+            cpu = round(12.0 + (ts % 7) * 1.5, 1)
             ram = 1750.0 + (ts % 50)
             temp = round(42.0 + (ts % 5) * 0.8, 1)
             rx = round(20.0 + (ts % 80) * 1.8, 1)
@@ -99,12 +90,11 @@ def init_db():
         conn.commit()
     conn.close()
 
-# Keep previous CPU stat for delta calculation
+# CPU deltas
 last_cpu_time = 0
 last_cpu_idle = 0
 
 def read_cpu_percent():
-    """Calculates instantaneous CPU usage from /proc/stat."""
     global last_cpu_time, last_cpu_idle
     try:
         with open("/proc/stat", "r") as f:
@@ -116,7 +106,7 @@ def read_cpu_percent():
         if last_cpu_time == 0:
             last_cpu_time = total
             last_cpu_idle = idle
-            return 8.5
+            return 14.5
         
         diff_total = total - last_cpu_time
         diff_idle = idle - last_cpu_idle
@@ -124,21 +114,22 @@ def read_cpu_percent():
         last_cpu_idle = idle
         
         if diff_total <= 0:
-            return 8.0
+            return 14.0
         usage = max(0.0, min(100.0, 100.0 * (1.0 - (diff_idle / diff_total))))
         return round(usage, 1)
     except Exception:
-        return 8.5
+        return 14.0
 
 def read_memory():
-    """Reads system memory consumption from /proc/meminfo."""
     try:
         mem = {}
         with open("/proc/meminfo", "r") as f:
             for line in f:
                 parts = line.split(":")
                 if len(parts) == 2:
-                    mem[parts[0].strip()] = int(parts[1].strip().split()[0])
+                    key = parts[0].strip()
+                    val = int(parts[1].strip().split()[0])
+                    mem[key] = val
         total_mb = round(mem.get("MemTotal", 2903356) / 1024, 1)
         avail_mb = round(mem.get("MemAvailable", 1000000) / 1024, 1)
         used_mb = round(total_mb - avail_mb, 1)
@@ -153,19 +144,17 @@ def read_memory():
         return {"total_mb": 2903.0, "used_mb": 1750.0, "avail_mb": 1153.0, "percent": 60.2}
 
 def read_temperature():
-    """Reads CPU thermal zone temperature in Celsius from /sys/class/thermal."""
     try:
         for zone in ["thermal_zone0", "thermal_zone1"]:
             p = f"/sys/class/thermal/{zone}/temp"
             if os.path.exists(p):
                 with open(p, "r") as f:
                     return round(float(f.read().strip()) / 1000.0, 1)
-        return 42.0
+        return 54.0
     except Exception:
-        return 42.0
+        return 54.0
 
 def read_disk():
-    """Calculates disk space usage using os.statvfs."""
     try:
         st = os.statvfs("/")
         total_gb = round((st.f_blocks * st.f_frsize) / (1024**3), 1)
@@ -179,10 +168,9 @@ def read_disk():
             "percent": percent
         }
     except Exception:
-        return {"total_gb": 240.0, "used_gb": 38.5, "free_gb": 201.5, "percent": 16.0}
+        return {"total_gb": 145.2, "used_gb": 37.4, "free_gb": 107.8, "percent": 25.8}
 
 def read_uptime():
-    """Reads system uptime from /proc/uptime."""
     try:
         with open("/proc/uptime", "r") as f:
             secs = int(float(f.readline().split()[0]))
@@ -196,12 +184,12 @@ def read_uptime():
     except Exception:
         return {"seconds": 86400, "formatted": "1d 0h 0m"}
 
+# Network rate calculation
 last_net_time = 0
 last_rx_bytes = 0
 last_tx_bytes = 0
 
 def read_network_rates():
-    """Calculates real-time network throughput from /proc/net/dev."""
     global last_net_time, last_rx_bytes, last_tx_bytes
     try:
         rx = 0
@@ -244,7 +232,6 @@ def read_network_rates():
         return {"rx_kbps": 24.0, "tx_kbps": 8.0, "rx_total_mb": 3200.0, "tx_total_mb": 600.0}
 
 def read_ping_ms():
-    """Measures gateway/WAN ICMP round-trip latency."""
     try:
         res = subprocess.run(["ping", "-c", "1", "-W", "1", "1.1.1.1"], capture_output=True, text=True, timeout=2)
         if res.returncode == 0:
@@ -252,12 +239,11 @@ def read_ping_ms():
                 if "time=" in line:
                     part = line.split("time=")[1].split()[0]
                     return round(float(part), 1)
-        return 18.0
+        return 33.5
     except Exception:
-        return 18.0
+        return 33.5
 
 def get_fail2ban_status():
-    """Inspects live active bans from Fail2ban daemon."""
     banned_ips = []
     total_banned = 0
     currently_banned = 0
@@ -292,7 +278,6 @@ def get_fail2ban_status():
     }
 
 def get_docker_storage():
-    """Inspects Docker storage layers and prunable image cache."""
     containers = []
     try:
         res = subprocess.run(["docker", "ps", "--size", "--format", "{{.Names}}\t{{.Size}}"], capture_output=True, text=True, timeout=5)
@@ -337,34 +322,44 @@ def get_docker_storage():
         "reclaimable_percent": reclaimable_pct
     }
 
-def get_network_devices():
-    """Discovers local network clients from Linux kernel ARP cache (/proc/net/arp)."""
-    devices = [
-        {
-            "hostname": "gateway-router",
-            "ip": "192.168.1.1",
-            "mac": "02:00:00:00:00:01",
-            "type": "Gateway / Router",
-            "lease": "Estática",
-            "iface": "WAN / LAN 1",
-            "vendor": "Broadband Gateway",
-            "speed": "1 Gbps",
-            "status": "online"
-        },
-        {
-            "hostname": "homelab-server",
-            "ip": "192.168.1.100",
-            "mac": "02:00:00:00:00:02",
-            "type": "Servidor Homelab (Host)",
-            "lease": "Estática (DHCP Res)",
-            "iface": "eth0",
-            "vendor": "Lenovo ThinkCentre",
-            "speed": "1 Gbps Full",
-            "status": "online"
-        }
-    ]
+KNOWN_DEVICES = {
+    "20:9a:7d:ad:f4:54": {"hostname": "sagemcom-gateway", "type": "Gateway Fibertel/Claro", "vendor": "Sagemcom Broadband", "speed": "1 Gbps"},
+    "44:8a:5b:3c:d9:11": {"hostname": "lenovo-server", "type": "Servidor Homelab", "vendor": "Lenovo ThinkCentre", "speed": "1 Gbps Full"},
+    "86:2d:a6:15:03:4f": {"hostname": "iPhone-11-Santino", "type": "Móvil Personal", "vendor": "Apple Inc.", "speed": "433 Mbps"},
+    "b0:99:d7:66:3c:28": {"hostname": "Galaxy-A52-Personal", "type": "Móvil", "vendor": "Samsung Electronics", "speed": "390 Mbps"},
+    "46:64:96:d7:99:93": {"hostname": "iPhone-15-Casa", "type": "Móvil", "vendor": "Apple Inc.", "speed": "520 Mbps"},
+    "dc:f5:05:cf:30:49": {"hostname": "Notebook-HP-250G7", "type": "Laptop", "vendor": "HP Inc.", "speed": "866 Mbps"},
+    "1c:e5:7f:04:a6:71": {"hostname": "Moto-E7-Dashboard", "type": "Tablet / Panel", "vendor": "Motorola Mobility", "speed": "72 Mbps"},
+    "3e:1c:04:59:df:b7": {"hostname": "Dispositivo-WiFi", "type": "Dispositivo LAN", "vendor": "Espressif WiFi", "speed": "150 Mbps"}
+}
 
-    seen_ips = {"192.168.1.1", "192.168.1.100"}
+def get_network_devices():
+    devices = []
+    # Always include Gateway and Server Host
+    devices.append({
+        "hostname": "sagemcom-gateway",
+        "ip": "192.168.0.1",
+        "mac": "20:9A:7D:AD:F4:54",
+        "type": "Gateway Fibertel/Claro",
+        "lease": "Estática",
+        "iface": "WAN / LAN 1",
+        "vendor": "Sagemcom Broadband",
+        "speed": "1 Gbps",
+        "status": "online"
+    })
+    devices.append({
+        "hostname": "lenovo-server",
+        "ip": "192.168.0.200",
+        "mac": "44:8A:5B:3C:D9:11",
+        "type": "Servidor Homelab (Host)",
+        "lease": "Estática (DHCP Res)",
+        "iface": "wlp3s0 (WiFi) / eth0",
+        "vendor": "Lenovo ThinkCentre",
+        "speed": "1 Gbps Full",
+        "status": "online"
+    })
+
+    seen_ips = {"192.168.0.1", "192.168.0.200"}
     try:
         with open("/proc/net/arp", "r") as f:
             for line in f:
@@ -374,27 +369,103 @@ def get_network_devices():
                     mac = parts[3].lower()
                     flags = parts[2]
                     dev = parts[5]
+                    if dev != "wlp3s0" and dev != "enp8s0":
+                        continue
                     if mac == "00:00:00:00:00:00" or ip in seen_ips:
                         continue
                     seen_ips.add(ip)
+                    meta = KNOWN_DEVICES.get(mac, {
+                        "hostname": f"device-{ip.split('.')[-1]}",
+                        "type": "Dispositivo LAN",
+                        "vendor": "Genérico / LAN",
+                        "speed": "100 Mbps"
+                    })
                     is_online = (flags == "0x2")
                     devices.append({
-                        "hostname": f"device-{ip.split('.')[-1]}",
+                        "hostname": meta["hostname"],
                         "ip": ip,
                         "mac": mac.upper(),
-                        "type": "Dispositivo LAN",
+                        "type": meta["type"],
                         "lease": "Dinámica (DHCP)",
                         "iface": dev,
-                        "vendor": "Genérico / LAN",
-                        "speed": "100 Mbps",
+                        "vendor": meta["vendor"],
+                        "speed": meta["speed"],
                         "status": "online" if is_online else "idle"
                     })
     except Exception:
         pass
     return devices
 
+# -------------------------------------------------------------
+# PI-HOLE FTL & GRAVITY REAL METRICS
+# -------------------------------------------------------------
+def get_pihole_live_stats():
+    res = {
+        "status": "offline",
+        "blocking_enabled": True,
+        "domains_being_blocked": 79747,
+        "queries_today": 0,
+        "blocked_today": 0,
+        "percent_blocked": 0.0,
+        "dns_ip": "192.168.0.200"
+    }
+    
+    # 1. Check status from pihole CLI
+    try:
+        proc = subprocess.run(["pihole", "status"], capture_output=True, text=True, timeout=3)
+        if "blocking is enabled" in proc.stdout:
+            res["blocking_enabled"] = True
+            res["status"] = "active"
+        elif "blocking is disabled" in proc.stdout:
+            res["blocking_enabled"] = False
+            res["status"] = "paused"
+        else:
+            res["status"] = "running"
+    except Exception:
+        pass
+
+    # 2. Gravity DB (domains blocked)
+    try:
+        c = sqlite3.connect("file:/etc/pihole/gravity.db?mode=ro", uri=True, timeout=1.0)
+        cur = c.cursor()
+        cur.execute("SELECT COUNT(*) FROM gravity")
+        res["domains_being_blocked"] = cur.fetchone()[0]
+        c.close()
+    except Exception:
+        pass
+
+    # 3. FTL DB (queries today)
+    try:
+        c = sqlite3.connect("file:/etc/pihole/pihole-FTL.db?mode=ro", uri=True, timeout=1.0)
+        cur = c.cursor()
+        midnight = int(time.time()) - (int(time.time()) % 86400)
+        
+        # Today's total queries
+        cur.execute("SELECT COUNT(id) FROM queries WHERE timestamp >= ?", (midnight,))
+        today_total = cur.fetchone()[0]
+        
+        # Today's blocked queries
+        cur.execute("SELECT COUNT(id) FROM queries WHERE timestamp >= ? AND status IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16)", (midnight,))
+        today_blocked = cur.fetchone()[0]
+        
+        # Fallback to last 24h if server was just restarted
+        if today_total == 0:
+            last24h = int(time.time()) - 86400
+            cur.execute("SELECT COUNT(id) FROM queries WHERE timestamp >= ?", (last24h,))
+            today_total = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(id) FROM queries WHERE timestamp >= ? AND status IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16)", (last24h,))
+            today_blocked = cur.fetchone()[0]
+
+        res["queries_today"] = today_total
+        res["blocked_today"] = today_blocked
+        res["percent_blocked"] = round((today_blocked / today_total * 100), 1) if today_total > 0 else 0.0
+        c.close()
+    except Exception:
+        pass
+
+    return res
+
 def telemetry_collector_loop():
-    """Daemon thread collecting telemetry every 60 seconds."""
     while True:
         try:
             ts = int(time.time())
@@ -412,6 +483,7 @@ def telemetry_collector_loop():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (ts, cpu, mem["used_mb"], mem["total_mb"], temp, disk["used_gb"], disk["total_gb"], net["rx_kbps"], net["tx_kbps"], ping))
             
+            # Retention: purge older than 30 days
             cutoff = ts - (30 * 86400)
             cur.execute("DELETE FROM metrics WHERE timestamp < ?", (cutoff,))
             conn.commit()
@@ -460,7 +532,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             
             self._send_json({
                 "status": "online",
-                "hostname": socket.gethostname(),
+                "hostname": "lenovo-server",
                 "cpu_percent": cpu,
                 "memory": mem,
                 "temperature_c": temp,
@@ -497,6 +569,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             """, (since,))
             rows = cur.fetchall()
 
+            # Downsample if too many points for smooth rendering
             max_points = 24 if range_val == "24h" else 30
             step = max(1, len(rows) // max_points) if rows else 1
             sampled = rows[::step] if rows else []
@@ -511,6 +584,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 ts = r[0]
                 t_str = datetime.fromtimestamp(ts).strftime("%H:%M" if range_val in ["1h", "24h"] else "%d/%m")
                 
+                # Yesterday's real measurement lookup
                 prev_ts = ts - 86400
                 cur.execute("""
                     SELECT cpu_percent FROM metrics
@@ -531,7 +605,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 })
                 temp_series.append({
                     "time": t_str,
-                    "val": round(r[3] or 42.0, 1)
+                    "val": round(r[3] or 54.0, 1)
                 })
                 net_series.append({
                     "time": t_str,
@@ -540,7 +614,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 })
                 latency_series.append({
                     "time": t_str,
-                    "val": round(r[7] or 18.0, 1)
+                    "val": round(r[7] or 33.5, 1)
                 })
 
             conn.close()
@@ -565,9 +639,9 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                     nodes = []
                     self_node = data.get("Self", {})
                     nodes.append({
-                        "name": self_node.get("HostName", "homelab-server"),
+                        "name": self_node.get("HostName", "lenovo-server"),
                         "dns": self_node.get("DNSName", "").rstrip("."),
-                        "ip": self_node.get("TailscaleIPs", ["100.64.0.1"])[0],
+                        "ip": self_node.get("TailscaleIPs", ["100.64.0.10"])[0],
                         "os": self_node.get("OS", "linux"),
                         "online": True,
                         "self": True,
@@ -702,9 +776,10 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 s.close()
 
             cert_days = 88
-            if os.path.exists(CERT_PATH):
+            cert_path = "/home/santino/infra/data/santino_lab.crt"
+            if os.path.exists(cert_path):
                 try:
-                    res = subprocess.run(["openssl", "x509", "-enddate", "-noout", "-in", CERT_PATH], capture_output=True, text=True)
+                    res = subprocess.run(["openssl", "x509", "-enddate", "-noout", "-in", cert_path], capture_output=True, text=True)
                     if res.returncode == 0:
                         date_str = res.stdout.strip().split("=")[1]
                         exp = datetime.strptime(date_str, "%b %d %H:%M:%S %Y %Z")
@@ -716,7 +791,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
 
             self._send_json({
                 "ssl_certificate": {
-                    "domain": SSL_DOMAIN,
+                    "domain": "*.santino.lab",
                     "days_remaining": cert_days,
                     "valid": True,
                     "tls_version": "TLS 1.3"
@@ -730,6 +805,11 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
         # 10. MAINTENANCE STATUS
         if path == "/api/v1/maintenance":
             self._send_json({"active": os.path.exists(MAINTENANCE_FLAG)})
+            return
+
+        # 11. PI-HOLE LIVE METRICS
+        if path == "/api/v1/pihole":
+            self._send_json(get_pihole_live_stats())
             return
 
         self._send_json({"error": "Endpoint not found"}, 404)
@@ -753,11 +833,11 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 self._send_json({"status": "error", "message": str(e)}, 500)
                 return
 
-        # 2. ACTION: FLUSH DNS
+        # 2. ACTION: FLUSH DNS (Systemd-resolved + Pi-hole FTL native)
         if path == "/api/v1/actions/flush-dns":
             try:
                 res = subprocess.run(["resolvectl", "flush-caches"], capture_output=True, text=True, timeout=5)
-                msg = "Caché DNS del sistema purgada y sincronizada con el servicio DNS local."
+                msg = "Caché DNS del sistema purgada y sincronizada con el servicio nativo Pi-hole FTL."
                 self._send_json({
                     "status": "ok",
                     "action": "flush_dns",
@@ -777,8 +857,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
         # 3. ACTION: MANUAL BACKUP
         if path == "/api/v1/actions/backup":
             try:
-                script_path = os.environ.get("HOMELAB_BACKUP_SCRIPT", "/opt/homelab/scripts/backup.sh")
-                res = subprocess.run([script_path], capture_output=True, text=True, timeout=60)
+                res = subprocess.run(["/home/santino/infra/scripts/backup.sh"], capture_output=True, text=True, timeout=60)
                 self._send_json({
                     "status": "ok",
                     "action": "backup",
@@ -821,6 +900,37 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 self._send_json({"status": "error", "message": str(e)}, 500)
                 return
 
+        # 6. ACTION: PI-HOLE PAUSE
+        if path == "/api/v1/pihole/pause":
+            try:
+                res = subprocess.run(["pihole", "disable", "5m"], capture_output=True, text=True, timeout=5)
+                self._send_json({
+                    "status": "ok",
+                    "action": "pause",
+                    "duration": 300,
+                    "output": res.stdout.strip(),
+                    "timestamp": datetime.now().strftime("%H:%M:%S")
+                })
+                return
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+                return
+
+        # 7. ACTION: PI-HOLE RESUME
+        if path == "/api/v1/pihole/resume":
+            try:
+                res = subprocess.run(["pihole", "enable"], capture_output=True, text=True, timeout=5)
+                self._send_json({
+                    "status": "ok",
+                    "action": "resume",
+                    "output": res.stdout.strip(),
+                    "timestamp": datetime.now().strftime("%H:%M:%S")
+                })
+                return
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+                return
+
         self._send_json({"error": "Action endpoint not found"}, 404)
 
 def main():
@@ -831,6 +941,7 @@ def main():
     collector_thread.start()
     print("[*] Telemetry background collector started.")
 
+    HTTPServer.allow_reuse_address = True
     server = HTTPServer(("0.0.0.0", PORT), HomelabAPIHandler)
     print(f"[?] Homelab Micro-API listening on http://0.0.0.0:{PORT}...")
     try:

@@ -31,6 +31,22 @@ MAINTENANCE_FLAG = os.path.join(DATA_DIR, "maintenance.flag")
 
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
+def sanitize_utf8_accents(text):
+    if not text or not isinstance(text, str):
+        return ""
+    return (text
+        .replace("Pasant?as", "Pasantías")
+        .replace("Pasant?a", "Pasantía")
+        .replace("Ingenier?a", "Ingeniería")
+        .replace("tecnolog?a", "tecnología")
+        .replace("electr?nica", "electrónica")
+        .replace("Electr?nica", "Electrónica")
+        .replace("t?cnico", "técnico")
+        .replace("inform?tica", "informática")
+        .replace("gesti?n", "gestión")
+        .replace("atenci?n", "atención")
+        .replace("pr?ctica", "práctica"))
+
 # -------------------------------------------------------------
 # 1. DATABASE & TELEMETRY COLLECTION
 # -------------------------------------------------------------
@@ -803,7 +819,7 @@ Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin e
                 cur.execute("""
                     INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (now, "gemini-3.1-flash-lite", p_tokens, c_tokens, t_tokens, f"Rastreo: {t_name}", latency_ms, "ok"))
+                """, (now, "gemini-3.1-flash-lite", p_tokens, c_tokens, t_tokens, f"Rastreo: {sanitize_utf8_accents(t_name)}", latency_ms, "ok"))
                 conn.commit()
 
                 raw_text = res['candidates'][0]['content']['parts'][0]['text']
@@ -811,10 +827,10 @@ Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin e
                 data = json.loads(clean_json)
                 
                 for item in data.get("encontrados", []):
-                    title = item.get("titulo", "Puesto IT")
-                    company = item.get("empresa", "Empresa")
-                    modality = item.get("modalidad", "Part-Time / CABA")
-                    summary = item.get("resumen", "")
+                    title = sanitize_utf8_accents(item.get("titulo", "Puesto IT"))
+                    company = sanitize_utf8_accents(item.get("empresa", "Empresa"))
+                    modality = sanitize_utf8_accents(item.get("modalidad", "Part-Time / CABA"))
+                    summary = sanitize_utf8_accents(item.get("resumen", ""))
                     link = item.get("link", t_url)
 
                     # Deduplicate: check if link or (title + company) exists
@@ -834,7 +850,7 @@ Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin e
                 cur.execute("""
                     INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
                     VALUES (?, ?, 0, 0, 0, ?, 0, ?)
-                """, (now, "gemini-3.1-flash-lite", f"Error: {t_name}", f"error: {str(e)[:100]}"))
+                """, (now, "gemini-3.1-flash-lite", f"Error: {sanitize_utf8_accents(t_name)}", f"error: {str(e)[:100]}"))
                 conn.commit()
             except Exception:
                 pass
@@ -1426,7 +1442,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                     "prompt_tokens": l[3],
                     "completion_tokens": l[4],
                     "total_tokens": l[5],
-                    "purpose": l[6],
+                    "purpose": sanitize_utf8_accents(l[6]),
                     "latency_ms": l[7],
                     "latency_sec": round(l[7] / 1000.0, 2),
                     "status": l[8]

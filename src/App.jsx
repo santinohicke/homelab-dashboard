@@ -323,12 +323,12 @@ export function DockerContainers3DRack() {
           method: "POST"
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setActionFeedback({ type: "success", msg: `✅ Contenedor ${unit.label} reiniciado con éxito en Portainer.` });
+        setActionFeedback({ type: "success", msg: `Contenedor ${unit.label} reiniciado con éxito en Portainer.` });
         setTimeout(fetchContainers, 2000);
         if (showLogs) setTimeout(fetchLogs, 1500);
       } else {
         await new Promise(r => setTimeout(r, 1400));
-        setActionFeedback({ type: "success", msg: `✅ Contenedor ${unit.label} reiniciado con éxito.` });
+        setActionFeedback({ type: "success", msg: `Contenedor ${unit.label} reiniciado con éxito.` });
       }
     } catch (err) {
       console.error("Error al reiniciar contenedor:", err);
@@ -865,9 +865,10 @@ export function AppleIslandDesign() {
   const [piholeTimer, setPiholeTimer] = useState(300);
   const [piholeStats, setPiholeStats] = useState(null);
 
-  // Live Server Hardware Telemetry Oscillations (around real Lenovo Server baseline)
+  // Live Server Hardware Telemetry from /api/v1/system
+  const [systemStats, setSystemStats] = useState(null);
   const [cpuUsage, setCpuUsage] = useState(14);
-  const [cpuTemp, setCpuTemp] = useState(42);
+  const [cpuTemp, setCpuTemp] = useState(45);
 
   // Estimador Eléctrico: Potencia, Consumo mensual y Costo en Pesos Argentinos
   const currentWatts = +(15.8 + (cpuUsage / 100) * 8.5).toFixed(1);
@@ -875,6 +876,23 @@ export function AppleIslandDesign() {
   const monthlyCostArs = Math.round(monthlyKwh * tariffKwhArs);
   const pcDesktopCostArs = Math.round(((220 * 24 * 30.5) / 1000) * tariffKwhArs);
   const savingsArs = pcDesktopCostArs - monthlyCostArs;
+
+  const fetchSystemStats = async () => {
+    try {
+      const res = await fetch("/api/v1/system");
+      if (res.ok) {
+        const data = await res.json();
+        setSystemStats(data);
+        if (data.cpu_percent !== undefined) setCpuUsage(data.cpu_percent);
+        if (data.temperature_c !== undefined) setCpuTemp(data.temperature_c);
+        if (data.latency_ms !== undefined) setLatency(Math.round(data.latency_ms));
+        if (typeof data.maintenance_mode === "boolean") setMaintenanceMode(data.maintenance_mode);
+        if (data.status === "online") setServerStatus("connected");
+      }
+    } catch (err) {
+      // offline fallback
+    }
+  };
 
   const fetchHaStates = async () => {
     try {
@@ -934,15 +952,18 @@ export function AppleIslandDesign() {
   };
 
   useEffect(() => {
+    fetchSystemStats();
     fetchHaStates();
     fetchKumaStatus();
     fetchDockerStorage();
     fetchPiholeStats();
+    const timerSystem = setInterval(fetchSystemStats, 4000);
     const timerHa = setInterval(fetchHaStates, 10000);
     const timerKuma = setInterval(fetchKumaStatus, 8000);
     const timerStorage = setInterval(fetchDockerStorage, 25000);
     const timerPihole = setInterval(fetchPiholeStats, 10000);
     return () => {
+      clearInterval(timerSystem);
       clearInterval(timerHa);
       clearInterval(timerKuma);
       clearInterval(timerStorage);
@@ -961,9 +982,8 @@ export function AppleIslandDesign() {
     const handleOnline = () => {
       setServerStatus("connecting");
       setTimeout(() => {
-        setServerStatus("connected");
-        setLatency(Math.floor(Math.random() * 4) + 2);
-      }, 1200);
+        fetchSystemStats();
+      }, 800);
     };
     const handleOffline = () => setServerStatus("disconnected");
 
@@ -973,21 +993,6 @@ export function AppleIslandDesign() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, []);
-
-  // CPU live oscillation simulation around real baseline
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCpuUsage(prev => {
-        const delta = (Math.random() - 0.5) * 4;
-        return Math.max(8, Math.min(28, Math.round((prev + delta) * 10) / 10));
-      });
-      setCpuTemp(prev => {
-        const delta = (Math.random() - 0.5) * 0.8;
-        return Math.max(39, Math.min(46, Math.round((prev + delta) * 10) / 10));
-      });
-    }, 3500);
-    return () => clearInterval(interval);
   }, []);
 
   // Pi-hole pause countdown timer
@@ -1327,7 +1332,7 @@ export function AppleIslandDesign() {
               </div>
 
               <div className="flex items-center justify-between pt-1 text-[11px] text-white/50 border-t border-white/5">
-                <span>Ubuntu Server 24.04 LTS · 8 Contenedores</span>
+                <span>Ubuntu 22.04 LTS · 8 Contenedores · Uptime: {systemStats?.uptime?.formatted || "4d 9h"}</span>
                 <span className="text-cyan-400 font-medium">Tocar para contraer</span>
               </div>
             </div>
@@ -1349,7 +1354,7 @@ export function AppleIslandDesign() {
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
                 </div>
                 <div className="text-white/70 mt-0.5">
-                  El servidor Lenovo ThinkCentre se encuentra ejecutando actualizaciones o tareas programadas. Los servicios pueden experimentar micro-cortes temporales.
+                  El Servidor Lenovo se encuentra ejecutando actualizaciones o tareas programadas. Los servicios pueden experimentar micro-cortes temporales.
                 </div>
               </div>
             </div>
@@ -1422,13 +1427,13 @@ export function AppleIslandDesign() {
           <div className="w-full flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-xl overflow-x-auto no-scrollbar">
             {[
               { id: "control", label: "Centro de Control", icon: Sliders, color: "text-cyan-400" },
-              { id: "radar", label: "Radar IT & Pasantías", icon: Radar, color: "text-amber-400" },
+              { id: "radar", label: "Radar IT & Pasantías", icon: Radar, color: "text-cyan-400" },
               { id: "ai", label: "Telemetría IA", icon: Sparkles, color: "text-purple-400" },
               { id: "metrics", label: "Métricas & Gráficos", icon: BarChart3, color: "text-purple-400" },
               { id: "devops", label: "Consola & DevOps", icon: Terminal, color: "text-emerald-400" },
               { id: "security", label: "Seguridad & Auditoría", icon: ShieldCheck, color: "text-rose-400" },
               { id: "network", label: "Topología de Red", icon: Network, color: "text-blue-400" },
-              { id: "backups", label: "Gestor de Backups", icon: Archive, color: "text-amber-400" }
+              { id: "backups", label: "Gestor de Backups", icon: Archive, color: "text-blue-400" }
             ].map(tab => {
               const Icon = tab.icon;
               const isActive = dashboardSection === tab.id;
@@ -1599,8 +1604,14 @@ export function AppleIslandDesign() {
               </div>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl sm:text-3xl font-bold font-mono text-white">{cpuTemp}°C</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                  Óptima
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                  cpuTemp < 60
+                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                    : cpuTemp < 75
+                    ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                    : "bg-rose-500/15 text-rose-400 border-rose-500/30"
+                }`}>
+                  {cpuTemp < 60 ? "Óptima" : cpuTemp < 75 ? "Normal" : "Elevada"}
                 </span>
               </div>
               <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
@@ -1621,14 +1632,24 @@ export function AppleIslandDesign() {
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl sm:text-3xl font-bold font-mono text-white">1.7<span className="text-sm font-normal text-white/50">/3.0GB</span></span>
-                <span className="text-[10px] font-mono text-purple-400 font-medium">59%</span>
+                <span className="text-2xl sm:text-3xl font-bold font-mono text-white">
+                  {systemStats?.memory ? (systemStats.memory.used_mb / 1024).toFixed(1) : "1.5"}
+                  <span className="text-sm font-normal text-white/50">
+                    /{systemStats?.memory ? (systemStats.memory.total_mb / 1024).toFixed(1) : "2.8"}GB
+                  </span>
+                </span>
+                <span className="text-[10px] font-mono text-purple-400 font-medium">
+                  {systemStats?.memory ? `${systemStats.memory.percent}%` : "53%"}
+                </span>
               </div>
               <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-purple-400 h-full rounded-full" style={{ width: "59%" }} />
+                <div
+                  className="bg-purple-400 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${systemStats?.memory ? systemStats.memory.percent : 53}%` }}
+                />
               </div>
               <div className="text-[11px] text-white/40 flex justify-between font-mono">
-                <span>1.1 GB Libre</span>
+                <span>{systemStats?.memory ? (systemStats.memory.avail_mb / 1024).toFixed(1) : "1.3"} GB Libre</span>
                 <span>DDR3 · Swap 5GB</span>
               </div>
             </div>
@@ -1642,14 +1663,24 @@ export function AppleIslandDesign() {
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl sm:text-3xl font-bold font-mono text-white">30<span className="text-sm font-normal text-white/50">/146GB</span></span>
-                <span className="text-[10px] font-mono text-emerald-400 font-medium">22%</span>
+                <span className="text-2xl sm:text-3xl font-bold font-mono text-white">
+                  {systemStats?.disk ? Math.round(systemStats.disk.used_gb) : "37"}
+                  <span className="text-sm font-normal text-white/50">
+                    /{systemStats?.disk ? Math.round(systemStats.disk.total_gb) : "145"}GB
+                  </span>
+                </span>
+                <span className="text-[10px] font-mono text-emerald-400 font-medium">
+                  {systemStats?.disk ? `${systemStats.disk.percent}%` : "25%"}
+                </span>
               </div>
               <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-emerald-400 h-full rounded-full" style={{ width: "22%" }} />
+                <div
+                  className="bg-emerald-400 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${systemStats?.disk ? systemStats.disk.percent : 25}%` }}
+                />
               </div>
               <div className="text-[11px] text-white/40 flex justify-between font-mono">
-                <span>109 GB Disponibles</span>
+                <span>{systemStats?.disk ? Math.round(systemStats.disk.free_gb) : "108"} GB Disponibles</span>
                 <span>/dev/sda3 Ext4</span>
               </div>
             </div>
@@ -2064,9 +2095,9 @@ export function AppleIslandDesign() {
               <span>Desglose de Almacenamiento del Servidor</span>
             </h2>
             <div className="flex items-center gap-2 text-xs font-mono">
-              <span className="text-emerald-400 font-bold">109 GB Libres</span>
+              <span className="text-emerald-400 font-bold">{systemStats?.disk ? `${systemStats.disk.free_gb} GB Libres` : "109 GB Libres"}</span>
               <span className="text-white/30">/</span>
-              <span className="text-white/60">146 GB SSD</span>
+              <span className="text-white/60">{systemStats?.disk ? `${systemStats.disk.total_gb} GB SSD` : "146 GB SSD"}</span>
             </div>
           </div>
 
@@ -2077,12 +2108,12 @@ export function AppleIslandDesign() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-white">Disco Principal /dev/sda3 (Ext4)</span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                    Saludable · 20.5% Usado
+                    Saludable · {systemStats?.disk ? `${systemStats.disk.used_percent}% Usado` : "20.5% Usado"}
                   </span>
                 </div>
                 <div className="flex items-center gap-4 text-xs font-mono text-white/60">
-                  <span>Usado: <strong className="text-white font-bold">30.1 GB</strong></span>
-                  <span>Disponible: <strong className="text-emerald-400 font-bold">109.2 GB</strong></span>
+                  <span>Usado: <strong className="text-white font-bold">{systemStats?.disk ? `${systemStats.disk.used_gb} GB` : "30.1 GB"}</strong></span>
+                  <span>Disponible: <strong className="text-emerald-400 font-bold">{systemStats?.disk ? `${systemStats.disk.free_gb} GB` : "109.2 GB"}</strong></span>
                 </div>
               </div>
 
@@ -2120,7 +2151,7 @@ export function AppleIslandDesign() {
                 </div>
                 <div className="flex items-center gap-1.5 ml-auto text-white/40">
                   <span className="w-2.5 h-2.5 rounded-full bg-white/20" />
-                  <span>Libre (109.2 GB)</span>
+                  <span>Libre ({systemStats?.disk ? `${systemStats.disk.free_gb} GB` : "109.2 GB"})</span>
                 </div>
               </div>
             </div>
@@ -2189,7 +2220,7 @@ export function AppleIslandDesign() {
             <div className="flex items-center gap-2 text-xs font-mono">
               <span className="text-amber-400 font-bold">{currentWatts} W</span>
               <span className="text-white/30">·</span>
-              <span className="text-white/60">Lenovo ThinkCentre M93p Tiny</span>
+              <span className="text-white/60">Servidor Lenovo (Intel Core i3 M 380)</span>
             </div>
           </div>
 
@@ -2266,10 +2297,10 @@ export function AppleIslandDesign() {
               <div className="space-y-0.5">
                 <div className="font-bold text-white flex items-center gap-2">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Eficiencia Extrema de Formato Tiny (USFF)</span>
+                  <span>Eficiencia Energética de Servidor Lenovo (Laptop)</span>
                 </div>
                 <div className="text-white/60 text-[11px]">
-                  Una PC de escritorio común (220W) costaría <strong className="text-rose-400 font-mono">${pcDesktopCostArs.toLocaleString("es-AR")} ARS/mes</strong>. Tu Lenovo ThinkCentre M93p te ahorra <strong className="text-emerald-400 font-mono">${savingsArs.toLocaleString("es-AR")} ARS al mes</strong> manteniéndolo encendido 24/7.
+                  Una PC de escritorio común (220W) costaría <strong className="text-rose-400 font-mono">${pcDesktopCostArs.toLocaleString("es-AR")} ARS/mes</strong>. Tu Servidor Lenovo te ahorra <strong className="text-emerald-400 font-mono">${savingsArs.toLocaleString("es-AR")} ARS al mes</strong> manteniéndolo encendido 24/7.
                 </div>
               </div>
               <div className="shrink-0 font-mono text-xs font-bold text-emerald-400 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
@@ -2345,7 +2376,7 @@ export function AppleIslandDesign() {
                   {
                     name: "lenovo-server",
                     ip: "100.64.0.10",
-                    os: "Ubuntu Server 24.04 LTS",
+                    os: "Ubuntu 22.04 LTS",
                     status: "Este Host (Self)",
                     active: true,
                     icon: Server,

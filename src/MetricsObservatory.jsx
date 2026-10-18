@@ -893,7 +893,7 @@ export default function HomelabMetricsObservatory() {
           <div className="flex items-center justify-between border-b border-white/10 pb-2">
             <h2 className="text-xs uppercase tracking-wider text-cyan-400 font-semibold flex items-center gap-2">
               <Server className="w-4 h-4" />
-              <span>1. Rendimiento del Hardware & Host (Lenovo ThinkCentre Core i3)</span>
+              <span>1. Rendimiento del Hardware & Host (Servidor Lenovo Core i3)</span>
             </h2>
             <span className="text-[11px] font-mono text-white/40">Intel Core i3 M 380 @ 2.53GHz</span>
           </div>

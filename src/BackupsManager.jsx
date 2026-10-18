@@ -21,9 +21,13 @@ export default function BackupsManager() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [simLogs, setSimLogs] = useState([]);
 
-  // Calendar Days for October 2026 (1 to 31)
-  const daysInMonth = Array.from({ length: 31 }, (_, i) => i + 1);
-  const currentDay = 16; // 16 de Octubre 2026
+  // Calendar Days for current month
+  const now = new Date();
+  const currentMonthName = now.toLocaleString("es-AR", { month: "long" });
+  const currentYear = now.getFullYear();
+  const monthYearLabel = currentMonthName.charAt(0).toUpperCase() + currentMonthName.slice(1) + " " + currentYear;
+  const daysInMonth = Array.from({ length: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() }, (_, i) => i + 1);
+  const currentDay = now.getDate();
 
   // Fetch real backups from server API
   const fetchRealBackups = async () => {
@@ -226,7 +230,7 @@ export default function BackupsManager() {
               <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
                 Calendario Visual de Copias Diarias
               </h2>
-              <p className="text-xs text-white/50">Historial de ejecución de cron a las 03:00 AM · Octubre 2026</p>
+              <p className="text-xs text-white/50">Historial de ejecución de cron a las 03:00 AM · {monthYearLabel}</p>
             </div>
           </div>
 

@@ -13,7 +13,7 @@ export default function NetworkTopology() {
   // DHCP & Static IP Table baseline
   const dhcpTable = [
     { hostname: "sagemcom-gateway", ip: "192.168.0.1", mac: "20:9A:7D:AD:F4:54", type: "Gateway", lease: "Estática", iface: "WAN / LAN 1", vendor: "Sagemcom Broadband", speed: "1 Gbps", status: "online" },
-    { hostname: "lenovo-server", ip: "192.168.0.200", mac: "44:8A:5B:3C:D9:11", type: "Servidor Homelab", lease: "Estática (DHCP Res)", iface: "wlp3s0 / eth0", vendor: "Lenovo ThinkCentre", speed: "1 Gbps Full", status: "online" },
+    { hostname: "lenovo-server", ip: "192.168.0.200", mac: "44:8A:5B:3C:D9:11", type: "Servidor Homelab", lease: "Estática (DHCP Res)", iface: "wlp3s0 / eth0", vendor: "Lenovo Server (Laptop)", speed: "1 Gbps Full", status: "online" },
     { hostname: "iPhone-11-Santino", ip: "192.168.0.246", mac: "86:2D:A6:15:03:4F", type: "Móvil", lease: "Dinámica (24h)", iface: "wlan0 (5 GHz)", vendor: "Apple Inc.", speed: "433 Mbps", status: "online" },
     { hostname: "Galaxy-A52-Personal", ip: "192.168.0.110", mac: "B0:99:D7:66:3C:28", type: "Móvil", lease: "Dinámica (24h)", iface: "wlan0 (5 GHz)", vendor: "Samsung Electronics", speed: "390 Mbps", status: "online" },
     { hostname: "iPhone-15-Casa", ip: "192.168.0.125", mac: "46:64:96:D7:99:93", type: "Móvil", lease: "Dinámica (24h)", iface: "wlan0 (5 GHz)", vendor: "Apple Inc.", speed: "520 Mbps", status: "online" },
@@ -93,7 +93,7 @@ export default function NetworkTopology() {
         <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
           <div className="text-[11px] text-white/50 uppercase font-semibold">Gateway</div>
           <div className="text-xl sm:text-2xl font-black text-white font-mono mt-0.5">192.168.0.1</div>
-          <div className="text-[10px] text-emerald-400 mt-0.5">Sagemcom Fast 5657</div>
+          <div className="text-[10px] text-emerald-400 mt-0.5">Sagemcom F@ST3890</div>
         </div>
         <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
           <div className="text-[11px] text-white/50 uppercase font-semibold">Homelab Server</div>
@@ -153,11 +153,11 @@ export default function NetworkTopology() {
 
             <div 
               onClick={() => setSelectedNode({
-                title: "Router Sagemcom Fast 5657",
+                title: "Router Sagemcom F@ST3890",
                 type: "Gateway Principal Fibra Óptica",
                 ip: "192.168.0.1",
                 mac: "58:8D:09:A1:22:E0",
-                features: ["GPON ONT Integrada", "WiFi 5 (802.11ac) 4x4 MU-MIMO", "4x Puertos Gigabit LAN", "DNS Primario apuntando a 192.168.0.200 (Pi-hole)"]
+                features: ["DOCSIS 3.1 / GPON Integrada", "WiFi 5 (802.11ac) 4x4 MU-MIMO", "4x Puertos Gigabit LAN", "DNS Primario apuntando a 192.168.0.200 (Pi-hole)"]
               })}
               className="p-5 rounded-2xl bg-gradient-to-br from-blue-900/40 to-slate-900/60 border border-cyan-500/30 hover:border-cyan-400 transition-all cursor-pointer space-y-3 glass-shine shadow-lg"
             >
@@ -170,7 +170,7 @@ export default function NetworkTopology() {
                 </span>
               </div>
               <div>
-                <h3 className="font-bold text-white text-sm">Router Sagemcom Fast 5657</h3>
+                <h3 className="font-bold text-white text-sm">Router Sagemcom F@ST3890</h3>
                 <div className="text-xs text-cyan-300 font-mono">192.168.0.1 · Fibra Óptica</div>
               </div>
               <p className="text-[11px] text-white/60">
@@ -191,7 +191,7 @@ export default function NetworkTopology() {
             </div>
           </div>
 
-          {/* LEVEL 2: LENOVO THINKCENTRE SERVER & DOCKER BRIDGE */}
+          {/* LEVEL 2: LENOVO SERVER & DOCKER BRIDGE */}
           <div className="space-y-4">
             <div className="text-xs font-mono font-bold uppercase tracking-wider text-white/40 flex items-center gap-2">
               <span>Nivel 2: Servidor Lenovo & Docker</span>
@@ -199,11 +199,11 @@ export default function NetworkTopology() {
 
             <div 
               onClick={() => setSelectedNode({
-                title: "Lenovo ThinkCentre M93p Tiny",
+                title: "Servidor Lenovo (Intel Core i3 M 380)",
                 type: "Servidor Homelab Principal",
                 ip: "192.168.0.200 · Tailscale: 100.64.0.10",
                 mac: "44:8A:5B:3C:D9:11",
-                features: ["Intel Core i5-4570T (2.90 GHz)", "16 GB RAM DDR3 Dual-Channel", "240 GB SSD Kingston A400", "Ubuntu 24.04 LTS Noble Numbat", "Docker Engine 27.2 + Docker Compose v2"]
+                features: ["Intel Core i3 M 380 (2.53 GHz)", "3.0 GB RAM DDR3", "146 GB SSD Ext4 (/dev/sda3)", "Ubuntu 22.04 LTS Jammy Jellyfish", "Docker Engine 27.2 + Docker Compose v2"]
               })}
               className="p-5 rounded-2xl bg-gradient-to-br from-indigo-900/40 to-slate-900/60 border border-indigo-500/30 hover:border-indigo-400 transition-all cursor-pointer space-y-3 glass-shine shadow-lg"
             >
@@ -216,7 +216,7 @@ export default function NetworkTopology() {
                 </span>
               </div>
               <div>
-                <h3 className="font-bold text-white text-sm">Lenovo ThinkCentre M93p Tiny</h3>
+                <h3 className="font-bold text-white text-sm">Servidor Lenovo (Intel Core i3 M 380)</h3>
                 <div className="text-xs text-indigo-300 font-mono">192.168.0.200 (IP Fija)</div>
               </div>
               <p className="text-[11px] text-white/60">

@@ -203,8 +203,15 @@ docker run -d --name homelab-dashboard -p 3000:80 --restart unless-stopped homel
 
 ---
 
-## Soporte PWA en iPhone y Android
+## Soporte PWA y Web Push en iPhone y Android
 El proyecto incluye `manifest.json`, iconos de alta resolución (`apple-touch-icon.png`, `icon-192.png`, `icon-512.png`) y meta-tags adaptados para **Notch y Safe Area** (`viewport-fit=cover`). La cápsula interactiva **Dynamic Island** calcula dinámicamente su cota superior mediante `calc(env(safe-area-inset-top) + 10px)` para librar completamente el altavoz frontal y los sensores TrueDepth en dispositivos iOS con notch (como iPhone 11 y superiores). Al seleccionar *"Agregar a la pantalla de inicio"* en Safari o Chrome, el dashboard se comporta como una aplicación nativa a pantalla completa sin barra de navegación del explorador.
+
+### Notificaciones Push en iOS (iOS 16.4+)
+En cumplimiento estricto con las especificaciones de seguridad de Apple WebKit:
+* **Contexto Seguro Requerido (`HTTPS`)**: iOS restringe el acceso a la API de Notificaciones exclusivamente a conexiones seguras (`https://`). En conexiones HTTP sin cifrar, WebKit bloquea el prompt del sistema.
+* **Modo PWA Standalone**: Para recibir notificaciones en segundo plano, la web debe iniciarse desde el acceso directo guardado en la Pantalla de Inicio de iOS.
+* **Service Worker Universal**: Las alertas se canalizan mediante `navigator.serviceWorker.ready` y `registration.showNotification()`, evitando el constructor `new Notification()` no soportado en WebKit móvil.
+
 
 ---
 

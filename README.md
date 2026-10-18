@@ -80,6 +80,7 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
   * Formato de tarjetas simplificado: síntesis directa de 2 líneas (`line-clamp-2`), eliminando cajas pesadas con bordes redundantes.
   * Saneamiento nativo UTF-8 (`cleanText()`) para corrección de caracteres y tildes rotas (`Pasantías`).
 * **Métricas Reales en Vivo**: Cuadrícula de 6 métricas extraídas en tiempo real de SQLite: *Ofertas Analizadas*, *Nuevas sin Leer*, *Mis Postulaciones*, *En Espera*, *Rechazadas* y *Portales en Vigilancia*.
+* **Gestión de Portales con Contención Elástica**: Modal de administración de fuentes de empleo con diseño responsivo (`overflow-hidden`, `min-w-0`), URLs fluidas y botones "Escanear" y "Pausar" blindados contra desbordes en pantallas móviles y de escritorio.
 * **Notificaciones Web Push Nativas para iPhone (PWA Standalone)**: Integración con Service Worker (`sw.js`), Web Push API y Badging en iOS 16.4+ para alertas instantáneas.
 
 ---

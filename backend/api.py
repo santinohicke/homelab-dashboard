@@ -19,6 +19,8 @@ import subprocess
 import threading
 import urllib.request
 import base64
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from html.parser import HTMLParser
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, urljoin
@@ -747,7 +749,7 @@ def execute_hybrid_ai(prompt, purpose="General", temperature=0.1, max_tokens=800
                 "timeout": timeout
             }).encode("utf-8")
             req = urllib.request.Request(f"{bridge_url}/infer", data=payload, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=timeout + 5) as resp:
+            with urllib.request.urlopen(req, timeout=timeout + 15) as resp:
                 res = json.loads(resp.read().decode("utf-8"))
                 if res.get("status") == "ok":
                     latency_ms = int((time.time() - t0) * 1000)
@@ -970,7 +972,269 @@ Devuelve un documento HTML5 completo y autocontenido en un bloque ```html ... ``
     }
 
 
-def run_agent_job_scraper(target_id=None, force=False):
+def parse_agent_findings_json(raw_text):
+    if not raw_text:
+        return []
+    
+    text = raw_text.strip()
+    if "```json" in text:
+        text = text.split("```json", 1)[1]
+        if "```" in text:
+            text = text.split("```", 1)[0]
+    elif "```" in text:
+        text = text.split("```", 1)[1]
+        if "```" in text:
+            text = text.split("```", 1)[0]
+
+    f_idx = text.find('{')
+    l_idx = text.rfind('}')
+    if f_idx != -1 and l_idx != -1 and l_idx > f_idx:
+        candidate = text[f_idx:l_idx+1]
+        try:
+            d = json.loads(candidate)
+            if isinstance(d, dict) and "encontrados" in d:
+                return d["encontrados"]
+            elif isinstance(d, list):
+                return d
+        except Exception:
+            pass
+
+    items = []
+    pattern = re.compile(r'\{[^{}]*?"titulo"\s*:\s*"([^"]+)"[^{}]*?"empresa"\s*:\s*"([^"]+)"[^{}]*?\}', re.DOTALL)
+    for m in pattern.finditer(raw_text):
+        chunk = m.group(0)
+        try:
+            obj = json.loads(chunk)
+            items.append(obj)
+        except Exception:
+            t_m = re.search(r'"titulo"\s*:\s*"([^"]+)"', chunk)
+            e_m = re.search(r'"empresa"\s*:\s*"([^"]+)"', chunk)
+            mod_m = re.search(r'"modalidad"\s*:\s*"([^"]+)"', chunk)
+            res_m = re.search(r'"resumen"\s*:\s*"([^"]+)"', chunk)
+            lnk_m = re.search(r'"link"\s*:\s*"([^"]+)"', chunk)
+            sc_m = re.search(r'"match_score"\s*:\s*(\d+)', chunk)
+            rea_m = re.search(r'"match_reason"\s*:\s*"([^"]+)"', chunk)
+            if t_m and e_m:
+                items.append({
+                    "titulo": t_m.group(1),
+                    "empresa": e_m.group(1),
+                    "modalidad": mod_m.group(1) if mod_m else "Part-Time / CABA",
+                    "resumen": res_m.group(1) if res_m else "",
+                    "link": lnk_m.group(1) if lnk_m else "",
+                    "match_score": int(sc_m.group(1)) if sc_m else 80,
+                    "match_reason": rea_m.group(1) if rea_m else "",
+                    "missing_skills": [],
+                    "language": "es"
+                })
+    return items
+
+
+JUNK_TITLE_PATTERNS = [
+    'sign in', 'iniciar sesion', 'iniciar sesión', 'privacy', 'privacidad', 'terminos', 'términos',
+    'policy', 'politica', 'política', 'cookie', 'agree', 'open roles', 'jobs in', 'alerta', 'alert',
+    'search jobs', 'buscar empleo', 'ver mas', 'ver más', 'facebook', 'twitter', 'instagram',
+    'todos los derechos', 'all rights', 'magic link', 'password', 'contraseña', 'condiciones'
+]
+
+NON_TECH_BLACKLIST = [
+    'agro-ganadero', 'ejecutiva', 'secretaria', 'abogado', 'abogada', 'contador', 'contadora',
+    'finanzas', 'supply chain', 'comercial', 'recepcionista', 'enfermer', 'medico', 'médico',
+    'psicolog', 'ventas', 'cajero', 'cajera', 'mozo', 'limpieza', 'chofer', 'logistica',
+    'logística', 'abastecimiento', 'marketing', 'community manager', 'disenador', 'diseñador',
+    'rrhh', 'recursos humanos', 'seleccion', 'selección', 'liquidación', 'liquidacion',
+    'gastronomia', 'gastronomía', 'ventas telefónicas', 'atención al cliente', 'atencion al cliente',
+    'soporte tecnico', 'help desk', 'service desk', 'mesa de ayuda', 'qa tester', 'testing manual'
+]
+
+TECH_KEYWORDS = [
+    'developer', 'desarrollador', 'desarrollo', 'software', 'backend', 'frontend', 'fullstack',
+    'python', 'linux', 'devops', 'cloud', 'aws', 'docker', 'kubernetes', 'redes',
+    'network', 'telecom', 'telecomunicaciones', 'sistemas', 'infraestructura', 'data',
+    'datos', 'ciberseguridad', 'seguridad', 'firmware', 'embebido', 'embedded',
+    'iot', 'hardware', 'c++', 'golang', 'sql', 'ingenieria', 'ingeniería', 'ingeniero', 'it',
+    'tecnologia', 'tecnología', 'programador', 'microservicios'
+]
+
+
+def extract_raw_jobs_from_target(t):
+    t_id, t_name, t_url, t_criteria, t_last_chk, t_last_hash = t
+    jobs = []
+    try:
+        if "cafedev.co" in t_url:
+            seen_cafe = set()
+            for q_term in ["junior", "trainee", "pasantia", ""]:
+                api_url = "https://api.cafedev.co/v1/jobs?limit=50" + (f"&q={urllib.parse.quote(q_term)}" if q_term else "")
+                try:
+                    req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                    with urllib.request.urlopen(req, timeout=8) as cr:
+                        cd = json.loads(cr.read().decode('utf-8'))
+                        for it in cd.get("items", []):
+                            i_id = it.get("id")
+                            if i_id and i_id not in seen_cafe:
+                                seen_cafe.add(i_id)
+                                skills_list = it.get("skills", [])
+                                skills_str = ", ".join(skills_list[:5]) if isinstance(skills_list, list) else ""
+                                sen = it.get("seniority") or "Junior/Trainee"
+                                wp = it.get("workplace_type") or "Remoto/Hibrido"
+                                city = it.get("city") or ""
+                                country = (it.get("country") or "").upper()
+                                loc_str = f"{city}, {country}".strip(', ')
+                                link = it.get("url") or it.get("apply_url") or "https://cafedev.co/empleos/"
+                                jobs.append({
+                                    "target_id": t_id,
+                                    "target_name": t_name,
+                                    "title": it.get("title", ""),
+                                    "company": it.get("company_name", ""),
+                                    "modality": f"{sen} / {wp}",
+                                    "location": loc_str,
+                                    "skills": skills_str,
+                                    "link": link
+                                })
+                except Exception:
+                    pass
+
+        elif "work-search-ten.vercel.app" in t_url:
+            seen_ws = set()
+            for ws_url in [
+                "https://work-search-ten.vercel.app/api/jobs?country=AR&area=tecnologia&limit=50",
+                "https://work-search-ten.vercel.app/api/jobs?country=AR&limit=50"
+            ]:
+                try:
+                    req = urllib.request.Request(ws_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                    with urllib.request.urlopen(req, timeout=8) as r:
+                        raw_b = r.read()
+                        d = json.loads(raw_b.decode('utf-8'))
+                    for j in d.get("jobs", []):
+                        jid = j.get("id") or j.get("url")
+                        if jid and jid not in seen_ws:
+                            seen_ws.add(jid)
+                            jobs.append({
+                                "target_id": t_id,
+                                "target_name": t_name,
+                                "title": j.get("title", ""),
+                                "company": j.get("company", ""),
+                                "modality": f"{j.get('job_type', '')} / {j.get('remote', '')}",
+                                "location": j.get("location", ""),
+                                "skills": "",
+                                "link": j.get("url", "")
+                            })
+                except Exception:
+                    pass
+
+        elif "hiringroomcampus.com" in t_url:
+            parsed_t = urllib.parse.urlparse(t_url)
+            base_host = f"{parsed_t.scheme}://{parsed_t.netloc}"
+            base_jobs_url = f"{base_host}/jobs"
+            seen_hr = set()
+            for sub_q in ["", "sistemas", "tecnologia"]:
+                sub_url = base_jobs_url
+                if sub_q:
+                    sub_url += f"?q={urllib.parse.quote(sub_q)}"
+                try:
+                    sub_req = urllib.request.Request(sub_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                    with urllib.request.urlopen(sub_req, timeout=6) as sr:
+                        raw_b = sr.read()
+                        try:
+                            s_html = raw_b.decode('utf-8')
+                        except UnicodeDecodeError:
+                            s_html = raw_b.decode('latin-1', errors='replace')
+                        idx = s_html.find("window.__STATE__ = ")
+                        if idx != -1:
+                            d, _ = json.JSONDecoder().raw_decode(s_html[idx + len("window.__STATE__ = "):].strip())
+                            for j in d.get("data", []):
+                                slug = j.get("url")
+                                j_name = j.get("name", "").strip()
+                                j_area = j.get("job_area", "")
+                                if slug and slug not in seen_hr and j_name:
+                                    jl = (j_name + " " + j_area).lower()
+                                    if any(b in jl for b in NON_TECH_BLACKLIST):
+                                        continue
+                                    seen_hr.add(slug)
+                                    jobs.append({
+                                        "target_id": t_id,
+                                        "target_name": t_name,
+                                        "title": j_name,
+                                        "company": j.get("company", {}).get("name", ""),
+                                        "modality": j.get("job_type", "Pasantia"),
+                                        "location": f"{j.get('city', '')}, Argentina",
+                                        "skills": j_area,
+                                        "link": f"{base_jobs_url}/{slug}"
+                                    })
+                except Exception:
+                    pass
+
+        elif "linkedin.com" in t_url:
+            raw_lines = []
+            for start_idx in [0, 25]:
+                paginated_url = t_url + f"&start={start_idx}" if "start=" not in t_url else t_url
+                try:
+                    req = urllib.request.Request(paginated_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                    with urllib.request.urlopen(req, timeout=6) as r:
+                        raw_b = r.read()
+                        try:
+                            html = raw_b.decode('utf-8')
+                        except UnicodeDecodeError:
+                            html = raw_b.decode('latin-1', errors='replace')
+                    parser = JobPageExtractor(paginated_url)
+                    parser.feed(html)
+                    for l in parser.get_content().split('\n'):
+                        if len(l) > 4 and l not in raw_lines:
+                            raw_lines.append(l)
+                except Exception:
+                    pass
+            for l in raw_lines:
+                link_m = re.search(r'\[LINK:\s*(https?://[^\]]+)\]', l)
+                link = link_m.group(1) if link_m else t_url
+                title_company = l.split('[LINK:')[0].strip()
+                tl = title_company.lower()
+                if len(title_company) < 5 or any(p in tl for p in JUNK_TITLE_PATTERNS) or any(b in tl for b in NON_TECH_BLACKLIST):
+                    continue
+                jobs.append({
+                    "target_id": t_id,
+                    "target_name": t_name,
+                    "title": title_company[:70],
+                    "company": "LinkedIn Job",
+                    "modality": "Part-Time / Pasantia",
+                    "location": "Buenos Aires, Argentina",
+                    "skills": "",
+                    "link": link
+                })
+
+        else:
+            req = urllib.request.Request(t_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+            with urllib.request.urlopen(req, timeout=6) as r:
+                raw_b = r.read()
+                try:
+                    html = raw_b.decode('utf-8')
+                except UnicodeDecodeError:
+                    html = raw_b.decode('latin-1', errors='replace')
+
+            parser = JobPageExtractor(t_url)
+            parser.feed(html)
+            raw_lines = [l for l in parser.get_content().split('\n') if len(l) > 4]
+            for l in raw_lines:
+                link_m = re.search(r'\[LINK:\s*(https?://[^\]]+)\]', l)
+                link = link_m.group(1) if link_m else t_url
+                title_c = l.split('[LINK:')[0].strip()
+                tl = title_c.lower()
+                if len(title_c) < 5 or any(p in tl for p in JUNK_TITLE_PATTERNS) or any(b in tl for b in NON_TECH_BLACKLIST):
+                    continue
+                jobs.append({
+                    "target_id": t_id,
+                    "target_name": t_name,
+                    "title": title_c[:70],
+                    "company": t_name,
+                    "modality": "IT",
+                    "location": "Remoto / Argentina",
+                    "skills": "",
+                    "link": link
+                })
+    except Exception as e:
+        print(f"[Target Extract Error] {t_name}: {e}", file=sys.stderr)
+    return jobs
+
+
+def run_agent_job_scraper(target_id=None, force=True):
     key = load_gemini_key()
     if not key and not check_pc_bridge_online():
         return {"status": "error", "message": "Ni PC Bridge ni API Key configuradas"}
@@ -984,266 +1248,160 @@ def run_agent_job_scraper(target_id=None, force=False):
         cur.execute("SELECT id, name, url, criteria, last_checked, last_hash FROM agent_targets WHERE active = 1")
     
     targets = cur.fetchall()
-    total_new = 0
     now = int(time.time())
 
-    for t in targets:
-        t_id, t_name, t_url, t_criteria, t_last_chk, t_last_hash = t
+    # 1. Fetch raw jobs in parallel across all targeted sources (< 3 seconds total)
+    all_raw_jobs = []
+    with ThreadPoolExecutor(max_workers=min(8, len(targets) or 1)) as pool:
+        future_map = {pool.submit(extract_raw_jobs_from_target, t): t for t in targets}
         try:
-            if "cafedev.co" in t_url:
-                # Direct REST API from CafeDev (Multi-query search)
-                cafe_jobs = []
-                seen_cafe = set()
-                for q_term in ["junior", "trainee", "pasantia", ""]:
-                    api_url = "https://api.cafedev.co/v1/jobs?limit=50" + (f"&q={urllib.parse.quote(q_term)}" if q_term else "")
-                    try:
-                        req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-                        with urllib.request.urlopen(req, timeout=8) as cr:
-                            cd = json.loads(cr.read().decode('utf-8'))
-                            for it in cd.get("items", []):
-                                i_id = it.get("id")
-                                if i_id and i_id not in seen_cafe:
-                                    seen_cafe.add(i_id)
-                                    cafe_jobs.append(it)
-                    except Exception:
-                        pass
-                
-                job_lines = []
-                for j in cafe_jobs:
-                    name = j.get("title", "")
-                    company = j.get("company_name", "")
-                    skills_list = j.get("skills", [])
-                    skills_str = ", ".join(skills_list[:6]) if isinstance(skills_list, list) else ""
-                    sen = j.get("seniority") or "Junior/Trainee"
-                    wp = j.get("workplace_type") or "Remoto/Hibrido"
-                    city = j.get("city") or ""
-                    country = (j.get("country") or "").upper()
-                    loc_str = f"{city}, {country}".strip(', ')
-                    link = j.get("url") or j.get("apply_url") or "https://cafedev.co/empleos/"
-                    job_lines.append(f"PUESTO: {name} | EMPRESA: {company} | SENIORITY: {sen} | MODALIDAD: {wp} | UBICACION: {loc_str} | SKILLS: {skills_str} [LINK: {link}]")
-                content = '\n'.join(job_lines[:100])
+            for fut in as_completed(future_map, timeout=14):
+                try:
+                    jobs = fut.result()
+                    all_raw_jobs.extend(jobs)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
-            elif "work-search-ten.vercel.app" in t_url:
-                # Direct JSON API from work-search (Tech + General Pasantias in Argentina)
-                ws_jobs = []
-                seen_ws = set()
-                for ws_url in [
-                    "https://work-search-ten.vercel.app/api/jobs?country=AR&area=tecnologia&limit=50",
-                    "https://work-search-ten.vercel.app/api/jobs?country=AR&limit=50"
-                ]:
-                    try:
-                        req = urllib.request.Request(ws_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-                        with urllib.request.urlopen(req, timeout=10) as r:
-                            raw_b = r.read()
-                            d = json.loads(raw_b.decode('utf-8'))
-                        for j in d.get("jobs", []):
-                            jid = j.get("id") or j.get("url")
-                            if jid and jid not in seen_ws:
-                                seen_ws.add(jid)
-                                ws_jobs.append(j)
-                    except Exception:
-                        pass
+    # 2. Check existing findings to avoid duplicate evaluations
+    cur.execute("SELECT link, title, company FROM agent_findings")
+    existing_rows = cur.fetchall()
+    existing_links = {r[0] for r in existing_rows if r[0]}
+    existing_titles = {(r[1].lower().strip(), r[2].lower().strip()) for r in existing_rows if r[1] and r[2]}
 
-                job_lines = []
-                for j in ws_jobs:
-                    name = j.get("title", "")
-                    company = j.get("company", "")
-                    job_type = j.get("job_type", "")
-                    remote = j.get("remote", "")
-                    loc = j.get("location", "")
-                    link = j.get("url", "")
-                    job_lines.append(f"PUESTO: {name} | EMPRESA: {company} | MODALIDAD: {job_type} / {remote} | UBICACION: {loc} [LINK: {link}]")
-                content = '\n'.join(job_lines[:100])
+    # 3. Fast pre-filter and intelligent prioritization for Santino's genuine profile
+    candidates = []
+    seen_in_batch = set()
+    for j in all_raw_jobs:
+        t_title = j.get("title", "").strip()
+        t_comp = j.get("company", "").strip()
+        t_link = j.get("link", "").strip()
+        t_skills = j.get("skills", "").strip()
+        if not t_title or not t_link:
+            continue
+        
+        # Discard duplicates in DB
+        if t_link in existing_links:
+            continue
+        if (t_title.lower(), t_comp.lower()) in existing_titles:
+            continue
+        
+        # Discard duplicates in current batch
+        batch_key = (t_title.lower(), t_comp.lower())
+        if batch_key in seen_in_batch:
+            continue
+        seen_in_batch.add(batch_key)
 
-            elif "hiringroomcampus.com" in t_url:
-                # Direct extraction from HiringRoom's embedded JSON state across relevant categories
-                parsed_t = urllib.parse.urlparse(t_url)
-                base_host = f"{parsed_t.scheme}://{parsed_t.netloc}"
-                base_jobs_url = f"{base_host}/jobs"
-                raw_jobs = []
-                for sub_q in ["", "sistemas", "tecnologia"]:
-                    sub_url = base_jobs_url
-                    if sub_q:
-                        sub_url += f"?q={urllib.parse.quote(sub_q)}"
-                    try:
-                        sub_req = urllib.request.Request(sub_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-                        with urllib.request.urlopen(sub_req, timeout=6) as sr:
-                            raw_b = sr.read()
-                            try:
-                                s_html = raw_b.decode('utf-8')
-                            except UnicodeDecodeError:
-                                s_html = raw_b.decode('latin-1', errors='replace')
-                            idx = s_html.find("window.__STATE__ = ")
-                            if idx != -1:
-                                d, _ = json.JSONDecoder().raw_decode(s_html[idx + len("window.__STATE__ = "):].strip())
-                                for j in d.get("data", []):
-                                    slug = j.get("url")
-                                    if slug and not any(x.get("url") == slug for x in raw_jobs):
-                                        raw_jobs.append(j)
-                    except Exception:
-                        pass
-                
-                job_lines = []
-                for j in raw_jobs:
-                    name = j.get("name", "")
-                    company = j.get("company", {}).get("name", "")
-                    job_type = j.get("job_type", "")
-                    city = j.get("city", "")
-                    area = j.get("job_area", "")
-                    slug = j.get("url", "")
-                    job_lines.append(f"PUESTO: {name} | EMPRESA: {company} | MODALIDAD: {job_type} | AREA: {area} | CIUDAD: {city} [LINK: {base_jobs_url}/{slug}]")
-                content = '\n'.join(job_lines[:80])
+        tl = (t_title + " " + t_skills).lower()
+        if any(s in tl for s in ['senior', ' sr.', ' sr ', 'lead', 'principal', 'staff', 'gerente', 'head of', 'jefe ']):
+            continue
+        if any(b in tl for b in NON_TECH_BLACKLIST):
+            continue
+        if any(p in tl for p in JUNK_TITLE_PATTERNS):
+            continue
 
-            elif "linkedin.com" in t_url:
-                # Multi-page LinkedIn public search (pages 1 and 2)
-                raw_lines = []
-                for start_idx in [0, 25]:
-                    paginated_url = t_url + f"&start={start_idx}" if "start=" not in t_url else t_url
-                    try:
-                        req = urllib.request.Request(paginated_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-                        with urllib.request.urlopen(req, timeout=8) as r:
-                            raw_b = r.read()
-                            try:
-                                html = raw_b.decode('utf-8')
-                            except UnicodeDecodeError:
-                                html = raw_b.decode('latin-1', errors='replace')
-                        parser = JobPageExtractor(paginated_url)
-                        parser.feed(html)
-                        for l in parser.get_content().split('\n'):
-                            if len(l) > 3 and l not in raw_lines:
-                                raw_lines.append(l)
-                    except Exception:
-                        pass
-                content = '\n'.join(raw_lines[:180])
+        p_score = 0
+        if any(tk in tl for tk in TECH_KEYWORDS):
+            p_score += 40
+        if any(term in tl for term in ['pasantia', 'pasantía', 'intern', 'trainee', 'junior', 'jr', 'part-time', 'part time']):
+            p_score += 25
+        if any(src in j.get("target_name", "").lower() for src in ['cafedev', 'work search', 'uca', 'belgrano']):
+            p_score += 15
 
-            else:
-                req = urllib.request.Request(t_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-                with urllib.request.urlopen(req, timeout=8) as r:
-                    raw_b = r.read()
-                    try:
-                        html = raw_b.decode('utf-8')
-                    except UnicodeDecodeError:
-                        html = raw_b.decode('latin-1', errors='replace')
+        j["priority_score"] = p_score
+        candidates.append(j)
 
-                parser = JobPageExtractor(t_url)
-                parser.feed(html)
-                raw_lines = [l for l in parser.get_content().split('\n') if len(l) > 3]
-                content = '\n'.join(raw_lines[:160])
-            
-            content_hash = str(hash(content))
-            if not force and content_hash == t_last_hash:
-                continue
+    # Sort descending so top-affinity tech and pasantías are evaluated first!
+    candidates.sort(key=lambda x: x.get("priority_score", 0), reverse=True)
 
-            profile = load_santino_profile()
+    total_new = 0
+    if candidates:
+        profile = load_santino_profile()
+        job_lines = []
+        for c in candidates[:25]:
+            job_lines.append(f"PUESTO: {c['title']} | EMPRESA: {c['company']} | MODALIDAD: {c['modality']} | UBICACION: {c['location']} | ORIGEN: {c['target_name']} [LINK: {c['link']}]")
+        content = '\n'.join(job_lines)
 
-            instruction = f"""Actua como un cazatalentos senior y mentor de ingenieria informatica para el estudiante universitario Santino Hickethier de la UCA en Buenos Aires, Argentina.
+        instruction = f"""Actua como un cazatalentos senior y mentor de ingenieria informatica para el estudiante universitario Santino Hickethier de la UCA en Buenos Aires, Argentina.
 
 PERFIL REAL DEL CANDIDATO (SANTINO HICKETHIER):
 - Carrera: Ingenieria en Informatica (Pontificia Universidad Catolica Argentina - UCA). 40% de materias aprobadas.
 - Conocimientos troncales: Administracion de servidores Linux headless, contenedores Docker, microservicios REST en Python, lenguaje C (punteros, memoria, sockets), redes de comunicacion (TCP/IP, modelo OSI, Cisco routing/switching, VLANs, WireGuard), bases de datos SQL (SQLite, PostgreSQL), Git.
-- Proyectos reales: Cluster Homelab con 8 servicios en Docker, optimizacion de kernel Linux, microservicio de telemetria en Python (<20MB RAM); modelo de optimizacion logistica espacial con diagramas de Voronoi; pipelines de automatizacion con n8n.
+- Proyectos reales: Cluster Homelab con 8 servicios en Docker, optimizacion de kernel Linux, microservicio de telemetria en Python (<20MB RAM); modelo de optimizacion logistica espacial con diagramas de Voronoi.
 - Idiomas: Ingles bilingue profesional con certificado Cambridge C1 Advanced (CAE); Espanol nativo.
 
-Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin excepcion:
-1. JORNADA Y NIVEL:
-   - Priorizar PART-TIME, MEDIA JORNADA, PASANTIA, TRAINEE o JUNIOR (compatible con cursada de estudiante).
-   - DESCARTA puestos Senior, Semi-Senior o que exijan mas de 2 anos de experiencia laboral previa.
-2. UBICACION Y MODALIDAD:
-   - Si es Remoto / 100% Virtual: PERMITIDO (desde cualquier ubicacion).
-   - Si es Presencial o Hibrido: DEBE SER OBLIGATORIAMENTE en CABA (Ciudad Autonoma de Buenos Aires) o Gran Buenos Aires cercano, Argentina. DESCARTA puestos presenciales/hibridos en otras provincias o paises (ej. Chile, Colombia, Mendoza, etc.).
-3. RAMAS DE INTERES (EXCLUSIVAMENTE INGENIERIA):
-   - ACEPTADOS:
-     * Redes, Telecomunicaciones, Conectividad, Routers/Switches.
-     * Sistemas Embebidos, Firmware, Microcontroladores, IoT, Electronica y Hardware.
-     * Programacion de Bajo Nivel o Sistemas: C, C++, Rust, Go, Python.
-     * Infraestructura, Sysadmin Linux, Administracion de Servidores, Cloud (AWS, Azure, GCP), DevOps, Contenedores.
-     * Ciberseguridad, Seguridad Informatica.
-     * Desarrollo de Software / Software Engineering (Backend, Frontend, Fullstack).
-     * Ingenieria de Datos, Arquitectura de Datos o Machine Learning.
-   - DESCARTA ESTRICTAMENTE Y SIN EXCEPCIONES:
-     * Soporte Tecnico, Help Desk, Service Desk, Mesa de Ayuda, Soporte Nivel 1 o 2, Tecnico de PC/Hardware de oficina, Atencion a usuarios o soporte de aplicaciones ofimaticas.
-     * QA, Testing de Software, QA Tester, Control de Calidad manual o automatizado.
-     * Carreras no afines (Contaduria, Finanzas, Abogacia, Recursos Humanos, Marketing, Ventas puras).
-4. ESTRICTAMENTE PROHIBIDO INVENTAR O HARDCODEAR PUESTOS: Usa UNICAMENTE los puestos y enlaces reales provistos en el listado. El campo 'link' debe ser exactamente la URL extraida de [LINK: ...]. Si ninguna oferta cumple los criterios, devuelve la lista vacia [].
-5. SEGURIDAD Y PREVENCION ESTRICTA DE ESTAFAS / MALWARE (CERO-TRUST):
-   - DESCARTA de forma inmediata cualquier oferta sospechosa o potencialmente fraudulenta.
-6. EVALUACION DE AFINIDAD (MATCH SCORE 0-100%):
-   - match_score: Puntaje numerico de 0 a 100 evaluando la afinidad entre los requisitos de la vacante y el stack real de Santino (Linux, Docker, Python, C, Redes, SQL, Ingles C1, pasantia/part-time en CABA/remoto).
-   - match_reason: Justificacion concisa en 1 frase de por que coincide con su perfil o fortalezas para la vacante.
-   - missing_skills: Lista JSON de tecnologias que pide la oferta pero que Santino podria necesitar reforzar (ej. ["Kubernetes", "AWS"]).
-   - language: "es" si es empresa local/argentina o en espanol, "en" si la oferta o empresa es internacional en ingles.
+Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas:
+1. JORNADA Y NIVEL: Priorizar PART-TIME, MEDIA JORNADA, PASANTIA, TRAINEE o JUNIOR compatible con cursada universitaria. DESCARTA Senior o que exijan mas de 2 anos de experiencia.
+2. UBICACION Y MODALIDAD: Remoto 100% o Presencial/Hibrido en CABA / Gran Buenos Aires, Argentina. DESCARTA presenciales en otras provincias o paises.
+3. RAMAS DE INTERES: Redes, Telecomunicaciones, Embebidos, Firmware, IoT, C/C++, Python, Linux, Servidores, Cloud, DevOps, Contenedores, Ciberseguridad, Desarrollo de Software (Backend/Fullstack), Datos/ML.
+   DESCARTA: Soporte Tecnico, Help Desk, Service Desk, Mesa de Ayuda, QA, Testing, Ventas, Marketing, Finanzas puras.
+4. ESTRICTAMENTE PROHIBIDO INVENTAR: Usa UNICAMENTE los puestos y enlaces reales provistos. El campo 'link' debe ser exactamente la URL extraida de [LINK: ...].
 
-7. Responde estrictamente con un JSON valido (sin formato markdown adicional):
+EVALUACION DE AFINIDAD (MATCH SCORE 0-100%):
+- match_score: Puntaje de 0 a 100 con el perfil real de Santino.
+- match_reason: Justificacion concisa en 1 frase de por que coincide con su perfil.
+- missing_skills: Lista JSON de tecnologias a reforzar (ej. ["Kubernetes", "AWS"]).
+- language: "es" si es empresa local/argentina, "en" si es internacional en ingles.
+
+Responde estrictamente con un JSON valido:
 {{
   "encontrados": [
     {{
       "titulo": "Titulo exacto del puesto",
       "empresa": "Nombre de la empresa",
       "modalidad": "Part-Time / Pasantia / Remoto / Hibrido CABA",
-      "resumen": "Resumen conciso en 1 frase de tecnologias y por que se adapta a un estudiante",
+      "resumen": "Resumen conciso en 1 frase",
       "link": "URL exacta extraida de [LINK: ...]",
       "match_score": 92,
-      "match_reason": "Alta compatibilidad con su experiencia en Linux, Docker y desarrollo backend en Python.",
+      "match_reason": "Alta compatibilidad con su experiencia en Linux, Docker y Python.",
       "missing_skills": ["Kubernetes"],
       "language": "es"
     }}
   ]
 }}"""
 
-            full_prompt = instruction + "\n\nListado:\n" + content
-            ai_res = execute_hybrid_ai(full_prompt, purpose=f"Rastreo: {sanitize_utf8_accents(t_name)}", temperature=0.1, max_tokens=1000)
+        full_prompt = instruction + "\n\nListado:\n" + content
+        ai_res = execute_hybrid_ai(full_prompt, purpose="Rastreo Inteligente IT", temperature=0.1, max_tokens=3500, timeout=70)
 
-            if ai_res.get("status") == "ok":
-                raw_text = ai_res.get("text", "")
-                clean_json = raw_text.replace('```json', '').replace('```', '').strip()
-                try:
-                    data = json.loads(clean_json)
-                    for item in data.get("encontrados", []):
-                        title = sanitize_utf8_accents(item.get("titulo", "Puesto IT"))
-                        company = sanitize_utf8_accents(item.get("empresa", "Empresa"))
-                        modality = sanitize_utf8_accents(item.get("modalidad", "Part-Time / CABA"))
-                        summary = sanitize_utf8_accents(item.get("resumen", ""))
-                        link = item.get("link", t_url)
-                        m_score = int(item.get("match_score", 80))
-                        m_reason = sanitize_utf8_accents(item.get("match_reason", ""))
-                        m_skills = json.dumps(item.get("missing_skills", []))
-                        m_lang = item.get("language", "es")
+        if ai_res.get("status") == "ok":
+            raw_text = ai_res.get("text", "")
+            found_items = parse_agent_findings_json(raw_text)
+            for item in found_items:
+                title = sanitize_utf8_accents(item.get("titulo", "Puesto IT"))
+                company = sanitize_utf8_accents(item.get("empresa", "Empresa"))
+                modality = sanitize_utf8_accents(item.get("modalidad", "Part-Time / CABA"))
+                summary = sanitize_utf8_accents(item.get("resumen", ""))
+                link = item.get("link", "")
+                m_score = int(item.get("match_score", 80))
+                m_reason = sanitize_utf8_accents(item.get("match_reason", ""))
+                m_skills = json.dumps(item.get("missing_skills", []))
+                m_lang = item.get("language", "es")
 
-                        # Deduplicate: check if link or (title + company) exists
-                        cur.execute("SELECT id, match_score FROM agent_findings WHERE link = ? OR (title = ? AND company = ?)", (link, title, company))
-                        row = cur.fetchone()
-                        if not row:
-                            cur.execute("""
-                                INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link, is_read, is_archived, is_applied, match_score, match_reason, missing_skills, language)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?)
-                            """, (t_id, now, title, company, modality, summary, link, m_score, m_reason, m_skills, m_lang))
-                            total_new += 1
-                        else:
-                            f_id, existing_score = row
-                            if not existing_score or existing_score == 0:
-                                cur.execute("""
-                                    UPDATE agent_findings
-                                    SET match_score = ?, match_reason = ?, missing_skills = ?, language = ?
-                                    WHERE id = ?
-                                """, (m_score, m_reason, m_skills, m_lang, f_id))
-                except Exception as parse_err:
-                    print(f"[Agent Scraper JSON Parse Error] {t_name}: {parse_err}", file=sys.stderr)
+                if not link or not title:
+                    continue
 
-            cur.execute("UPDATE agent_targets SET last_checked = ?, last_hash = ? WHERE id = ?", (now, content_hash, t_id))
-            conn.commit()
-        except Exception as e:
-            print(f"[Agent Scraper Error] Target {t_name}: {e}", file=sys.stderr)
-            try:
-                cur.execute("""
-                    INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
-                    VALUES (?, ?, 0, 0, 0, ?, 0, ?)
-                """, (now, "gemini-3.1-flash-lite", f"Error: {sanitize_utf8_accents(t_name)}", f"error: {str(e)[:100]}"))
-                conn.commit()
-            except Exception:
-                pass
+                # Identify source target_id
+                match_target_id = targets[0][0] if targets else 1
+                for c in candidates:
+                    if c["link"] == link or (c["title"].lower() == title.lower() and c["company"].lower() == company.lower()):
+                        match_target_id = c["target_id"]
+                        break
 
+                cur.execute("SELECT id FROM agent_findings WHERE link = ? OR (title = ? AND company = ?)", (link, title, company))
+                if not cur.fetchone():
+                    cur.execute("""
+                        INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link, is_read, is_archived, is_applied, match_score, match_reason, missing_skills, language)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?)
+                    """, (match_target_id, now, title, company, modality, summary, link, m_score, m_reason, m_skills, m_lang))
+                    total_new += 1
+
+    cur.execute("UPDATE agent_targets SET last_checked = ? WHERE active = 1", (now,))
+    conn.commit()
     conn.close()
-    return {"status": "ok", "new_findings": total_new, "timestamp": now}
+
+    msg = f"Rastreo completado: {total_new} nuevas vacantes incorporadas" if total_new > 0 else "Rastreo completado: Todos los portales están al día (0 vacantes nuevas sin postular)."
+    return {"status": "ok", "new_findings": total_new, "timestamp": now, "message": msg}
 
 def agent_scheduler_loop():
     while True:

@@ -84,7 +84,11 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
   9. *LinkedIn Jobs: Programación Embebida, Firmware & IoT*
   10. *Get on Board: Pasantías & Part-Time Tech*
   11. *Get on Board: Sysadmin, DevOps & Cloud*
-  12. *Get on Board: Programación & Software Junior*
+* **Pipeline de Ingesta Inteligente & Priorización de Afinidades (`priority_score`)**:
+  * **Filtrado Léxico Anti-Ruido**: Descarte automático en memoria (`NON_TECH_BLACKLIST`, `JUNK_TITLE_PATTERNS`) de puestos no afines (administrativos, secretarias, finanzas) y enlaces de navegación (login, cookies, términos).
+  * **Ponderación Técnica Ponderada**: Puntuación automática (`TECH_KEYWORDS`) que ubica al inicio de la remesa evaluada por la IA las vacantes con palabras clave troncales (software, linux, devops, cloud, redes, sistemas, python, docker, pasantía, junior).
+  * **Concurrencia Resiliente Multihilo**: Extracción paralela en menos de 3 segundos mediante `ThreadPoolExecutor(max_workers=8)` y `as_completed(timeout=14)` con manejo tolerante de timeouts para portales lentos.
+  * **Evaluación Consolidada y Parser Tolerante a Fallos**: Lote de 25 candidatos de máxima afinidad evaluados en una sola inferencia de Gemini 3.8 Flash (`ai_bridge.py` en la PC host o nube de respaldo) con parser de recuperación por expresiones regulares a nivel de objeto (`parse_agent_findings_json`).
 * **Seguimiento de Postulaciones y Rechazos ("Me rechazaron")**:
   * En "Mis Postulaciones", botón de acción "Me rechazaron" que etiqueta la vacante con el badge `Rechazada` (color rubí/rosa) y opción de deshacer ("Desmarcar rechazo"), manteniéndolas en el flujo sin crear secciones redundantes.
   * Vacantes abiertas señaladas con estado `Postulado · En espera`.

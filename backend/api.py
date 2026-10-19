@@ -797,15 +797,13 @@ Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin e
 }}"""
 
             full_prompt = instruction + "\n\nListado:\n" + content
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={key}"
+            # Usar modelo de alta disponibilidad (gemini-flash-lite-latest)
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={key}"
             payload = json.dumps({
                 "contents": [{"parts": [{"text": full_prompt}]}],
                 "generationConfig": {
                     "temperature": 0.1,
-                    "maxOutputTokens": 800,
-                    "thinkingConfig": {
-                        "thinkingBudget": 0
-                    }
+                    "maxOutputTokens": 800
                 }
             }).encode()
 
@@ -824,7 +822,7 @@ Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin e
                 cur.execute("""
                     INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (now, "gemini-3.1-flash-lite", p_tokens, c_tokens, t_tokens, f"Rastreo: {sanitize_utf8_accents(t_name)}", latency_ms, "ok"))
+                """, (now, "gemini-flash-lite-latest", p_tokens, c_tokens, t_tokens, f"Rastreo: {sanitize_utf8_accents(t_name)}", latency_ms, "ok"))
                 conn.commit()
 
                 raw_text = res['candidates'][0]['content']['parts'][0]['text']
@@ -1587,7 +1585,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
 
             self._send_json({
                 "status": "ok",
-                "model": "gemini-3.1-flash-lite",
+                "model": "gemini-flash-lite-latest",
                 "limits": {
                     "rpd_limit": limit_rpd,
                     "rpm_limit": limit_rpm,
@@ -1995,13 +1993,12 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 return
             
             now = int(time.time())
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={key}"
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={key}"
             payload = json.dumps({
                 "contents": [{"parts": [{"text": "Responde con 'OK: Telemetria IA en linea' y 1 frase sobre servidores homelab."}]}],
                 "generationConfig": {
                     "temperature": 0.2,
-                    "maxOutputTokens": 60,
-                    "thinkingConfig": {"thinkingBudget": 0}
+                    "maxOutputTokens": 60
                 }
             }).encode()
 
@@ -2022,7 +2019,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                     cur.execute("""
                         INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (now, "gemini-3.1-flash-lite", p_tokens, c_tokens, t_tokens, "Test Diagnóstico", latency_ms, "ok"))
+                    """, (now, "gemini-flash-lite-latest", p_tokens, c_tokens, t_tokens, "Test Diagnóstico", latency_ms, "ok"))
                     conn.commit()
                     conn.close()
 

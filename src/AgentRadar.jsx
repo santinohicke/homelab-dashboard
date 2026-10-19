@@ -1,9 +1,10 @@
-﻿import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import {
   Radar, Briefcase, Sparkles, RefreshCw, CheckCircle2,
   Filter, Search, Plus, Check, Archive, Clock,
   ShieldCheck, MapPin, Tag, ChevronRight, AlertCircle, X, Sliders,
-  CheckCircle, Globe, Terminal, ArrowUpRight, Send, Trash2, Undo2, XCircle
+  CheckCircle, Globe, Terminal, ArrowUpRight, Send, Trash2, Undo2, XCircle,
+  FileText, Download, Copy, FileCheck, ExternalLink, Printer
 } from "lucide-react";
 
 // Sanitizer to repair broken accents and encodings (e.g. Pasant?as -> Pasantías)
@@ -38,10 +39,24 @@ export default function AgentRadar() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
-  const [filter, setFilter] = useState("all"); // "all" | "new" | "applied"
+  const [filter, setFilter] = useState("all"); // "all" | "match" | "new" | "applied"
   const [searchQuery, setSearchQuery] = useState("");
   const [showTargetsModal, setShowTargetsModal] = useState(false);
   
+  // Document Generation Modal state
+  const [docModal, setDocModal] = useState({
+    isOpen: false,
+    finding: null,
+    docType: "cv", // "cv" | "cover_letter"
+    language: "auto",
+    loading: false,
+    error: null,
+    docData: null
+  });
+  const [copiedText, setCopiedText] = useState(false);
+  const [evaluatingMatchId, setEvaluatingMatchId] = useState(null);
+  const iframeRef = useRef(null);
+
   // Add target form
   const [newTargetName, setNewTargetName] = useState("");
   const [newTargetUrl, setNewTargetUrl] = useState("");
@@ -322,18 +337,142 @@ export default function AgentRadar() {
     }
   };
 
-  // Filter and search logic - ONLY Todas, Nuevas, Mis Postulaciones
-  const filteredFindings = findings.filter(f => {
-    if (filter === "new" && f.is_read) return false;
-    if (filter === "applied" && !f.is_applied) return false;
+  const handleOpenDocModal = async (finding, docType = "cv") => {
+    const lang = finding.language || "auto";
+    setDocModal({
+      isOpen: true,
+      finding: finding,
+      docType: docType,
+      language: lang,
+      loading: true,
+      error: null,
+      docData: null
+    });
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const combined = `${f.title} ${f.company} ${f.summary} ${f.modality} ${f.target_name}`.toLowerCase();
-      if (!combined.includes(q)) return false;
+    try {
+      const res = await fetch(`/api/v1/agent/doc?id=${finding.id}&type=${docType}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.html) {
+          setDocModal(prev => ({
+            ...prev,
+            loading: false,
+            docData: data
+          }));
+          return;
+        }
+      }
+      await triggerDocGeneration(finding.id, docType, lang);
+    } catch (err) {
+      setDocModal(prev => ({ ...prev, loading: false, error: err.message }));
     }
-    return true;
-  });
+  };
+
+  const triggerDocGeneration = async (findingId, docType, language) => {
+    setDocModal(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const res = await fetch("/api/v1/agent/generate-doc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          finding_id: findingId,
+          doc_type: docType,
+          language: language
+        })
+      });
+      if (!res.ok) throw new Error(`Error en el servidor (HTTP ${res.status})`);
+      const data = await res.json();
+      if (data.status !== "ok") throw new Error(data.message || "Error al generar documento");
+      
+      setDocModal(prev => ({
+        ...prev,
+        loading: false,
+        docData: data
+      }));
+      fetchData();
+    } catch (err) {
+      setDocModal(prev => ({ ...prev, loading: false, error: err.message }));
+    }
+  };
+
+  const handleDownloadPdf = (findingId, docType) => {
+    window.open(`/api/v1/agent/download-doc?id=${findingId}&type=${docType}`, '_blank');
+  };
+
+  const handlePrintDoc = () => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.print();
+    }
+  };
+
+  const handleCopyText = () => {
+    if (!docModal.docData?.html) return;
+    const tmp = document.createElement("div");
+    tmp.innerHTML = docModal.docData.html;
+    const txt = tmp.innerText || tmp.textContent || "";
+    navigator.clipboard.writeText(txt);
+    setCopiedText(true);
+    setTimeout(() => setCopiedText(false), 2000);
+  };
+
+  const [evaluatingAll, setEvaluatingAll] = useState(false);
+
+  const handleEvaluateMatch = async (findingId) => {
+    try {
+      setEvaluatingMatchId(findingId);
+      const res = await fetch("/api/v1/agent/evaluate-match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ finding_id: findingId })
+      });
+      if (res.ok) {
+        await fetchData();
+      }
+    } catch (err) {
+      console.error("Error al evaluar afinidad:", err);
+    } finally {
+      setEvaluatingMatchId(null);
+    }
+  };
+
+  const handleEvaluateAllUnscored = async () => {
+    try {
+      setEvaluatingAll(true);
+      const res = await fetch("/api/v1/agent/evaluate-all-unscored", {
+        method: "POST"
+      });
+      if (res.ok) {
+        let checks = 0;
+        const interval = setInterval(async () => {
+          await fetchData();
+          checks++;
+          if (checks >= 8) {
+            clearInterval(interval);
+            setEvaluatingAll(false);
+          }
+        }, 4000);
+      }
+    } catch (err) {
+      console.error("Error al evaluar afinidades:", err);
+      setEvaluatingAll(false);
+    }
+  };
+
+  // Filter and search logic - Todas, Alta Afinidad, Nuevas, Mis Postulaciones
+  const filteredFindings = findings
+    .filter(f => {
+      if (filter === "new" && f.is_read) return false;
+      if (filter === "applied" && !f.is_applied) return false;
+      if (filter === "match" && (f.match_score < 80)) return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const combined = `${f.title} ${f.company} ${f.summary} ${f.modality} ${f.target_name} ${f.match_reason || ''}`.toLowerCase();
+        if (!combined.includes(q)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
@@ -460,27 +599,44 @@ export default function AgentRadar() {
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* Strict 3 filter pills */}
-          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar max-w-full">
-            {[
-              { id: "all", label: `Todas (${findings.length})` },
-              { id: "new", label: `Nuevas (${stats.unread_count})` },
-              { id: "applied", label: `Mis Postulaciones (${stats.applied_count})` }
-            ].map(f => (
+          {/* Strict 4 filter pills + evaluate missing match */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar max-w-full">
+              {[
+                { id: "all", label: `Todas (${findings.length})` },
+                { id: "match", label: `Alta Afinidad (>=80%) (${findings.filter(f => f.match_score >= 80).length})` },
+                { id: "new", label: `Nuevas (${stats.unread_count})` },
+                { id: "applied", label: `Mis Postulaciones (${stats.applied_count})` }
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setFilter(f.id)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-medium font-mono uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                    filter === f.id
+                      ? f.id === "applied"
+                        ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold shadow-sm"
+                        : f.id === "match"
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold shadow-sm"
+                          : "bg-white/15 text-white border border-white/20 font-bold shadow-sm"
+                      : "text-white/50 hover:text-white/80 hover:bg-white/5"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {findings.some(f => !f.match_score || f.match_score === 0) && (
               <button
-                key={f.id}
-                onClick={() => setFilter(f.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-medium font-mono uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-                  filter === f.id
-                    ? f.id === "applied"
-                      ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold shadow-sm"
-                      : "bg-white/15 text-white border border-white/20 font-bold shadow-sm"
-                    : "text-white/50 hover:text-white/80 hover:bg-white/5"
-                }`}
+                onClick={handleEvaluateAllUnscored}
+                disabled={evaluatingAll}
+                className="px-3 py-1.5 rounded-2xl text-xs font-mono font-medium text-cyan-300 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                title="Calcular la afinidad (Match Score) para todas las ofertas que todavía no fueron evaluadas"
               >
-                {f.label}
+                <Sparkles className={`w-3 h-3 text-cyan-400 ${evaluatingAll ? 'animate-spin' : ''}`} />
+                <span>{evaluatingAll ? "Evaluando con IA..." : "Calcular Match Faltante"}</span>
               </button>
-            ))}
+            )}
           </div>
 
           {/* Search Input */}
@@ -537,12 +693,36 @@ export default function AgentRadar() {
               }`}
             >
               <div className="space-y-2.5">
-                {/* Header Pills: Modality + Real Status Badge + Date */}
+                {/* Header Pills: Modality + Match Score + Status Badge + Date */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium uppercase tracking-wider bg-white/[0.06] text-white/90 border border-white/15">
                       {cleanText(finding.modality)}
                     </span>
+
+                    {/* Match Score Badge */}
+                    {finding.match_score > 0 ? (
+                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-mono font-bold uppercase border flex items-center gap-1 ${
+                        finding.match_score >= 85
+                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                          : finding.match_score >= 70
+                          ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+                          : "bg-slate-500/20 text-slate-300 border-slate-500/30"
+                      }`}>
+                        <Sparkles className="w-3 h-3 text-cyan-400" />
+                        {finding.match_score}% Match
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleEvaluateMatch(finding.id); }}
+                        disabled={evaluatingMatchId === finding.id}
+                        className="text-[9px] px-2 py-0.5 rounded-full font-mono text-white/50 hover:text-white/80 bg-white/[0.04] hover:bg-white/10 border border-white/10 flex items-center gap-1 cursor-pointer transition-all disabled:opacity-50"
+                        title="Calcular afinidad con tu perfil real"
+                      >
+                        <Sparkles className="w-2.5 h-2.5 text-cyan-400" />
+                        <span>{evaluatingMatchId === finding.id ? "Evaluando..." : "Calcular Match"}</span>
+                      </button>
+                    )}
 
                     {finding.is_applied ? (
                       finding.is_rejected ? (
@@ -584,19 +764,71 @@ export default function AgentRadar() {
                 <p className="text-xs text-white/70 leading-relaxed font-sans line-clamp-2">
                   {cleanText(finding.summary)}
                 </p>
+
+                {/* Match Affinity & Missing Skills Detail */}
+                {finding.match_reason && (
+                  <div className="p-2.5 rounded-2xl bg-white/[0.03] border border-white/[0.08] text-xs space-y-1 mt-1">
+                    <div className="text-[10px] uppercase font-mono tracking-wider text-cyan-400 font-semibold flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      <span>Afinidad con perfil de Santino:</span>
+                    </div>
+                    <p className="text-[11px] text-white/70 leading-relaxed font-sans">
+                      {finding.match_reason}
+                    </p>
+                    {finding.missing_skills && finding.missing_skills.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                        <span className="text-[10px] text-white/40 font-mono">Reforzar:</span>
+                        {finding.missing_skills.map((s, idx) => (
+                          <span key={idx} className="text-[9px] px-1.5 py-0.2 rounded-md bg-white/[0.05] text-amber-300/80 border border-amber-400/20 font-mono">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Actions Footer */}
               <div className="pt-3 mt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
-                <a
-                  href={finding.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <span>Ver Oferta</span>
-                  <ArrowUpRight className="w-3.5 h-3.5 text-white/60" />
-                </a>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <a
+                    href={finding.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Ver Oferta</span>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-white/60" />
+                  </a>
+
+                  {/* Harvard CV & Cover Letter Generation Buttons */}
+                  <button
+                    onClick={() => handleOpenDocModal(finding, "cv")}
+                    className={`px-2.5 py-1.5 rounded-xl border text-xs font-mono font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                      finding.has_cv_pdf
+                        ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40 font-bold"
+                        : "bg-white/[0.06] hover:bg-white/15 text-white/90 border-white/15"
+                    }`}
+                    title="Generar CV personalizado formato Harvard en PDF"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{finding.has_cv_pdf ? "Ver CV (.pdf)" : "CV Harvard"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleOpenDocModal(finding, "cover_letter")}
+                    className={`px-2.5 py-1.5 rounded-xl border text-xs font-mono font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                      finding.has_cover_letter_pdf
+                        ? "bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border-purple-500/40 font-bold"
+                        : "bg-white/[0.06] hover:bg-white/15 text-white/90 border-white/15"
+                    }`}
+                    title="Generar Cover Letter personalizada en PDF"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    <span>{finding.has_cover_letter_pdf ? "Ver Carta (.pdf)" : "Cover Letter"}</span>
+                  </button>
+                </div>
 
                 <div className="flex items-center gap-1.5">
                   {finding.is_applied ? (
@@ -651,6 +883,186 @@ export default function AgentRadar() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 5B. DOCUMENT GENERATOR MODAL (HARVARD CV & COVER LETTER) */}
+      {docModal.isOpen && docModal.finding && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+          <div className="bg-zinc-950 border border-white/20 rounded-3xl p-5 sm:p-6 max-w-4xl w-full max-h-[94vh] flex flex-col justify-between shadow-2xl space-y-4">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono uppercase tracking-wider text-cyan-400 font-bold flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Documento Personalizado IA</span>
+                  </span>
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-white/10 text-white/90 font-mono font-semibold border border-white/15">
+                    {docModal.docType === "cv" ? "Formato Harvard ATS (1 Página)" : "Harvard Cover Letter"}
+                  </span>
+                </div>
+                <h2 className="text-base sm:text-lg font-bold text-white mt-1">
+                  {cleanText(docModal.finding.title)} · <span className="text-cyan-400">{cleanText(docModal.finding.company)}</span>
+                </h2>
+              </div>
+
+              <button
+                onClick={() => setDocModal(prev => ({ ...prev, isOpen: false }))}
+                className="p-2 rounded-xl bg-white/5 text-white/60 hover:text-white cursor-pointer transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Toolbar: Tabs, Language selector, Download, Copy, Print */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white/[0.03] p-2.5 rounded-2xl border border-white/10">
+              {/* Doc type selector tabs */}
+              <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
+                <button
+                  onClick={() => {
+                    setDocModal(prev => ({ ...prev, docType: "cv" }));
+                    handleOpenDocModal(docModal.finding, "cv");
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                    docModal.docType === "cv"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold"
+                      : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>CV Harvard</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setDocModal(prev => ({ ...prev, docType: "cover_letter" }));
+                    handleOpenDocModal(docModal.finding, "cover_letter");
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                    docModal.docType === "cover_letter"
+                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold"
+                      : "text-white/60 hover:text-white"
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Cover Letter</span>
+                </button>
+              </div>
+
+              {/* Language Selector */}
+              <div className="flex items-center gap-1.5 text-xs font-mono">
+                <span className="text-white/40 text-[11px]">Idioma:</span>
+                <button
+                  onClick={() => triggerDocGeneration(docModal.finding.id, docModal.docType, "es")}
+                  className={`px-2.5 py-1 rounded-lg border text-xs cursor-pointer transition-all ${
+                    docModal.docData?.language === "es"
+                      ? "bg-white/20 text-white border-white/30 font-bold"
+                      : "text-white/50 border-transparent hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  Español
+                </button>
+                <button
+                  onClick={() => triggerDocGeneration(docModal.finding.id, docModal.docType, "en")}
+                  className={`px-2.5 py-1 rounded-lg border text-xs cursor-pointer transition-all ${
+                    docModal.docData?.language === "en"
+                      ? "bg-white/20 text-white border-white/30 font-bold"
+                      : "text-white/50 border-transparent hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  English
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-1.5">
+                {docModal.docData?.has_pdf && (
+                  <button
+                    onClick={() => handleDownloadPdf(docModal.finding.id, docModal.docType)}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Descargar PDF</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={handleCopyText}
+                  disabled={!docModal.docData?.html}
+                  className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-mono text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Copiar texto del documento al portapapeles"
+                >
+                  {copiedText ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedText ? "Copiado!" : "Copiar"}</span>
+                </button>
+
+                <button
+                  onClick={handlePrintDoc}
+                  disabled={!docModal.docData?.html}
+                  className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                  title="Imprimir o guardar como PDF desde el navegador"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={() => triggerDocGeneration(docModal.finding.id, docModal.docType, docModal.language)}
+                  disabled={docModal.loading}
+                  className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all cursor-pointer disabled:opacity-50"
+                  title="Regenerar con IA"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${docModal.loading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Document Preview Area */}
+            <div className="flex-1 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/50 flex flex-col items-center justify-center min-h-[460px]">
+              {docModal.loading ? (
+                <div className="text-center space-y-3 p-8">
+                  <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />
+                  <div className="text-sm font-bold text-white">
+                    Generando {docModal.docType === 'cv' ? 'CV Formato Harvard ATS' : 'Harvard Cover Letter'}...
+                  </div>
+                  <p className="text-xs text-white/50 max-w-md mx-auto font-mono leading-relaxed">
+                    Sintetizando tu trayectoria de Ingeniería Informática UCA, proyectos de Homelab (Linux, Docker, Python) y nivel de inglés C1, renderizando PDF vectorial sin saturación.
+                  </p>
+                </div>
+              ) : docModal.error ? (
+                <div className="text-center space-y-3 p-8">
+                  <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
+                  <div className="text-sm font-bold text-white">Error al generar documento</div>
+                  <p className="text-xs text-rose-300/80 font-mono max-w-md">{docModal.error}</p>
+                  <button
+                    onClick={() => triggerDocGeneration(docModal.finding.id, docModal.docType, docModal.language)}
+                    className="px-4 py-1.5 rounded-xl bg-white/10 text-white text-xs font-mono hover:bg-white/20 cursor-pointer"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              ) : docModal.docData?.html ? (
+                <iframe
+                  ref={iframeRef}
+                  srcDoc={docModal.docData.html}
+                  className="w-full h-full min-h-[480px] max-h-[64vh] rounded-2xl bg-white shadow-inner"
+                  title="Vista Previa Documento Harvard"
+                />
+              ) : null}
+            </div>
+
+            {/* Footer Metadata */}
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-white/40 pt-1 border-t border-white/5">
+              <div className="flex items-center gap-2">
+                <span>Motor:</span>
+                <span className="text-cyan-400 font-semibold">{docModal.docData?.model_used || "Gemini 3.8 Flash (High) [PC Bridge]"}</span>
+              </div>
+              {docModal.docData?.filename && (
+                <div className="truncate max-w-[320px]">
+                  Archivo: <span className="text-white/60">{docModal.docData.filename}</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

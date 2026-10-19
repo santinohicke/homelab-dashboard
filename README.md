@@ -62,17 +62,29 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
   * El prompt de inferencia de Gemini descarta activamente cualquier vacante que exija descargas de archivos ejecutables (.exe, .zip), librerías sospechosas o clones de repositorios desconocidos para supuestas "pruebas técnicas".
   * Descarta reclutadores con contacto exclusivo por canales informales (Telegram, WhatsApp o correos @gmail) sin respaldo corporativo.
   * Solo admite empresas con personería jurídica verificable, convenios universitarios formales y ATS corporativos.
-* **Multi-Portal de 9 Fuentes Auditadas**:
-  1. *Bolsa de Empleo Campus UCA* (`ucaecono.hiringroomcampus.com`)
-  2. *Bolsa de Empleo Campus Universidad de Belgrano* (`ub.hiringroomcampus.com`)
-  3. *LinkedIn Jobs: Pasantías & Part-Time IT CABA*
-  4. *LinkedIn Jobs: Redes, Telecomunicaciones & Electrónica*
-  5. *LinkedIn Jobs: Pasantías de Ingeniería & Tecnología*
-  6. *LinkedIn Jobs: Trainee / Junior Infraestructura & DevOps*
-  7. *LinkedIn Jobs: Programación Embebida, Firmware & IoT*
-  8. *Get on Board: Pasantías & Part-Time Tech*
-  9. *Get on Board: Sysadmin, DevOps & Cloud*
-* **Filtros Simplificados**: Navegación canónica reducida a `Todas`, `Nuevas` y `Mis Postulaciones`.
+* **Evaluación de Perfil Real & Match Score (0-100%)**:
+  * Ponderación analítica en tiempo real de cada vacante contra el perfil real de Santino Hickethier (Ingeniería en Informática UCA 40%, Linux Headless, Docker, Python, C, Redes, Cambridge C1 Advanced).
+  * Insignias dinámicas de afinidad: `>=85%` (verde esmeralda), `70-84%` (cyan), `<70%` (slate).
+  * Justificación ejecutiva en 1 frase de fortalezas clave y listado interactivo de tecnologías a reforzar (`missing_skills`).
+  * Píldora de filtrado "Alta Afinidad (>=80%)" y cálculo por lotes en background (`/api/v1/agent/evaluate-all-unscored`).
+* **Generador de CV Harvard Estricto & Cover Letter en PDF Vectorial**:
+  * **CV Formato Harvard FAS**: Estructura canónica ATS de 1 sola página, márgenes estándar de 0.65in, tipografía serif Georgia, encabezados con borde inferior y métricas reales de impacto técnico (cero experiencia ficticia).
+  * **Cover Letter Personalizada**: Redacción persuasiva y formal orientada a la empresa y sus tecnologías, destacando autonomía y homelab.
+  * **Renderizado Vectorial con Edge Headless**: Conversión limpia a PDF vectorial nativo (90-125 KB) sin dependencias externas pesadas.
+  * **Modal de Previsualización & Descarga**: Modal con vista previa en iframe aislado, selector de idioma (Español / Inglés), copiado de texto y descarga directa de PDF binario.
+* **Búsqueda Profunda y Multi-Portal Expandido**:
+  1. *CaféDev REST API Oficial* (`api.cafedev.co/v1/jobs`): Consultas concurrentes multi-query (`junior`, `trainee`, `pasantia`) sobre más de 1.700 vacantes tech abiertas en LATAM.
+  2. *Work Search Argentina API* (`work-search-ten.vercel.app/api/jobs`): Pasantías y vacantes trainee de empresas líderes (Mercado Libre, Newsan, BBVA).
+  3. *Bolsa de Empleo Campus UCA* (`ucaecono.hiringroomcampus.com`)
+  4. *Bolsa de Empleo Campus Universidad de Belgrano* (`ub.hiringroomcampus.com`)
+  5. *LinkedIn Jobs: Pasantías & Part-Time IT CABA* (Paginación multi-página `start=0` y `start=25`)
+  6. *LinkedIn Jobs: Redes, Telecomunicaciones & Electrónica*
+  7. *LinkedIn Jobs: Pasantías de Ingeniería & Tecnología*
+  8. *LinkedIn Jobs: Trainee / Junior Infraestructura & DevOps*
+  9. *LinkedIn Jobs: Programación Embebida, Firmware & IoT*
+  10. *Get on Board: Pasantías & Part-Time Tech*
+  11. *Get on Board: Sysadmin, DevOps & Cloud*
+  12. *Get on Board: Programación & Software Junior*
 * **Seguimiento de Postulaciones y Rechazos ("Me rechazaron")**:
   * En "Mis Postulaciones", botón de acción "Me rechazaron" que etiqueta la vacante con el badge `Rechazada` (color rubí/rosa) y opción de deshacer ("Desmarcar rechazo"), manteniéndolas en el flujo sin crear secciones redundantes.
   * Vacantes abiertas señaladas con estado `Postulado · En espera`.

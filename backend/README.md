@@ -65,6 +65,11 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 | `POST` | `/api/v1/agent/archive` | Archiva una oferta (`{"id": N}`) de la vista activa. |
 | `POST` | `/api/v1/agent/targets` | Agrega un nuevo portal o URL con criterios personalizados de búsqueda. |
 | `POST` | `/api/v1/agent/targets/toggle` | Pausa o activa el monitoreo periódico de un portal existente (`{"id": N}`). |
+| `POST` | `/api/v1/agent/generate-doc` | Genera CV en Formato Harvard ATS o Cover Letter personalizada (HTML y PDF vectorial embebido). |
+| `GET` | `/api/v1/agent/doc?id=...&type=cv\|cover_letter` | Consulta el HTML generado y representación binaria en Base64. |
+| `GET` | `/api/v1/agent/download-doc?id=...&type=cv\|cover_letter` | Descarga directa del archivo PDF vectorial nativo (`application/pdf`). |
+| `POST` | `/api/v1/agent/evaluate-match` | Calcula Match Score (0-100%), justificación y missing_skills para una vacante específica. |
+| `POST` | `/api/v1/agent/evaluate-all-unscored` | Inicia en segundo plano la evaluación secuencial de todas las vacantes sin puntaje. |
 
 ### Telemetría de Inteligencia Artificial (Observabilidad & Cuotas)
 | Método | Endpoint | Descripción |

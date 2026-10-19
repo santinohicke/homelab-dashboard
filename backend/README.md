@@ -72,6 +72,11 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 | `GET` | `/api/v1/ai/stats?range=24h` | Métricas reales de consumo Gemini: tokens consumidos hoy/histórico, límites RPD/RPM/TPM, curva Bézier multirrango (`24h`, `7d`, `30d`, `historic`) y countdown a reseteo UTC. |
 | `POST` | `/api/v1/ai/test` | Ejecuta un test de diagnóstico de inferencia en vivo registrando latencia y tokens exactos consumidos en `ai_usage_logs`. |
 
+### Arquitectura de Inferencia Híbrida Cero-Fricción
+El backend implementa un despachador dinámico de inferencia (`execute_hybrid_ai`) con detección automática de presencia:
+1. **Modo PC Encendida (Prioridad 1):** Delega la inferencia mediante Tailscale WireGuard a un micro-puente HTTP en la máquina de escritorio (`100.64.0.20:8099`), el cual ejecuta el CLI oficial de Google Antigravity (`agy.exe -p`) resolviendo con **Gemini 3.8 Flash (High)** a través de los canales prioritarios de Cloud Code (sin saturación 503).
+2. **Modo PC Apagada (Autonomía 24/7):** Si la PC de escritorio se encuentra apagada o suspendida, el servidor conmuta de inmediato y de forma autónoma a una cascada directa sobre la API de Google (`gemini-3.8-flash` -> `gemini-3.6-flash` -> `gemini-3.5-flash` -> `gemini-flash-lite-latest`), garantizando que el homelab nunca detenga sus tareas analíticas.
+
 ---
 
 ## Despliegue en el Servidor

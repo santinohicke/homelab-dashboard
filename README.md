@@ -138,6 +138,7 @@ La aplicación incluye un microservicio desacoplado en `backend/api.py` diseñad
 * **Cero Librerías Externas (`zero-pip`)**: Desarrollado 100% sobre `http.server`, `sqlite3` y `subprocess`.
 * **Consumo de Memoria**: Apenas ~20 MB de RAM y 0% de CPU en reposo.
 * **Persistencia Time-Series**: Base de datos SQLite (`metrics.db`) con muestreo minuto a minuto de `/proc/stat`, `/proc/meminfo` y `/sys/class/thermal/`, con purga automática a 30 días.
+* **Inferencia Híbrida Cero-Fricción**: Despachador dinámico de IA que delega tareas analíticas al micro-puente de Antigravity CLI (`agy`) en la PC de escritorio con **Gemini 3.8 Flash (High)** cuando está encendida, conmutando de forma autónoma a la cascada directa en la nube (`gemini-3.6-flash` / `3.5`) cuando la PC está apagada.
 * **Operaciones Seguras**: Ejecución controlada de tareas de Docker, Tailscale status en JSON y descarga directa de snapshots comprimidos `.tar.gz`.
 
 ---

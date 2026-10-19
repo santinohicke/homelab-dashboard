@@ -18,10 +18,13 @@ import sqlite3
 import subprocess
 import threading
 import urllib.request
+import base64
 from html.parser import HTMLParser
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, urljoin
 from datetime import datetime
+
+
 
 PORT = 8088
 DATA_DIR = "/home/santino/infra/data"
@@ -147,18 +150,25 @@ def init_db():
     # Dynamic migrations for agent_findings
     cur.execute("PRAGMA table_info(agent_findings)")
     af_cols = [c[1] for c in cur.fetchall()]
-    if "is_applied" not in af_cols:
-        try:
-            cur.execute("ALTER TABLE agent_findings ADD COLUMN is_applied INTEGER DEFAULT 0")
-            conn.commit()
-        except Exception:
-            pass
-    if "is_rejected" not in af_cols:
-        try:
-            cur.execute("ALTER TABLE agent_findings ADD COLUMN is_rejected INTEGER DEFAULT 0")
-            conn.commit()
-        except Exception:
-            pass
+    new_findings_cols = [
+        ("is_applied", "INTEGER DEFAULT 0"),
+        ("is_rejected", "INTEGER DEFAULT 0"),
+        ("match_score", "INTEGER DEFAULT 0"),
+        ("match_reason", "TEXT DEFAULT ''"),
+        ("missing_skills", "TEXT DEFAULT ''"),
+        ("language", "TEXT DEFAULT 'es'"),
+        ("generated_cv", "TEXT DEFAULT ''"),
+        ("generated_cover_letter", "TEXT DEFAULT ''"),
+        ("generated_cv_pdf", "TEXT DEFAULT ''"),
+        ("generated_cover_letter_pdf", "TEXT DEFAULT ''")
+    ]
+    for col, col_type in new_findings_cols:
+        if col not in af_cols:
+            try:
+                cur.execute(f"ALTER TABLE agent_findings ADD COLUMN {col} {col_type}")
+                conn.commit()
+            except Exception:
+                pass
 
     # AI usage and token telemetry tracking
     cur.execute("""
@@ -179,6 +189,20 @@ def init_db():
 
     # Seed default targets if none exist
     targets_seed = [
+        (
+            "Work Search Argentina (Tech Jobs API)",
+            "https://work-search-ten.vercel.app/api/jobs?country=AR&area=tecnologia&limit=50",
+            "Work Search Tech",
+            "API oficial de empleos tech en Argentina (Mercado Libre, PedidosYa, BBVA, etc.) buscando pasantías, trainee, junior y part-time.",
+            6
+        ),
+        (
+            "CaféDev - Empleos Tech & Remotos",
+            "https://cafedev.co/empleos/",
+            "CaféDev",
+            "Ofertas de desarrollo de software, backend, infraestructura y empleo remoto junior/trainee.",
+            6
+        ),
         (
             "UCA - Bolsa de Empleo Campus",
             "https://ucaecono.hiringroomcampus.com/jobs",
@@ -240,6 +264,13 @@ def init_db():
             "https://www.getonbrd.com/empleos-sysadmin-devops",
             "Get on Board DevOps",
             "Administración de servidores Linux, redes, DevOps e ingeniería de infraestructura en empresas auditadas.",
+            6
+        ),
+        (
+            "Get on Board - Programación & Desarrollo Junior",
+            "https://www.getonbrd.com/empleos-programacion",
+            "Get on Board Dev",
+            "Ofertas de desarrollo de software, backend Python/C/Go y sistemas para perfiles junior o pasantes.",
             6
         )
     ]
@@ -815,10 +846,134 @@ def execute_hybrid_ai(prompt, purpose="General", temperature=0.1, max_tokens=800
     return {"status": "error", "message": f"Inferencia fallida: {last_error}"}
 
 
+def load_santino_profile():
+    paths = [
+        "/home/santino/infra/santino_profile.json",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "configs", "santino_profile.json"),
+        r"c:\Users\santi\Desktop\Homelab\configs\santino_profile.json"
+    ]
+    for p in paths:
+        if os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+    return {}
+
+
+def generate_document_hybrid(finding, doc_type="cv", language="auto"):
+    """
+    Hybrid Harvard Document Generator:
+    1. Si PC Bridge está online: delega la generación y renderizado PDF vectorial a la PC (Edge Headless + Gemini 3.8).
+    2. Si PC Bridge está offline: genera el HTML Harvard estricto mediante la cascada de nube de Google.
+    """
+    bridge_url = check_pc_bridge_online()
+    if bridge_url:
+        try:
+            payload = json.dumps({
+                "doc_type": doc_type,
+                "language": language,
+                "job": {
+                    "title": finding.get("title", ""),
+                    "company": finding.get("company", ""),
+                    "modality": finding.get("modality", ""),
+                    "summary": finding.get("summary", ""),
+                    "link": finding.get("link", "")
+                }
+            }).encode("utf-8")
+            req = urllib.request.Request(f"{bridge_url}/api/v1/generate-doc", data=payload, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=85) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                if res.get("status") == "ok":
+                    return res
+        except Exception as e:
+            print(f"[Document Engine] PC Bridge error, conmutando a nube directa: {e}", file=sys.stderr)
+
+    profile = load_santino_profile()
+    job_title = finding.get("title", "")
+    company = finding.get("company", "")
+    modality = finding.get("modality", "")
+    job_desc = finding.get("summary", "")
+
+    if language == "auto":
+        text_corpus = f"{job_title} {job_desc}".lower()
+        matches = sum(1 for w in ["intern", "engineer", "developer", "remote", "software", "skills", "experience"] if w in text_corpus)
+        target_lang = "en" if matches >= 3 else "es"
+    else:
+        target_lang = "en" if language in ["en", "english"] else "es"
+
+    if doc_type == "cv":
+        prompt = f"""Actua como un disenador de carreras de Harvard (Harvard Office of Career Services).
+Crea un CV profesional en FORMATO HARVARD ESTRICTO adaptado especificamente para la siguiente oferta laboral.
+
+CANDIDATO (INFORMACION 100% REAL DE SU PORTFOLIO Y CARRERA UCA):
+{json.dumps(profile, ensure_ascii=False, indent=2)}
+
+OFERTA DESTINO:
+- Puesto: {job_title}
+- Empresa: {company}
+- Modalidad: {modality}
+- Descripcion / Requisitos: {job_desc}
+- Idioma de redaccion: {"INGLES (ENGLISH)" if target_lang == "en" else "ESPANOL"}
+
+DIRECTIVAS ESTRICTAS DE FORMATO HARVARD (ATS-FRIENDLY):
+1. Tipografia: Serif clasica ("Georgia", "Times New Roman", Times, serif). Color texto #111111, fondo blanco puro #ffffff.
+2. Margenes: 0.6in a 0.65in en formato carta (letter portrait), una sola pagina compacta e impecable.
+3. Encabezado centrado:
+   - Nombre: {profile.get('name', 'SANTINO HICKETHIER').upper()} (18pt, bold, mayusculas).
+   - Datos de contacto: {profile.get('contact', {}).get('location', 'Buenos Aires, Argentina')} | {profile.get('contact', {}).get('phone', '')} | {profile.get('contact', {}).get('email', '')} | {profile.get('contact', {}).get('linkedin', '')} | {profile.get('contact', {}).get('github', '')}.
+4. Secciones: EDUCATION (UCA 40% aprobado), TECHNICAL SKILLS, PROJECTS & INFRASTRUCTURE EXPERIENCE (Homelab Linux/Docker/Python), LANGUAGES & CERTIFICATIONS (Cambridge C1 Advanced).
+5. Devuelve un documento HTML5 completo y autocontenido en un bloque ```html ... ```."""
+    else:
+        prompt = f"""Actua como un experto en redaccion ejecutiva de cartas de presentacion segun el estandar de Harvard Career Services.
+Redacta una COVER LETTER profesional, convincente y personalizada para la siguiente oferta laboral.
+
+CANDIDATO (INFORMACION REAL DE SU PORTFOLIO):
+{json.dumps(profile, ensure_ascii=False, indent=2)}
+
+OFERTA DESTINO:
+- Puesto: {job_title}
+- Empresa: {company}
+- Modalidad: {modality}
+- Descripcion: {job_desc}
+- Idioma de redaccion: {"INGLES (ENGLISH)" if target_lang == "en" else "ESPANOL"}
+
+Devuelve un documento HTML5 completo y autocontenido en un bloque ```html ... ```."""
+
+    ai_res = execute_hybrid_ai(prompt, purpose=f"DocGen: {doc_type} {company}", temperature=0.2, max_tokens=1500)
+    raw_out = ai_res.get("text", "") if ai_res.get("status") == "ok" else "Error generando documento"
+    html_start = raw_out.find("```html")
+    if html_start != -1:
+        html_body = raw_out[html_start + 7:]
+        html_end = html_body.find("```")
+        clean_html = html_body[:html_end].strip() if html_end != -1 else html_body.strip()
+    elif "<html" in raw_out:
+        clean_html = raw_out.strip()
+    else:
+        clean_html = f"<html><body><pre>{raw_out}</pre></body></html>"
+
+    safe_company = "".join(c for c in company if c.isalnum() or c in ['-', '_']) or "Job"
+    doc_prefix = "CV" if doc_type == "cv" else "CoverLetter"
+    filename = f"{doc_prefix}_Santino_Hickethier_{safe_company}_{target_lang.upper()}.pdf"
+
+    return {
+        "status": "ok",
+        "doc_type": doc_type,
+        "language": target_lang,
+        "filename": filename,
+        "html": clean_html,
+        "pdf_base64": "",
+        "has_pdf": False,
+        "model_used": ai_res.get("model", "Cloud Fallback"),
+        "latency_ms": ai_res.get("latency_ms", 0)
+    }
+
+
 def run_agent_job_scraper(target_id=None, force=False):
     key = load_gemini_key()
-    if not key:
-        return {"status": "error", "message": "API Key no configurada en /home/santino/infra/.env"}
+    if not key and not check_pc_bridge_online():
+        return {"status": "error", "message": "Ni PC Bridge ni API Key configuradas"}
 
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -835,7 +990,72 @@ def run_agent_job_scraper(target_id=None, force=False):
     for t in targets:
         t_id, t_name, t_url, t_criteria, t_last_chk, t_last_hash = t
         try:
-            if "hiringroomcampus.com" in t_url:
+            if "cafedev.co" in t_url:
+                # Direct REST API from CafeDev (Multi-query search)
+                cafe_jobs = []
+                seen_cafe = set()
+                for q_term in ["junior", "trainee", "pasantia", ""]:
+                    api_url = "https://api.cafedev.co/v1/jobs?limit=50" + (f"&q={urllib.parse.quote(q_term)}" if q_term else "")
+                    try:
+                        req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                        with urllib.request.urlopen(req, timeout=8) as cr:
+                            cd = json.loads(cr.read().decode('utf-8'))
+                            for it in cd.get("items", []):
+                                i_id = it.get("id")
+                                if i_id and i_id not in seen_cafe:
+                                    seen_cafe.add(i_id)
+                                    cafe_jobs.append(it)
+                    except Exception:
+                        pass
+                
+                job_lines = []
+                for j in cafe_jobs:
+                    name = j.get("title", "")
+                    company = j.get("company_name", "")
+                    skills_list = j.get("skills", [])
+                    skills_str = ", ".join(skills_list[:6]) if isinstance(skills_list, list) else ""
+                    sen = j.get("seniority") or "Junior/Trainee"
+                    wp = j.get("workplace_type") or "Remoto/Hibrido"
+                    city = j.get("city") or ""
+                    country = (j.get("country") or "").upper()
+                    loc_str = f"{city}, {country}".strip(', ')
+                    link = j.get("url") or j.get("apply_url") or "https://cafedev.co/empleos/"
+                    job_lines.append(f"PUESTO: {name} | EMPRESA: {company} | SENIORITY: {sen} | MODALIDAD: {wp} | UBICACION: {loc_str} | SKILLS: {skills_str} [LINK: {link}]")
+                content = '\n'.join(job_lines[:100])
+
+            elif "work-search-ten.vercel.app" in t_url:
+                # Direct JSON API from work-search (Tech + General Pasantias in Argentina)
+                ws_jobs = []
+                seen_ws = set()
+                for ws_url in [
+                    "https://work-search-ten.vercel.app/api/jobs?country=AR&area=tecnologia&limit=50",
+                    "https://work-search-ten.vercel.app/api/jobs?country=AR&limit=50"
+                ]:
+                    try:
+                        req = urllib.request.Request(ws_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                        with urllib.request.urlopen(req, timeout=10) as r:
+                            raw_b = r.read()
+                            d = json.loads(raw_b.decode('utf-8'))
+                        for j in d.get("jobs", []):
+                            jid = j.get("id") or j.get("url")
+                            if jid and jid not in seen_ws:
+                                seen_ws.add(jid)
+                                ws_jobs.append(j)
+                    except Exception:
+                        pass
+
+                job_lines = []
+                for j in ws_jobs:
+                    name = j.get("title", "")
+                    company = j.get("company", "")
+                    job_type = j.get("job_type", "")
+                    remote = j.get("remote", "")
+                    loc = j.get("location", "")
+                    link = j.get("url", "")
+                    job_lines.append(f"PUESTO: {name} | EMPRESA: {company} | MODALIDAD: {job_type} / {remote} | UBICACION: {loc} [LINK: {link}]")
+                content = '\n'.join(job_lines[:100])
+
+            elif "hiringroomcampus.com" in t_url:
                 # Direct extraction from HiringRoom's embedded JSON state across relevant categories
                 parsed_t = urllib.parse.urlparse(t_url)
                 base_host = f"{parsed_t.scheme}://{parsed_t.netloc}"
@@ -873,9 +1093,32 @@ def run_agent_job_scraper(target_id=None, force=False):
                     slug = j.get("url", "")
                     job_lines.append(f"PUESTO: {name} | EMPRESA: {company} | MODALIDAD: {job_type} | AREA: {area} | CIUDAD: {city} [LINK: {base_jobs_url}/{slug}]")
                 content = '\n'.join(job_lines[:80])
+
+            elif "linkedin.com" in t_url:
+                # Multi-page LinkedIn public search (pages 1 and 2)
+                raw_lines = []
+                for start_idx in [0, 25]:
+                    paginated_url = t_url + f"&start={start_idx}" if "start=" not in t_url else t_url
+                    try:
+                        req = urllib.request.Request(paginated_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                        with urllib.request.urlopen(req, timeout=8) as r:
+                            raw_b = r.read()
+                            try:
+                                html = raw_b.decode('utf-8')
+                            except UnicodeDecodeError:
+                                html = raw_b.decode('latin-1', errors='replace')
+                        parser = JobPageExtractor(paginated_url)
+                        parser.feed(html)
+                        for l in parser.get_content().split('\n'):
+                            if len(l) > 3 and l not in raw_lines:
+                                raw_lines.append(l)
+                    except Exception:
+                        pass
+                content = '\n'.join(raw_lines[:180])
+
             else:
                 req = urllib.request.Request(t_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-                with urllib.request.urlopen(req, timeout=6) as r:
+                with urllib.request.urlopen(req, timeout=8) as r:
                     raw_b = r.read()
                     try:
                         html = raw_b.decode('utf-8')
@@ -891,14 +1134,24 @@ def run_agent_job_scraper(target_id=None, force=False):
             if not force and content_hash == t_last_hash:
                 continue
 
-            instruction = f"""Actua como un cazatalentos senior y mentor de ingenieria informatica para un estudiante universitario de la UCA en Buenos Aires, Argentina.
+            profile = load_santino_profile()
+
+            instruction = f"""Actua como un cazatalentos senior y mentor de ingenieria informatica para el estudiante universitario Santino Hickethier de la UCA en Buenos Aires, Argentina.
+
+PERFIL REAL DEL CANDIDATO (SANTINO HICKETHIER):
+- Carrera: Ingenieria en Informatica (Pontificia Universidad Catolica Argentina - UCA). 40% de materias aprobadas.
+- Conocimientos troncales: Administracion de servidores Linux headless, contenedores Docker, microservicios REST en Python, lenguaje C (punteros, memoria, sockets), redes de comunicacion (TCP/IP, modelo OSI, Cisco routing/switching, VLANs, WireGuard), bases de datos SQL (SQLite, PostgreSQL), Git.
+- Proyectos reales: Cluster Homelab con 8 servicios en Docker, optimizacion de kernel Linux, microservicio de telemetria en Python (<20MB RAM); modelo de optimizacion logistica espacial con diagramas de Voronoi; pipelines de automatizacion con n8n.
+- Idiomas: Ingles bilingue profesional con certificado Cambridge C1 Advanced (CAE); Espanol nativo.
+
 Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin excepcion:
-1. JORNADA OBLIGATORIA: Debe ser PART-TIME, MEDIA JORNADA o PASANTIA (4 a 6 horas diarias). DESCARTA cualquier puesto Full-Time, tiempo completo o jornada completa de 8-9 horas.
+1. JORNADA Y NIVEL:
+   - Priorizar PART-TIME, MEDIA JORNADA, PASANTIA, TRAINEE o JUNIOR (compatible con cursada de estudiante).
+   - DESCARTA puestos Senior, Semi-Senior o que exijan mas de 2 anos de experiencia laboral previa.
 2. UBICACION Y MODALIDAD:
    - Si es Remoto / 100% Virtual: PERMITIDO (desde cualquier ubicacion).
    - Si es Presencial o Hibrido: DEBE SER OBLIGATORIAMENTE en CABA (Ciudad Autonoma de Buenos Aires) o Gran Buenos Aires cercano, Argentina. DESCARTA puestos presenciales/hibridos en otras provincias o paises (ej. Chile, Colombia, Mendoza, etc.).
 3. RAMAS DE INTERES (EXCLUSIVAMENTE INGENIERIA):
-   - El estudiante cursa Ingenieria Informatica y busca puestos genuinos de ingenieria, desarrollo o infraestructura.
    - ACEPTADOS:
      * Redes, Telecomunicaciones, Conectividad, Routers/Switches.
      * Sistemas Embebidos, Firmware, Microcontroladores, IoT, Electronica y Hardware.
@@ -911,15 +1164,16 @@ Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin e
      * Soporte Tecnico, Help Desk, Service Desk, Mesa de Ayuda, Soporte Nivel 1 o 2, Tecnico de PC/Hardware de oficina, Atencion a usuarios o soporte de aplicaciones ofimaticas.
      * QA, Testing de Software, QA Tester, Control de Calidad manual o automatizado.
      * Carreras no afines (Contaduria, Finanzas, Abogacia, Recursos Humanos, Marketing, Ventas puras).
-     * Puestos Senior, Semi-Senior o que exijan mas de 2 anos de experiencia laboral previa.
 4. ESTRICTAMENTE PROHIBIDO INVENTAR O HARDCODEAR PUESTOS: Usa UNICAMENTE los puestos y enlaces reales provistos en el listado. El campo 'link' debe ser exactamente la URL extraida de [LINK: ...]. Si ninguna oferta cumple los criterios, devuelve la lista vacia [].
 5. SEGURIDAD Y PREVENCION ESTRICTA DE ESTAFAS / MALWARE (CERO-TRUST):
-   - DESCARTA de forma inmediata cualquier oferta sospechosa o potencialmente fraudulenta:
-     * Si exige descargar o ejecutar archivos (.exe, .msi, .bat, .zip), paquetes de dependencias desconocidas o clonar repositorios no verificados como "prueba tecnica" o para acceder a la entrevista.
-     * Si el reclutador o la oferta exige contacto informal exclusivo (Telegram, WhatsApp o correos personales gratuitos @gmail/@hotmail) sin mediar correo corporativo o ATS oficial.
-     * Si incluye promesas de dinero facil, esquemas de criptomonedas, pagos por adelantado o transferencias bancarias.
-   - ADMITE UNICAMENTE empresas formales, consultoras reconocidas, bolsas universitarias auditadas o procesos corporativos con enlaces oficiales verificables.
-6. Responde estrictamente con un JSON valido (sin formato markdown adicional):
+   - DESCARTA de forma inmediata cualquier oferta sospechosa o potencialmente fraudulenta.
+6. EVALUACION DE AFINIDAD (MATCH SCORE 0-100%):
+   - match_score: Puntaje numerico de 0 a 100 evaluando la afinidad entre los requisitos de la vacante y el stack real de Santino (Linux, Docker, Python, C, Redes, SQL, Ingles C1, pasantia/part-time en CABA/remoto).
+   - match_reason: Justificacion concisa en 1 frase de por que coincide con su perfil o fortalezas para la vacante.
+   - missing_skills: Lista JSON de tecnologias que pide la oferta pero que Santino podria necesitar reforzar (ej. ["Kubernetes", "AWS"]).
+   - language: "es" si es empresa local/argentina o en espanol, "en" si la oferta o empresa es internacional en ingles.
+
+7. Responde estrictamente con un JSON valido (sin formato markdown adicional):
 {{
   "encontrados": [
     {{
@@ -927,7 +1181,11 @@ Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin e
       "empresa": "Nombre de la empresa",
       "modalidad": "Part-Time / Pasantia / Remoto / Hibrido CABA",
       "resumen": "Resumen conciso en 1 frase de tecnologias y por que se adapta a un estudiante",
-      "link": "URL exacta extraida de [LINK: ...]"
+      "link": "URL exacta extraida de [LINK: ...]",
+      "match_score": 92,
+      "match_reason": "Alta compatibilidad con su experiencia en Linux, Docker y desarrollo backend en Python.",
+      "missing_skills": ["Kubernetes"],
+      "language": "es"
     }}
   ]
 }}"""
@@ -946,15 +1204,28 @@ Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin e
                         modality = sanitize_utf8_accents(item.get("modalidad", "Part-Time / CABA"))
                         summary = sanitize_utf8_accents(item.get("resumen", ""))
                         link = item.get("link", t_url)
+                        m_score = int(item.get("match_score", 80))
+                        m_reason = sanitize_utf8_accents(item.get("match_reason", ""))
+                        m_skills = json.dumps(item.get("missing_skills", []))
+                        m_lang = item.get("language", "es")
 
                         # Deduplicate: check if link or (title + company) exists
-                        cur.execute("SELECT id FROM agent_findings WHERE link = ? OR (title = ? AND company = ?)", (link, title, company))
-                        if not cur.fetchone():
+                        cur.execute("SELECT id, match_score FROM agent_findings WHERE link = ? OR (title = ? AND company = ?)", (link, title, company))
+                        row = cur.fetchone()
+                        if not row:
                             cur.execute("""
-                                INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link, is_read, is_archived, is_applied)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0)
-                            """, (t_id, now, title, company, modality, summary, link))
+                                INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link, is_read, is_archived, is_applied, match_score, match_reason, missing_skills, language)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?)
+                            """, (t_id, now, title, company, modality, summary, link, m_score, m_reason, m_skills, m_lang))
                             total_new += 1
+                        else:
+                            f_id, existing_score = row
+                            if not existing_score or existing_score == 0:
+                                cur.execute("""
+                                    UPDATE agent_findings
+                                    SET match_score = ?, match_reason = ?, missing_skills = ?, language = ?
+                                    WHERE id = ?
+                                """, (m_score, m_reason, m_skills, m_lang, f_id))
                 except Exception as parse_err:
                     print(f"[Agent Scraper JSON Parse Error] {t_name}: {parse_err}", file=sys.stderr)
 
@@ -1381,9 +1652,19 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
 
+            cols_query = """
+                f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived,
+                COALESCE(f.is_applied, 0), COALESCE(f.is_rejected, 0),
+                COALESCE(f.match_score, 0), COALESCE(f.match_reason, ''), COALESCE(f.missing_skills, ''), COALESCE(f.language, 'es'),
+                CASE WHEN f.generated_cv != '' THEN 1 ELSE 0 END,
+                CASE WHEN f.generated_cover_letter != '' THEN 1 ELSE 0 END,
+                CASE WHEN f.generated_cv_pdf != '' THEN 1 ELSE 0 END,
+                CASE WHEN f.generated_cover_letter_pdf != '' THEN 1 ELSE 0 END
+            """
+
             if view == "applied":
-                cur.execute("""
-                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0), COALESCE(f.is_rejected, 0)
+                cur.execute(f"""
+                    SELECT {cols_query}
                     FROM agent_findings f
                     LEFT JOIN agent_targets t ON f.target_id = t.id
                     WHERE f.is_applied = 1 AND f.is_archived = 0
@@ -1391,8 +1672,8 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                     LIMIT ?
                 """, (limit,))
             elif view == "archived":
-                cur.execute("""
-                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0), COALESCE(f.is_rejected, 0)
+                cur.execute(f"""
+                    SELECT {cols_query}
                     FROM agent_findings f
                     LEFT JOIN agent_targets t ON f.target_id = t.id
                     WHERE f.is_archived = 1
@@ -1400,16 +1681,16 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                     LIMIT ?
                 """, (limit,))
             elif view == "all":
-                cur.execute("""
-                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0), COALESCE(f.is_rejected, 0)
+                cur.execute(f"""
+                    SELECT {cols_query}
                     FROM agent_findings f
                     LEFT JOIN agent_targets t ON f.target_id = t.id
                     ORDER BY f.timestamp DESC
                     LIMIT ?
                 """, (limit,))
             else: # active (not archived)
-                cur.execute("""
-                    SELECT f.id, f.target_id, t.name, f.timestamp, f.title, f.company, f.modality, f.summary, f.link, f.is_read, f.is_archived, COALESCE(f.is_applied, 0), COALESCE(f.is_rejected, 0)
+                cur.execute(f"""
+                    SELECT {cols_query}
                     FROM agent_findings f
                     LEFT JOIN agent_targets t ON f.target_id = t.id
                     WHERE f.is_archived = ?
@@ -1441,6 +1722,14 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
 
             findings = []
             for r in rows:
+                m_skills_raw = r[15]
+                m_skills = []
+                if m_skills_raw and isinstance(m_skills_raw, str) and m_skills_raw.startswith("["):
+                    try:
+                        m_skills = json.loads(m_skills_raw)
+                    except Exception:
+                        pass
+
                 findings.append({
                     "id": r[0],
                     "target_id": r[1],
@@ -1455,7 +1744,15 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                     "is_read": bool(r[9]),
                     "is_archived": bool(r[10]),
                     "is_applied": bool(r[11]),
-                    "is_rejected": bool(r[12])
+                    "is_rejected": bool(r[12]),
+                    "match_score": r[13],
+                    "match_reason": r[14],
+                    "missing_skills": m_skills,
+                    "language": r[16],
+                    "has_cv": bool(r[17]),
+                    "has_cover_letter": bool(r[18]),
+                    "has_cv_pdf": bool(r[19]),
+                    "has_cover_letter_pdf": bool(r[20])
                 })
 
             self._send_json({
@@ -1474,6 +1771,90 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 "rejected_count": rejected_count,
                 "pending_count": pending_count,
                 "total_count": total_scraped
+            })
+            return
+
+        # 12B. GET GENERATED DOCUMENT (HTML / PDF BASE64)
+        if path == "/api/v1/agent/doc":
+            f_id = query.get("id", [""])[0]
+            doc_type = query.get("type", ["cv"])[0].lower()
+            if not f_id:
+                self._send_json({"status": "error", "message": "ID requerido"}, 400)
+                return
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT title, company, generated_cv, generated_cover_letter, generated_cv_pdf, generated_cover_letter_pdf, language
+                FROM agent_findings WHERE id = ?
+            """, (f_id,))
+            row = cur.fetchone()
+            conn.close()
+            if not row:
+                self._send_json({"status": "error", "message": "Vacante no encontrada"}, 404)
+                return
+            title, company, cv_html, cl_html, cv_pdf, cl_pdf, lang = row
+            html = cv_html if doc_type == "cv" else cl_html
+            pdf_b64 = cv_pdf if doc_type == "cv" else cl_pdf
+            safe_company = "".join(c for c in company if c.isalnum() or c in ['-', '_']) or "Job"
+            prefix = "CV" if doc_type == "cv" else "CoverLetter"
+            filename = f"{prefix}_Santino_Hickethier_{safe_company}_{(lang or 'ES').upper()}.pdf"
+
+            self._send_json({
+                "status": "ok",
+                "id": int(f_id),
+                "doc_type": doc_type,
+                "language": lang or "es",
+                "filename": filename,
+                "html": html,
+                "pdf_base64": pdf_b64,
+                "has_pdf": bool(pdf_b64)
+            })
+            return
+
+        # 12C. DOWNLOAD GENERATED PDF
+        if path == "/api/v1/agent/download-doc":
+            f_id = query.get("id", [""])[0]
+            doc_type = query.get("type", ["cv"])[0].lower()
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT company, generated_cv_pdf, generated_cover_letter_pdf, language
+                FROM agent_findings WHERE id = ?
+            """, (f_id,))
+            row = cur.fetchone()
+            conn.close()
+            if not row:
+                self._send_json({"error": "No encontrado"}, 404)
+                return
+            company, cv_pdf, cl_pdf, lang = row
+            pdf_b64 = cv_pdf if doc_type == "cv" else cl_pdf
+            if not pdf_b64:
+                self._send_json({"error": "PDF no disponible aún"}, 404)
+                return
+
+            try:
+                pdf_bytes = base64.b64decode(pdf_b64)
+                safe_company = "".join(c for c in company if c.isalnum() or c in ['-', '_']) or "Job"
+                prefix = "CV" if doc_type == "cv" else "CoverLetter"
+                filename = f"{prefix}_Santino_Hickethier_{safe_company}_{(lang or 'ES').upper()}.pdf"
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/pdf")
+                self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+                self.send_header("Content-Length", str(len(pdf_bytes)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(pdf_bytes)
+                return
+            except Exception as e:
+                self._send_json({"error": f"Error decodificando PDF: {e}"}, 500)
+                return
+
+        # 12D. GET MASTER CANDIDATE PROFILE
+        if path == "/api/v1/agent/profile":
+            self._send_json({
+                "status": "ok",
+                "profile": load_santino_profile()
             })
             return
 
@@ -2103,7 +2484,246 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             self._send_json({"status": "ok"})
             return
 
-        # 16. AI: DIAGNOSTIC TEST CALL (REAL TIME TOKEN TRACKING VIA HYBRID ENGINE)
+        # 18. AGENT: GENERATE HARVARD CV / COVER LETTER
+        if path == "/api/v1/agent/generate-doc":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = {}
+            if content_length > 0:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                except Exception:
+                    pass
+
+            f_id = body.get("finding_id")
+            doc_type = body.get("doc_type", "cv").lower()
+            lang = body.get("language", "auto")
+
+            if not f_id:
+                self._send_json({"status": "error", "message": "El campo 'finding_id' es obligatorio"}, 400)
+                return
+
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute("SELECT id, title, company, modality, summary, link FROM agent_findings WHERE id = ?", (f_id,))
+            row = cur.fetchone()
+            if not row:
+                conn.close()
+                self._send_json({"status": "error", "message": "Vacante no encontrada"}, 404)
+                return
+
+            finding = {
+                "id": row[0],
+                "title": row[1],
+                "company": row[2],
+                "modality": row[3],
+                "summary": row[4],
+                "link": row[5]
+            }
+
+            doc_res = generate_document_hybrid(finding, doc_type=doc_type, language=lang)
+            if doc_res.get("status") == "ok":
+                html = doc_res.get("html", "")
+                pdf_b64 = doc_res.get("pdf_base64", "")
+                detected_lang = doc_res.get("language", "es")
+                if doc_type == "cv":
+                    cur.execute("UPDATE agent_findings SET generated_cv = ?, generated_cv_pdf = ?, language = ? WHERE id = ?", (html, pdf_b64, detected_lang, f_id))
+                else:
+                    cur.execute("UPDATE agent_findings SET generated_cover_letter = ?, generated_cover_letter_pdf = ?, language = ? WHERE id = ?", (html, pdf_b64, detected_lang, f_id))
+                conn.commit()
+
+            conn.close()
+            self._send_json(doc_res)
+            return
+
+        # 19. AGENT: EVALUATE MATCH SCORE FOR A SPECIFIC FINDING
+        if path == "/api/v1/agent/evaluate-match":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = {}
+            if content_length > 0:
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                except Exception:
+                    pass
+
+            f_id = body.get("finding_id")
+            if not f_id:
+                self._send_json({"status": "error", "message": "El campo 'finding_id' es obligatorio"}, 400)
+                return
+
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute("SELECT id, title, company, modality, summary, link FROM agent_findings WHERE id = ?", (f_id,))
+            row = cur.fetchone()
+            if not row:
+                conn.close()
+                self._send_json({"status": "error", "message": "Vacante no encontrada"}, 404)
+                return
+
+            job_data = {
+                "title": row[1],
+                "company": row[2],
+                "modality": row[3],
+                "summary": row[4],
+                "link": row[5]
+            }
+
+            # Check if PC bridge can evaluate
+            bridge_url = check_pc_bridge_online()
+            if bridge_url:
+                try:
+                    p_body = json.dumps({"job": job_data}).encode("utf-8")
+                    req = urllib.request.Request(f"{bridge_url}/api/v1/evaluate-match", data=p_body, headers={"Content-Type": "application/json"})
+                    with urllib.request.urlopen(req, timeout=45) as resp:
+                        b_res = json.loads(resp.read().decode())
+                        if b_res.get("status") == "ok":
+                            ev = b_res.get("evaluation", {})
+                            m_score = int(ev.get("match_score", 80))
+                            m_reason = sanitize_utf8_accents(ev.get("match_reason", ""))
+                            m_skills = ev.get("missing_skills", [])
+                            m_lang = ev.get("language", "es")
+                            cur.execute("UPDATE agent_findings SET match_score = ?, match_reason = ?, missing_skills = ?, language = ? WHERE id = ?", (m_score, m_reason, json.dumps(m_skills), m_lang, f_id))
+                            conn.commit()
+                            conn.close()
+                            self._send_json({"status": "ok", "evaluation": ev, "model": "Gemini 3.8 Flash (High) [PC Bridge]"})
+                            return
+                except Exception:
+                    pass
+
+            # Fallback evaluation
+            profile = load_santino_profile()
+            eval_prompt = f"""Actua como un reclutador tecnico senior de IT.
+Evalua con precision la afinidad (Match Score de 0 a 100) entre la siguiente oferta y el perfil real de Santino Hickethier.
+
+PERFIL CANDIDATO:
+{json.dumps(profile, ensure_ascii=False, indent=2)}
+
+OFERTA:
+Titulo: {job_data['title']}
+Empresa: {job_data['company']}
+Modalidad: {job_data['modality']}
+Resumen: {job_data['summary']}
+
+Responde estrictamente con un JSON valido:
+{{
+  "match_score": 90,
+  "match_reason": "Explicacion concisa en 1 frase de fortalezas o adecuacion.",
+  "missing_skills": ["skill1", "skill2"],
+  "language": "es"
+}}"""
+
+            ai_res = execute_hybrid_ai(eval_prompt, purpose=f"Eval Match: {job_data['company']}", temperature=0.1, max_tokens=300)
+            if ai_res.get("status") == "ok":
+                raw = ai_res.get("text", "").replace("```json", "").replace("```", "").strip()
+                try:
+                    ev = json.loads(raw)
+                    m_score = int(ev.get("match_score", 75))
+                    m_reason = sanitize_utf8_accents(ev.get("match_reason", ""))
+                    m_skills = ev.get("missing_skills", [])
+                    m_lang = ev.get("language", "es")
+
+                    cur.execute("""
+                        UPDATE agent_findings
+                        SET match_score = ?, match_reason = ?, missing_skills = ?, language = ?
+                        WHERE id = ?
+                    """, (m_score, m_reason, json.dumps(m_skills), m_lang, f_id))
+                    conn.commit()
+                    conn.close()
+                    self._send_json({"status": "ok", "evaluation": ev, "model": ai_res.get("model")})
+                    return
+                except Exception as pe:
+                    conn.close()
+                    self._send_json({"status": "error", "message": f"Parse error: {pe}"}, 500)
+                    return
+            conn.close()
+            self._send_json({"status": "error", "message": ai_res.get("message")}, 502)
+            return
+
+        # 20. AGENT: BATCH EVALUATE ALL UNSCORED FINDINGS
+        if path == "/api/v1/agent/evaluate-all-unscored":
+            def _eval_unscored_worker():
+                conn = sqlite3.connect(DB_PATH)
+                cur = conn.cursor()
+                cur.execute("SELECT id, title, company, modality, summary, link FROM agent_findings WHERE match_score IS NULL OR match_score = 0")
+                unscored = cur.fetchall()
+                conn.close()
+
+                bridge_url = check_pc_bridge_online()
+                profile = load_santino_profile()
+
+                for row in unscored:
+                    f_id, f_title, f_company, f_modality, f_summary, f_link = row
+                    job_data = {
+                        "title": f_title,
+                        "company": f_company,
+                        "modality": f_modality,
+                        "summary": f_summary,
+                        "link": f_link
+                    }
+                    scored = False
+                    if bridge_url:
+                        try:
+                            p_body = json.dumps({"job": job_data}).encode("utf-8")
+                            req = urllib.request.Request(f"{bridge_url}/api/v1/evaluate-match", data=p_body, headers={"Content-Type": "application/json"})
+                            with urllib.request.urlopen(req, timeout=45) as resp:
+                                b_res = json.loads(resp.read().decode())
+                                if b_res.get("status") == "ok":
+                                    ev = b_res.get("evaluation", {})
+                                    m_score = int(ev.get("match_score", 80))
+                                    m_reason = sanitize_utf8_accents(ev.get("match_reason", ""))
+                                    m_skills = ev.get("missing_skills", [])
+                                    m_lang = ev.get("language", "es")
+                                    conn2 = sqlite3.connect(DB_PATH)
+                                    cur2 = conn2.cursor()
+                                    cur2.execute("UPDATE agent_findings SET match_score = ?, match_reason = ?, missing_skills = ?, language = ? WHERE id = ?", (m_score, m_reason, json.dumps(m_skills), m_lang, f_id))
+                                    conn2.commit()
+                                    conn2.close()
+                                    scored = True
+                        except Exception:
+                            pass
+                    
+                    if not scored:
+                        eval_prompt = f"""Actua como un reclutador tecnico senior de IT.
+Evalua con precision la afinidad (Match Score de 0 a 100) entre la siguiente oferta y el perfil real de Santino Hickethier.
+
+PERFIL CANDIDATO:
+{json.dumps(profile, ensure_ascii=False, indent=2)}
+
+OFERTA:
+Titulo: {job_data['title']}
+Empresa: {job_data['company']}
+Modalidad: {job_data['modality']}
+Resumen: {job_data['summary']}
+
+Responde estrictamente con un JSON valido:
+{{
+  "match_score": 90,
+  "match_reason": "Explicacion concisa en 1 frase de fortalezas o adecuacion.",
+  "missing_skills": ["skill1", "skill2"],
+  "language": "es"
+}}"""
+                        ai_res = execute_hybrid_ai(eval_prompt, purpose=f"Batch Match: {f_company}", temperature=0.1, max_tokens=300)
+                        if ai_res.get("status") == "ok":
+                            raw = ai_res.get("text", "").replace("```json", "").replace("```", "").strip()
+                            try:
+                                ev = json.loads(raw)
+                                m_score = int(ev.get("match_score", 75))
+                                m_reason = sanitize_utf8_accents(ev.get("match_reason", ""))
+                                m_skills = ev.get("missing_skills", [])
+                                m_lang = ev.get("language", "es")
+                                conn2 = sqlite3.connect(DB_PATH)
+                                cur2 = conn2.cursor()
+                                cur2.execute("UPDATE agent_findings SET match_score = ?, match_reason = ?, missing_skills = ?, language = ? WHERE id = ?", (m_score, m_reason, json.dumps(m_skills), m_lang, f_id))
+                                conn2.commit()
+                                conn2.close()
+                            except Exception:
+                                pass
+                    time.sleep(1)
+
+            threading.Thread(target=_eval_unscored_worker, daemon=True).start()
+            self._send_json({"status": "started", "message": "Evaluacion de vacantes pendientes iniciada en segundo plano"})
+            return
+
+        # 20. AI: DIAGNOSTIC TEST CALL (REAL TIME TOKEN TRACKING VIA HYBRID ENGINE)
         if path == "/api/v1/ai/test":
             prompt = "Responde con 'OK: Telemetria IA en linea' y 1 frase sobre servidores homelab."
             ai_res = execute_hybrid_ai(prompt, purpose="Test Diagnóstico", temperature=0.2, max_tokens=100)
@@ -2136,8 +2756,9 @@ def main():
     agent_thread.start()
     print("[*] Autonomous IT Agent scheduler loop started.")
 
-    HTTPServer.allow_reuse_address = True
-    server = HTTPServer(("0.0.0.0", PORT), HomelabAPIHandler)
+    ThreadingHTTPServer.allow_reuse_address = True
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), HomelabAPIHandler)
+    server.daemon_threads = True
     print(f"[*] Homelab Micro-API listening on http://0.0.0.0:{PORT}...")
     try:
         server.serve_forever()

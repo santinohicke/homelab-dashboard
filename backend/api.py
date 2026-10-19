@@ -679,6 +679,142 @@ def load_gemini_key():
             pass
     return os.environ.get("GEMINI_API_KEY", "")
 
+PC_BRIDGE_URL = "http://100.64.0.20:8099"
+PC_BRIDGE_FALLBACK_LAN = "http://192.168.1.50:8099"
+
+def check_pc_bridge_online():
+    for base_url in [PC_BRIDGE_URL, PC_BRIDGE_FALLBACK_LAN]:
+        try:
+            req = urllib.request.Request(f"{base_url}/health")
+            with urllib.request.urlopen(req, timeout=0.8) as resp:
+                if resp.status == 200:
+                    d = json.loads(resp.read().decode())
+                    if d.get("status") == "online":
+                        return base_url
+        except Exception:
+            pass
+    return None
+
+def execute_hybrid_ai(prompt, purpose="General", temperature=0.1, max_tokens=800, timeout=40):
+    """
+    Hybrid Zero-Touch AI Engine:
+    1. Si la PC de escritorio esta encendida: delega la inferencia via Tailscale
+       al micro-puente de Antigravity CLI ('agy') usando Gemini 3.8 Flash (High) sin saturacion.
+    2. Si la PC esta apagada o suspendida: conmuta inmediatamente a la cascada de nube
+       directa de Google (gemini-3.8-flash -> gemini-3.6-flash -> gemini-3.5-flash -> gemini-flash-lite-latest).
+    """
+    now = int(time.time())
+    t0 = time.time()
+
+    # 1. Prioridad: PC Bridge con Antigravity CLI (Gemini 3.8 Flash High)
+    bridge_url = check_pc_bridge_online()
+    if bridge_url:
+        try:
+            payload = json.dumps({
+                "prompt": prompt,
+                "model": "gemini-3.8-flash-high",
+                "timeout": timeout
+            }).encode("utf-8")
+            req = urllib.request.Request(f"{bridge_url}/infer", data=payload, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=timeout + 5) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                if res.get("status") == "ok":
+                    latency_ms = int((time.time() - t0) * 1000)
+                    out_text = res.get("output", "")
+                    p_tokens = len(prompt) // 4
+                    c_tokens = len(out_text) // 4
+                    t_tokens = p_tokens + c_tokens
+
+                    try:
+                        conn = sqlite3.connect(DB_PATH)
+                        cur = conn.cursor()
+                        cur.execute("""
+                            INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (now, "gemini-3.8-flash-high [PC Bridge]", p_tokens, c_tokens, t_tokens, purpose, latency_ms, "ok"))
+                        conn.commit()
+                        conn.close()
+                    except Exception:
+                        pass
+
+                    return {
+                        "status": "ok",
+                        "model": "Gemini 3.8 Flash (High) [PC Bridge]",
+                        "engine": "pc-bridge",
+                        "text": out_text,
+                        "prompt_tokens": p_tokens,
+                        "completion_tokens": c_tokens,
+                        "total_tokens": t_tokens,
+                        "latency_ms": latency_ms
+                    }
+        except Exception as bridge_err:
+            print(f"[AI Hybrid Engine] Fallo en PC Bridge, conmutando a nube directa: {bridge_err}", file=sys.stderr)
+
+    # 2. Conmutacion Automatica en Servidor (Autonomia 24/7 con PC Apagada)
+    key = load_gemini_key()
+    if not key:
+        return {"status": "error", "message": "Ni PC Bridge ni API Key de Google configuradas"}
+
+    cascade_models = [
+        "gemini-3.8-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-flash-lite-latest"
+    ]
+
+    last_error = None
+    for model in cascade_models:
+        try:
+            req_t0 = time.time()
+            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+            payload = json.dumps({
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": temperature,
+                    "maxOutputTokens": max_tokens
+                }
+            }).encode("utf-8")
+
+            req_gemini = urllib.request.Request(gemini_url, data=payload, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req_gemini, timeout=18) as resp:
+                res = json.loads(resp.read().decode("utf-8"))
+                latency_ms = int((time.time() - req_t0) * 1000)
+
+                usage = res.get('usageMetadata', {})
+                p_tokens = usage.get('promptTokenCount', len(prompt) // 4)
+                c_tokens = usage.get('candidatesTokenCount', 0)
+                t_tokens = usage.get('totalTokenCount', p_tokens + c_tokens)
+                text = res['candidates'][0]['content']['parts'][0]['text']
+
+                try:
+                    conn = sqlite3.connect(DB_PATH)
+                    cur = conn.cursor()
+                    cur.execute("""
+                        INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (now, f"{model} [Cloud Fallback]", p_tokens, c_tokens, t_tokens, purpose, latency_ms, "ok"))
+                    conn.commit()
+                    conn.close()
+                except Exception:
+                    pass
+
+                return {
+                    "status": "ok",
+                    "model": f"{model} [Cloud Fallback]",
+                    "engine": "cloud-api",
+                    "text": text,
+                    "prompt_tokens": p_tokens,
+                    "completion_tokens": c_tokens,
+                    "total_tokens": t_tokens,
+                    "latency_ms": latency_ms
+                }
+        except Exception as e:
+            last_error = str(e)
+            continue
+
+    return {"status": "error", "message": f"Inferencia fallida: {last_error}"}
+
+
 def run_agent_job_scraper(target_id=None, force=False):
     key = load_gemini_key()
     if not key:
@@ -797,53 +933,30 @@ Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas sin e
 }}"""
 
             full_prompt = instruction + "\n\nListado:\n" + content
-            # Usar modelo de alta disponibilidad (gemini-flash-lite-latest)
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={key}"
-            payload = json.dumps({
-                "contents": [{"parts": [{"text": full_prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.1,
-                    "maxOutputTokens": 800
-                }
-            }).encode()
+            ai_res = execute_hybrid_ai(full_prompt, purpose=f"Rastreo: {sanitize_utf8_accents(t_name)}", temperature=0.1, max_tokens=1000)
 
-            req_t0 = time.time()
-            req_gemini = urllib.request.Request(gemini_url, data=payload, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req_gemini, timeout=25) as resp:
-                res = json.loads(resp.read().decode())
-                latency_ms = int((time.time() - req_t0) * 1000)
-
-                # Extract and record real Gemini token usage
-                usage = res.get('usageMetadata', {})
-                p_tokens = usage.get('promptTokenCount', 0)
-                c_tokens = usage.get('candidatesTokenCount', 0)
-                t_tokens = usage.get('totalTokenCount', p_tokens + c_tokens)
-
-                cur.execute("""
-                    INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (now, "gemini-flash-lite-latest", p_tokens, c_tokens, t_tokens, f"Rastreo: {sanitize_utf8_accents(t_name)}", latency_ms, "ok"))
-                conn.commit()
-
-                raw_text = res['candidates'][0]['content']['parts'][0]['text']
+            if ai_res.get("status") == "ok":
+                raw_text = ai_res.get("text", "")
                 clean_json = raw_text.replace('```json', '').replace('```', '').strip()
-                data = json.loads(clean_json)
-                
-                for item in data.get("encontrados", []):
-                    title = sanitize_utf8_accents(item.get("titulo", "Puesto IT"))
-                    company = sanitize_utf8_accents(item.get("empresa", "Empresa"))
-                    modality = sanitize_utf8_accents(item.get("modalidad", "Part-Time / CABA"))
-                    summary = sanitize_utf8_accents(item.get("resumen", ""))
-                    link = item.get("link", t_url)
+                try:
+                    data = json.loads(clean_json)
+                    for item in data.get("encontrados", []):
+                        title = sanitize_utf8_accents(item.get("titulo", "Puesto IT"))
+                        company = sanitize_utf8_accents(item.get("empresa", "Empresa"))
+                        modality = sanitize_utf8_accents(item.get("modalidad", "Part-Time / CABA"))
+                        summary = sanitize_utf8_accents(item.get("resumen", ""))
+                        link = item.get("link", t_url)
 
-                    # Deduplicate: check if link or (title + company) exists
-                    cur.execute("SELECT id FROM agent_findings WHERE link = ? OR (title = ? AND company = ?)", (link, title, company))
-                    if not cur.fetchone():
-                        cur.execute("""
-                            INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link, is_read, is_archived, is_applied)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0)
-                        """, (t_id, now, title, company, modality, summary, link))
-                        total_new += 1
+                        # Deduplicate: check if link or (title + company) exists
+                        cur.execute("SELECT id FROM agent_findings WHERE link = ? OR (title = ? AND company = ?)", (link, title, company))
+                        if not cur.fetchone():
+                            cur.execute("""
+                                INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link, is_read, is_archived, is_applied)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0)
+                            """, (t_id, now, title, company, modality, summary, link))
+                            total_new += 1
+                except Exception as parse_err:
+                    print(f"[Agent Scraper JSON Parse Error] {t_name}: {parse_err}", file=sys.stderr)
 
             cur.execute("UPDATE agent_targets SET last_checked = ?, last_hash = ? WHERE id = ?", (now, content_hash, t_id))
             conn.commit()
@@ -1583,9 +1696,14 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             next_reset_ts = ((now // 86400) + 1) * 86400
             seconds_to_reset = max(0, next_reset_ts - now)
 
+            is_bridge = check_pc_bridge_online()
+            active_model = "Gemini 3.8 Flash (High) [PC Bridge]" if is_bridge else "Gemini 3.6 Flash (Autonomous Fallback)"
+
             self._send_json({
                 "status": "ok",
-                "model": "gemini-flash-lite-latest",
+                "model": active_model,
+                "engine": "pc-bridge" if is_bridge else "cloud-api",
+                "bridge_online": bool(is_bridge),
                 "limits": {
                     "rpd_limit": limit_rpd,
                     "rpm_limit": limit_rpm,
@@ -1985,56 +2103,24 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             self._send_json({"status": "ok"})
             return
 
-        # 16. AI: DIAGNOSTIC TEST CALL (REAL TIME TOKEN TRACKING)
+        # 16. AI: DIAGNOSTIC TEST CALL (REAL TIME TOKEN TRACKING VIA HYBRID ENGINE)
         if path == "/api/v1/ai/test":
-            key = load_gemini_key()
-            if not key:
-                self._send_json({"status": "error", "message": "API key no configurada"}, 400)
-                return
-            
-            now = int(time.time())
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={key}"
-            payload = json.dumps({
-                "contents": [{"parts": [{"text": "Responde con 'OK: Telemetria IA en linea' y 1 frase sobre servidores homelab."}]}],
-                "generationConfig": {
-                    "temperature": 0.2,
-                    "maxOutputTokens": 60
-                }
-            }).encode()
-
-            req_t0 = time.time()
-            try:
-                req_gemini = urllib.request.Request(gemini_url, data=payload, headers={"Content-Type": "application/json"})
-                with urllib.request.urlopen(req_gemini, timeout=10) as resp:
-                    res = json.loads(resp.read().decode())
-                    latency_ms = int((time.time() - req_t0) * 1000)
-                    usage = res.get('usageMetadata', {})
-                    p_tokens = usage.get('promptTokenCount', 0)
-                    c_tokens = usage.get('candidatesTokenCount', 0)
-                    t_tokens = usage.get('totalTokenCount', p_tokens + c_tokens)
-                    answer = res['candidates'][0]['content']['parts'][0]['text'].strip()
-
-                    conn = sqlite3.connect(DB_PATH)
-                    cur = conn.cursor()
-                    cur.execute("""
-                        INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (now, "gemini-flash-lite-latest", p_tokens, c_tokens, t_tokens, "Test Diagnóstico", latency_ms, "ok"))
-                    conn.commit()
-                    conn.close()
-
-                    self._send_json({
-                        "status": "ok",
-                        "answer": answer,
-                        "prompt_tokens": p_tokens,
-                        "completion_tokens": c_tokens,
-                        "total_tokens": t_tokens,
-                        "latency_ms": latency_ms
-                    })
-                    return
-            except Exception as e:
-                self._send_json({"status": "error", "message": str(e)}, 500)
-                return
+            prompt = "Responde con 'OK: Telemetria IA en linea' y 1 frase sobre servidores homelab."
+            ai_res = execute_hybrid_ai(prompt, purpose="Test Diagnóstico", temperature=0.2, max_tokens=100)
+            if ai_res.get("status") == "ok":
+                self._send_json({
+                    "status": "ok",
+                    "model": ai_res.get("model"),
+                    "engine": ai_res.get("engine"),
+                    "answer": ai_res.get("text", "").strip(),
+                    "prompt_tokens": ai_res.get("prompt_tokens", 0),
+                    "completion_tokens": ai_res.get("completion_tokens", 0),
+                    "total_tokens": ai_res.get("total_tokens", 0),
+                    "latency_ms": ai_res.get("latency_ms", 0)
+                })
+            else:
+                self._send_json({"status": "error", "message": ai_res.get("message", "Error desconocido")}, 500)
+            return
 
         self._send_json({"error": "Action endpoint not found"}, 404)
 

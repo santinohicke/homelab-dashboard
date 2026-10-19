@@ -177,7 +177,7 @@ export default function AIObservatory() {
           </div>
           <div>
             <div className="font-bold text-white text-base flex flex-wrap items-center gap-2">
-              <span>Google Gemini 3.1 Flash-Lite</span>
+              <span>{stats?.model ? `Google Gemini (${stats.model})` : "Google Gemini Flash"}</span>
             </div>
             <div className="text-xs text-white/50 font-mono">
               Inferencia de baja latencia · Cuota oficial: 1.500 RPD / 15 RPM / 1M TPM

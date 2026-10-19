@@ -122,7 +122,7 @@ export default function AgentRadar() {
       const res = await fetch("/api/v1/agent/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(targetId ? { target_id: targetId } : {})
+        body: JSON.stringify(targetId ? { target_id: targetId, force: true } : { force: true })
       });
 
       if (!res.ok) {

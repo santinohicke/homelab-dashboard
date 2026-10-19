@@ -77,6 +77,14 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 | `GET` | `/api/v1/ai/stats?range=24h` | Métricas reales de consumo Gemini: tokens consumidos hoy/histórico, límites RPD/RPM/TPM, curva Bézier multirrango (`24h`, `7d`, `30d`, `historic`) y countdown a reseteo UTC. |
 | `POST` | `/api/v1/ai/test` | Ejecuta un test de diagnóstico de inferencia en vivo registrando latencia y tokens exactos consumidos en `ai_usage_logs`. |
 
+### Pipeline de Ingesta Inteligente y Scraper Paralelo Multihilo
+* **Extracción Concurrente (`ThreadPoolExecutor`)**: Conexión simultánea a los 12 portales mediante `as_completed(timeout=14)` con gestión resiliente de timeouts, reduciendo el tiempo de sondeo de 155s a <3s.
+* **Prefiltrado Léxico y Ponderación de Prioridad (`priority_score`)**:
+  - Filtro anti-ruido (`NON_TECH_BLACKLIST`, `JUNK_TITLE_PATTERNS`) para descartar carreras no afines y enlaces de navegación en memoria.
+  - Ponderación técnica (`TECH_KEYWORDS`) que ordena a los candidatos de forma descendente, asegurando que las mejores oportunidades de desarrollo, linux, cloud, devops y redes encabecen el lote evaluado.
+* **Evaluación Consolidada por Lotes**: Remesa de 25 vacantes concurrentes evaluadas en una única inferencia LLM (`max_tokens=3500`, timeout=70s) contra el perfil real de Santino Hickethier.
+* **Parser de Recuperación Regex (`parse_agent_findings_json`)**: Extracción resiliente por coincidencia estructural de objetos `{ ... "titulo": ... }` si el JSON principal presenta preámbulos o truncamiento de tokens.
+
 ### Arquitectura de Inferencia Híbrida Cero-Fricción
 El backend implementa un despachador dinámico de inferencia (`execute_hybrid_ai`) con detección automática de presencia:
 1. **Modo PC Encendida (Prioridad 1):** Delega la inferencia mediante Tailscale WireGuard a un micro-puente HTTP en la máquina de escritorio (`100.64.0.20:8099`), el cual ejecuta el CLI oficial de Google Antigravity (`agy.exe -p`) resolviendo con **Gemini 3.8 Flash (High)** a través de los canales prioritarios de Cloud Code (sin saturación 503).

@@ -39,7 +39,7 @@ export default function AgentRadar() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
-  const [filter, setFilter] = useState("all"); // "all" | "match" | "new" | "applied"
+  const [filter, setFilter] = useState("new"); // "new" | "applied"
   const [searchQuery, setSearchQuery] = useState("");
   const [showTargetsModal, setShowTargetsModal] = useState(false);
   
@@ -458,12 +458,11 @@ export default function AgentRadar() {
     }
   };
 
-  // Filter and search logic - Todas, Alta Afinidad, Nuevas, Mis Postulaciones
+  // Filter and search logic - Nuevas, Mis Postulaciones
   const filteredFindings = findings
     .filter(f => {
-      if (filter === "new" && f.is_read) return false;
+      if (filter === "new" && f.is_applied) return false;
       if (filter === "applied" && !f.is_applied) return false;
-      if (filter === "match" && (f.match_score < 80)) return false;
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -599,13 +598,11 @@ export default function AgentRadar() {
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* Strict 4 filter pills + evaluate missing match */}
+          {/* 2 filter pills: Nuevas y Mis Postulaciones */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar max-w-full">
               {[
-                { id: "all", label: `Todas (${findings.length})` },
-                { id: "match", label: `Alta Afinidad (>=80%) (${findings.filter(f => f.match_score >= 80).length})` },
-                { id: "new", label: `Nuevas (${stats.unread_count})` },
+                { id: "new", label: `Nuevas (${findings.filter(f => !f.is_applied).length})` },
                 { id: "applied", label: `Mis Postulaciones (${stats.applied_count})` }
               ].map(f => (
                 <button
@@ -615,9 +612,7 @@ export default function AgentRadar() {
                     filter === f.id
                       ? f.id === "applied"
                         ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold shadow-sm"
-                        : f.id === "match"
-                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold shadow-sm"
-                          : "bg-white/15 text-white border border-white/20 font-bold shadow-sm"
+                        : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold shadow-sm"
                       : "text-white/50 hover:text-white/80 hover:bg-white/5"
                   }`}
                 >
@@ -665,13 +660,11 @@ export default function AgentRadar() {
           <div className="text-sm font-semibold text-white/70">
             {filter === "applied" 
               ? "Aún no te has postulado a ninguna vacante" 
-              : filter === "new"
-              ? "No hay vacantes nuevas sin leer"
-              : "No se encontraron vacantes registradas"}
+              : "No hay vacantes nuevas disponibles"}
           </div>
           <p className="text-xs text-white/40 max-w-md mx-auto">
             {filter === "applied"
-              ? "Explorá las vacantes en 'Todas', postuláte pulsando 'Postularse' y haz el seguimiento aquí marcando si te contactaron o te rechazaron."
+              ? "Explorá las vacantes en 'Nuevas', postuláte pulsando 'Postularse' y haz el seguimiento aquí marcando si te contactaron o te rechazaron."
               : searchQuery 
               ? `No hay coincidencias para "${searchQuery}". Probá con otros términos.`
               : "Pulsá 'Rastrear Ahora' para que el agente extraiga las convocatorias vigentes de la UCA, LinkedIn y portales tecnológicos."}

@@ -53,11 +53,14 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 ### 2. Radar Autónomo IT · Pasantías & Part-Time 24/7 (Google Gemini AI)
 * **Vacantes 100% Reales (Zero-Mock)**: Extracción directa del estado embebido `window.__STATE__` en bolsas universitarias (UCA Campus, Universidad de Belgrano), LinkedIn Jobs y Get on Board, descartando de forma tajante datos sintéticos o alucinaciones.
 * **Arquitectura Asíncrona No Bloqueante (Anti-Timeout 504)**: El accionador "Rastrear Ahora" ejecuta el web scraper e inferencia LLM en hilos daemon en segundo plano (`threading.Thread(daemon=True)`). Responde de inmediato con HTTP 200 JSON (`{"status": "started", "scanning": true}`) y el frontend sondea de forma reactiva el estado en vivo a través de `GET /api/v1/agent/status`, garantizando cero bloqueos de red o caídas por límites de tiempo (`proxy_read_timeout`) en proxies inversos Nginx.
-* **Criterios Estrictos de Filtrado (Orientado a Ingeniería Informática)**:
-  * **Jornada Obligatoria**: Exclusivamente Part-Time / Media Jornada (descarta jornadas completas o full-time de 8-9h).
-  * **Ubicación & Modalidad**: Remoto o presencial/híbrido **estrictamente en CABA (Ciudad Autónoma de Buenos Aires) o GBA cercano**, descartando puestos presenciales fuera de Buenos Aires.
-  * **Ramas Tecnológicas de Interés**: Redes, Telecomunicaciones, Sistemas Embebidos, Electrónica, Microcontroladores, Firmware, Bajo Nivel (C/C++, Rust, Go), Sysadmin Linux, Infraestructura, Cloud, DevOps, Ciberseguridad y Software Engineering.
-  * **Exclusión Categórica**: Descarta sin excepciones puestos de Soporte Técnico, Help Desk, Service Desk, Mesa de Ayuda, Soporte Nivel 1/2, Atención a Usuarios, QA, Software Testing o Control de Calidad.
+* **Criterios Estrictos de Filtrado (Orientado a Estudiante de Ingeniería Informática UCA)**:
+  * **Jornada Obligatoria**: Exclusivamente Part-Time / Media Jornada / Pasantía / Trainee / Intern compatible con la cursada universitaria. **Descarta categóricamente** vacantes de jornada completa (Full-Time) y niveles intermedios/avanzados (Semi-Senior SSR, Senior SR o Lead).
+  * **Ubicación & Modalidad**: Remoto 100% o presencial/híbrido **estrictamente en CABA (Ciudad Autónoma de Buenos Aires) o Gran Buenos Aires**. **Descarta tajantemente** puestos presenciales en el interior o en el exterior (ej. Santiago de Chile, Lima, Bogotá).
+  * **Ramas Tecnológicas de Interés**: Redes, Telecomunicaciones, Sistemas Embebidos, Firmware, Bajo Nivel (C/C++, Python), Sysadmin Linux, Infraestructura, Cloud, DevOps, Ciberseguridad y Desarrollo de Software.
+  * **Exclusión Categórica**: Descarta sin excepciones puestos de Soporte Técnico, Help Desk, Service Desk, Mesa de Ayuda, Atención al Cliente, QA Tester manual, Ventas o Finanzas puras.
+  * **Descarte de Vacantes Cerradas**: Filtrado estricto de URLs reales (`/jobs/view/`) en LinkedIn para descartar enlaces que ya no aceptan solicitudes o artefactos de navegación de búsqueda.
+* **Navegación Simplificada en Frontend (`AgentRadar.jsx`)**:
+  * Interfaz optimizada con dos únicas solapas operativas: **"Nuevas"** (con contador en vivo de oportunidades pendientes de postulación) y **"Mis Postulaciones"** (con contador de vacantes en proceso y registro de respuestas). Se eliminaron las pestañas redundantes "Todas" y "Alta afinidad" para un flujo de decisión inmediato.
 * **Blindaje Anti-Estafas y Prevención de Malware (Cero-Trust)**:
   * El prompt de inferencia de Gemini descarta activamente cualquier vacante que exija descargas de archivos ejecutables (.exe, .zip), librerías sospechosas o clones de repositorios desconocidos para supuestas "pruebas técnicas".
   * Descarta reclutadores con contacto exclusivo por canales informales (Telegram, WhatsApp o correos @gmail) sin respaldo corporativo.

@@ -79,11 +79,14 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 
 ### Pipeline de Ingesta Inteligente y Scraper Paralelo Multihilo
 * **Extracción Concurrente (`ThreadPoolExecutor`)**: Conexión simultánea a los 12 portales mediante `as_completed(timeout=14)` con gestión resiliente de timeouts, reduciendo el tiempo de sondeo de 155s a <3s.
-* **Prefiltrado Léxico y Ponderación de Prioridad (`priority_score`)**:
-  - Filtro anti-ruido (`NON_TECH_BLACKLIST`, `JUNK_TITLE_PATTERNS`) para descartar carreras no afines y enlaces de navegación en memoria.
-  - Ponderación técnica (`TECH_KEYWORDS`) que ordena a los candidatos de forma descendente, asegurando que las mejores oportunidades de desarrollo, linux, cloud, devops y redes encabecen el lote evaluado.
-* **Evaluación Consolidada por Lotes**: Remesa de 25 vacantes concurrentes evaluadas en una única inferencia LLM (`max_tokens=3500`, timeout=70s) contra el perfil real de Santino Hickethier.
-* **Parser de Recuperación Regex (`parse_agent_findings_json`)**: Extracción resiliente por coincidencia estructural de objetos `{ ... "titulo": ... }` si el JSON principal presenta preámbulos o truncamiento de tokens.
+* **Prefiltrado Léxico, Restricción Universitaria y Ponderación (`priority_score`)**:
+  - **Filtro Anti-Ruido y Anti-SSR**: Descarte automático en memoria (`NON_TECH_BLACKLIST`, `SEMI_SENIOR_BLACKLIST`, `FULL_TIME_BLACKLIST`) para erradicar puestos de jornada completa, roles intermedios (Semi-Senior), carreras no afines y botones de interfaz.
+  - **Restricción Geográfica**: Descarte de puestos fuera de CABA / GBA salvo que sean 100% remotos (`OUT_OF_COUNTRY_BLACKLIST`).
+  - **Paginación y Enlaces Limpios en LinkedIn**: Coincidencia obligatoria de `/jobs/view/` y ventana temporal estricta (`f_TPR=r604800`, últimos 7 días).
+  - **Ponderación Técnica Ponderada**: Puntuación automática (`TECH_KEYWORDS`) que ubica al inicio de la remesa evaluada por la IA las vacantes con palabras clave troncales (software, linux, devops, cloud, redes, sistemas, python, docker, pasantía, junior).
+* **Evaluación Consolidada por Lotes**: Remesa de hasta 35 vacantes concurrentes evaluadas en una única inferencia LLM (`max_tokens=3500`, timeout=70s) contra el perfil real de Santino Hickethier.
+* **Parser Híbrido de Recuperación Regex (`parse_agent_findings_json`)**: Extracción resiliente por coincidencia estructural de objetos JSON o viñetas Markdown (`Selected Candidate`, `PUESTO: ...`, `EMPRESA: ...`) si el modelo presenta preámbulos o formatos alternativos.
+* **Enforcement de `responseMimeType: application/json`**: Obliga a los modelos de respaldo en la nube a generar JSON canónico sin Markdown exterior.
 
 ### Arquitectura de Inferencia Híbrida Cero-Fricción
 El backend implementa un despachador dinámico de inferencia (`execute_hybrid_ai`) con detección automática de presencia:

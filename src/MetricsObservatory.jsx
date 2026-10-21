@@ -361,6 +361,12 @@ export default function HomelabMetricsObservatory() {
   const [liveSystem, setLiveSystem] = useState(null);
   const [realTelemetry, setRealTelemetry] = useState(null);
   const [haStates, setHaStates] = useState({});
+  const [speedData, setSpeedData] = useState(null);
+  const [alertsList, setAlertsList] = useState([]);
+  const [cronTasks, setCronTasks] = useState([]);
+  const [runningSpeed, setRunningSpeed] = useState(false);
+  const [runningAction, setRunningAction] = useState(null);
+  const [actionFeedback, setActionFeedback] = useState(null);
 
   // 1. Poll Live System from /api/v1/system
   useEffect(() => {
@@ -377,6 +383,74 @@ export default function HomelabMetricsObservatory() {
     const intv = setInterval(fetchSystem, 4000);
     return () => clearInterval(intv);
   }, []);
+
+  // 1b. Fetch Speedtest, Alerts & Cron Tasks
+  const fetchAuxData = async () => {
+    try {
+      const [resSpeed, resAlerts, resCron] = await Promise.all([
+        fetch("/api/v1/network/speedtest"),
+        fetch("/api/v1/alerts"),
+        fetch("/api/v1/cron/tasks")
+      ]);
+      if (resSpeed.ok) setSpeedData(await resSpeed.json());
+      if (resAlerts.ok) {
+        const dAlerts = await resAlerts.json();
+        setAlertsList(dAlerts.alerts || []);
+      }
+      if (resCron.ok) {
+        const dCron = await resCron.json();
+        setCronTasks(dCron.tasks || []);
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    fetchAuxData();
+    const intv = setInterval(fetchAuxData, 12000);
+    return () => clearInterval(intv);
+  }, []);
+
+  const handleRunSpeedtest = async () => {
+    if (runningSpeed) return;
+    setRunningSpeed(true);
+    setActionFeedback("Ejecutando medición de latencia y throughput...");
+    try {
+      const res = await fetch("/api/v1/actions/speedtest", { method: "POST" });
+      if (res.ok) {
+        const d = await res.json();
+        setActionFeedback(`Speedtest OK: ↓ ${d.result?.download_mbps || 0} Mbps · Ping ${d.result?.ping_cf_ms || 0} ms`);
+        await fetchAuxData();
+      } else {
+        setActionFeedback("Error al procesar speedtest");
+      }
+    } catch (err) {
+      setActionFeedback("Error de comunicación en speedtest");
+    } finally {
+      setRunningSpeed(false);
+      setTimeout(() => setActionFeedback(null), 4000);
+    }
+  };
+
+  const handleRunTask = async (task) => {
+    if (runningAction) return;
+    setRunningAction(task.id);
+    setActionFeedback(`Ejecutando ${task.name}...`);
+    try {
+      const res = await fetch(task.action_endpoint, { method: "POST" });
+      if (res.ok) {
+        const d = await res.json();
+        setActionFeedback(`Éxito: ${d.output || "Tarea finalizada nominalmente."}`);
+        await fetchAuxData();
+      } else {
+        setActionFeedback(`Fallo al ejecutar ${task.name}`);
+      }
+    } catch (err) {
+      setActionFeedback(`Error al disparar ${task.name}`);
+    } finally {
+      setRunningAction(null);
+      setTimeout(() => setActionFeedback(null), 4500);
+    }
+  };
 
   // 2. Fetch Telemetry from /api/v1/telemetry?range=...
   useEffect(() => {
@@ -1301,6 +1375,111 @@ export default function HomelabMetricsObservatory() {
                 { label: "Hoy", val: 100 }
               ]}
             />
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 6. SECCIÓN: GESTOR DE CRON & TAREAS PROGRAMADAS          */}
+      {/* ======================================================== */}
+      {(activeCategory === "all" || activeCategory === "hardware") && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-2">
+            <div>
+              <h2 className="text-xs uppercase tracking-wider text-cyan-400 font-semibold flex items-center gap-2">
+                <Timer className="w-4 h-4" />
+                <span>6. Gestor de Mantenimiento & Tareas Programadas (Cron UI)</span>
+              </h2>
+              <p className="text-[11px] text-white/50 font-mono mt-0.5">Disparo manual y visualización de rutinas de salud del host</p>
+            </div>
+            {actionFeedback && (
+              <span className="text-xs font-mono px-3 py-1 rounded-xl bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 animate-pulse">
+                {actionFeedback}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {cronTasks.map((t) => (
+              <div 
+                key={t.id} 
+                className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur-xl flex flex-col justify-between space-y-3 glass-shine hover:border-white/20 transition-all"
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/10 text-white/80 border border-white/15">
+                      {t.schedule}
+                    </span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400" />
+                  </div>
+                  <h3 className="text-sm font-bold text-white tracking-wide">{t.name}</h3>
+                  <p className="text-xs text-white/50 leading-relaxed">{t.description}</p>
+                </div>
+
+                <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-white/40">{t.last_run}</span>
+                  <button
+                    onClick={() => handleRunTask(t)}
+                    disabled={runningAction === t.id}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      runningAction === t.id
+                        ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                        : "bg-white/10 hover:bg-white/20 text-white border border-white/15 hover:border-cyan-400/50"
+                    }`}
+                  >
+                    <Play className={`w-3 h-3 ${runningAction === t.id ? "animate-spin text-cyan-400" : "text-cyan-400"}`} />
+                    <span>{runningAction === t.id ? "Ejecutando..." : "Ejecutar Ahora"}</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 7. SECCIÓN: ALERTAS PROACTIVAS DEL HOMELAB & WATCHDOG    */}
+      {/* ======================================================== */}
+      {(activeCategory === "all" || activeCategory === "security") && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between border-b border-white/10 pb-2">
+            <h2 className="text-xs uppercase tracking-wider text-rose-400 font-semibold flex items-center gap-2">
+              <Bell className="w-4 h-4" />
+              <span>7. Registro de Alertas Proactivas en Tiempo Real & Watchdog</span>
+            </h2>
+            <span className="text-[11px] font-mono text-white/40">Notificaciones automáticas a Home Assistant & iPhone</span>
+          </div>
+
+          <div className="p-4 sm:p-5 rounded-3xl bg-white/[0.04] border border-white/10 backdrop-blur-xl glass-shine space-y-3">
+            {alertsList.length === 0 ? (
+              <div className="py-6 text-center text-xs font-mono text-white/40 flex flex-col items-center gap-2">
+                <CheckCircle2 className="w-6 h-6 text-emerald-400/80" />
+                <span>Todos los parámetros del sistema se encuentran en rango nominal (0 alertas activas).</span>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {alertsList.map((a) => (
+                  <div 
+                    key={a.id} 
+                    className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${
+                        a.severity === "danger" ? "bg-rose-400 shadow-sm shadow-rose-400" : "bg-amber-400 shadow-sm shadow-amber-400"
+                      }`} />
+                      <div className="min-w-0">
+                        <div className="font-bold text-white truncate">{a.alert_type}</div>
+                        <div className="text-white/60 text-[11px] truncate">{a.message}</div>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 font-mono text-[10px] text-white/40">
+                      <div>{a.time_str}</div>
+                      {a.notified_ha && <span className="text-emerald-400">Push Enviado</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

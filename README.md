@@ -39,6 +39,7 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 
 ### 1. Centro de Control
 * **Dynamic Island Expandible**: Cabecera interactiva con efecto de morphing físico (altura dinámica según contenido), selector de estado y widgets rápidos.
+* **DropZone Privado & Portapapeles Universal**: Alternativa soberana a AirDrop en pestaña dedicada para transferir fotos, archivos y texto/links entre PC y iPhone a velocidad LAN sin nubes intermedias.
 * **Rack 3D Interactivo de Contenedores**: Modelo tridimensional de gabinete de rack 19" con rieles extensibles en perspectiva CSS 3D. Al hacer clic en cualquier unidad (Dashboard, HA, Vaultwarden, Kuma, NPM, Pi-hole, Portainer, Cloudflared):
   * **Inteligencia Cromática Semántica**: Analizador semántico de logs (`getLogLineClass`) que clasifica líneas por prioridad (verde esmeralda para estados nominales, arranque y códigos 200/OK; ámbar para advertencias; rojo rosa restringido a fallos críticos genuinos). Elimina falsos positivos causados por nombres de servicios (`fail2ban`) o estadísticas de ping ICMP (`0 errors`).
   * **Ergonomía Móvil Adaptativa**: En dispositivos móviles (<1024px), la tarjeta se expande verticalmente colocando el bastidor 3D interactivo arriba y la terminal de logs en flujo estándar abajo sin tapar el modelo tridimensional.
@@ -74,7 +75,8 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
   * **CV Formato Harvard FAS**: Estructura canónica ATS de 1 sola página, márgenes estándar de 0.65in, tipografía serif Georgia, encabezados con borde inferior y métricas reales de impacto técnico (cero experiencia ficticia).
   * **Cover Letter Personalizada**: Redacción persuasiva y formal orientada a la empresa y sus tecnologías, destacando autonomía y homelab.
   * **Renderizado Vectorial con Edge Headless**: Conversión limpia a PDF vectorial nativo (90-125 KB) sin dependencias externas pesadas.
-  * **Modal de Previsualización & Descarga**: Modal con vista previa en iframe aislado, selector de idioma (Español / Inglés), copiado de texto y descarga directa de PDF binario.
+  * **Editor de Texto In-Situ & Previsualización Dual**: Modal con selector de vista previa en iframe aislado o editor de texto monospaciado en tiempo real. Permite corregir palabras, párrafos o términos específicos antes de postular.
+  * **Guardado y Regeneración Automática**: Botón "Guardar & Regenerar PDF" que recompila el documento con Edge Headless, actualiza SQLite y sirve el nuevo PDF vectorial descargable en 1 clic.
 * **Búsqueda Profunda y Multi-Portal Expandido**:
   1. *CaféDev REST API Oficial* (`api.cafedev.co/v1/jobs`): Consultas concurrentes multi-query (`junior`, `trainee`, `pasantia`) sobre más de 1.700 vacantes tech abiertas en LATAM.
   2. *Work Search Argentina API* (`work-search-ten.vercel.app/api/jobs`): Pasantías y vacantes trainee de empresas líderes (Mercado Libre, Newsan, BBVA).
@@ -123,6 +125,9 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 * **Filtro de Secciones**: Vista consolidada o segmentada por *Hardware*, *Red & WiFi*, *Docker*, *Seguridad* y *SLA*.
 * **Comparativa Temporal ("Hoy vs Ayer / Período Anterior")**: Alterna una curva discontinua translúcida (`stroke-dasharray="4 4"`) superpuesta a la métrica actual para detectar anomalías de tráfico o picos térmicos al instante.
 * **Gráficas Vectoriales Suaves**: Renderizado SVG nativo con curvas Bézier cúbicas, gradientes de luz dinámicos y tooltips con coordenadas milimétricas.
+* **Gestor de Tareas Programadas & Cron UI**: Catálogo y panel interactivo para disparar y vigilar tareas de mantenimiento del host: `docker system prune`, compactación `sqlite-vacuum`, renovación de certificados SSL Let's Encrypt / MagicDNS, purga DNS y backups manuales.
+* **Rastreador Automatizado de Latencia & Speedtest Zero-Pip**: Registro periódico de pings ICMP (Gateway LAN, Cloudflare, Google), latencia DNS en milisegundos y throughput de descarga/subida.
+* **Alertas Proactivas en Tiempo Real & Watchdog**: Registro en vivo de eventos críticos (temperatura > 75°C, RAM > 90%, picos Fail2ban) y recuperaciones automáticas ejecutadas por el Docker Watchdog nativo.
 
 ---
 

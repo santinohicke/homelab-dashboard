@@ -7,7 +7,7 @@ import {
   Gauge, FileText, ArrowUpRight, Maximize2, Minimize2, Sparkles, Box, Disc,
   Power, Battery, Cable, Crosshair, Radar, Database, MessageSquare, Mail,
   Thermometer, ArrowDown, ArrowUp, Timer, CloudSun, Droplets,
-  Copy, X, Check, Archive, HeartPulse, Bell, Network, AlertTriangle
+  Copy, X, Check, Archive, HeartPulse, Bell, Network, AlertTriangle, Share2
 } from "lucide-react";
 import HomelabMetricsObservatory from "./MetricsObservatory.jsx";
 import SecurityVault from "./SecurityVault.jsx";
@@ -15,6 +15,7 @@ import NetworkTopology from "./NetworkTopology.jsx";
 import BackupsManager from "./BackupsManager.jsx";
 import AgentRadar from "./AgentRadar.jsx";
 import AIObservatory from "./AIObservatory.jsx";
+import DropZone from "./DropZone.jsx";
 
 // ============================================================================
 // REAL HOMELAB SHARED DATA
@@ -1146,31 +1147,33 @@ export function AppleIslandDesign() {
   const runSpeedtest = async () => {
     if (isSpeedtesting) return;
     setIsSpeedtesting(true);
-    setSpeedProgress(15);
-    setSpeedFeedback("Iniciando medición con Ookla...");
+    setSpeedProgress(20);
+    setSpeedFeedback("Midiendo latencia ICMP y DNS...");
 
     const progressInterval = setInterval(() => {
       setSpeedProgress(prev => {
-        if (prev < 40) return prev + 8;
-        if (prev < 80) return prev + 5;
+        if (prev < 50) return prev + 10;
+        if (prev < 85) return prev + 5;
         if (prev < 95) return prev + 2;
         return prev;
       });
-    }, 600);
+    }, 500);
 
     try {
-      await fetch('/api/ha/services/homeassistant/update_entity', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity_id: 'sensor.speedtest_descarga' })
-      });
-      setSpeedFeedback("Calculando tasas de subida y bajada...");
-      await new Promise(r => setTimeout(r, 2000));
-      await fetchHaStates();
-      setSpeedFeedback("Medición de red completada con éxito.");
+      const res = await fetch("/api/v1/actions/speedtest", { method: "POST" });
+      setSpeedProgress(90);
+      setSpeedFeedback("Midiendo velocidad de bajada y subida...");
+      if (res.ok) {
+        const d = await res.json();
+        const resSt = d.result;
+        setSpeedFeedback(`Completado: ↓ ${resSt.download_mbps} Mbps · Ping ${resSt.ping_cf_ms} ms`);
+      } else {
+        setSpeedFeedback("Prueba finalizada");
+      }
+      await fetchSystemStats();
     } catch (err) {
       console.error("Error al ejecutar speedtest:", err);
-      setSpeedFeedback("Error al contactar servidor de speedtest");
+      setSpeedFeedback("Error al contactar micro-backend");
     } finally {
       clearInterval(progressInterval);
       setSpeedProgress(100);
@@ -1496,6 +1499,7 @@ export function AppleIslandDesign() {
                 {dashboardSection === "ai" && "INTELIGENCIA ARTIFICIAL · OBSERVABILIDAD & CUOTA"}
                 {dashboardSection === "metrics" && "OBSERVABILIDAD · TELEMETRÍA HISTÓRICA"}
                 {dashboardSection === "security" && "CENTRO DE DEFENSA · CIFRADO & HARDENING"}
+                {dashboardSection === "dropzone" && "TRANSFERENCIA PRIVADA · AIRDROP & CLIPBOARD"}
                 {dashboardSection === "network" && "INFRAESTRUCTURA · MAPA LAN & TOPOLOGÍA"}
                 {dashboardSection === "backups" && "PROTECCIÓN DE DATOS · SNAPSHOTS & DISASTER RECOVERY"}
               </div>
@@ -1505,6 +1509,7 @@ export function AppleIslandDesign() {
                 {dashboardSection === "ai" && "Telemetría & Consumo de IA"}
                 {dashboardSection === "metrics" && "Métricas & Analíticas"}
                 {dashboardSection === "security" && "Bóveda de Seguridad & Auditoría"}
+                {dashboardSection === "dropzone" && "DropZone & Portapapeles Universal"}
                 {dashboardSection === "network" && "Topología de Red & Dispositivos"}
                 {dashboardSection === "backups" && "Gestor de Backups & Recuperación"}
               </h1>
@@ -1542,6 +1547,7 @@ export function AppleIslandDesign() {
             {[
               { id: "control", label: "Centro de Control", icon: Sliders, color: "text-cyan-400" },
               { id: "radar", label: "Radar IT & Pasantías", icon: Radar, color: "text-cyan-400" },
+              { id: "dropzone", label: "DropZone & Clipboard", icon: Share2, color: "text-emerald-400" },
               { id: "ai", label: "Telemetría IA", icon: Sparkles, color: "text-purple-400" },
               { id: "metrics", label: "Métricas & Gráficos", icon: BarChart3, color: "text-purple-400" },
               { id: "security", label: "Seguridad & Auditoría", icon: ShieldCheck, color: "text-rose-400" },
@@ -2568,6 +2574,10 @@ export function AppleIslandDesign() {
 
           {dashboardSection === "security" && (
             <SecurityVault />
+          )}
+
+          {dashboardSection === "dropzone" && (
+            <DropZone />
           )}
 
           {dashboardSection === "network" && (

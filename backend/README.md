@@ -31,10 +31,22 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 | Método | Endpoint | Acción Ejecutada en el Servidor |
 | :--- | :--- | :--- |
 | `POST` | `/api/v1/actions/docker-prune` | Ejecuta `docker system prune -f` para liberar espacio de imágenes huerfanas. |
+| `POST` | `/api/v1/actions/sqlite-vacuum` | Ejecuta `VACUUM` en SQLite para compactar y defragmentar metrics.db. |
+| `POST` | `/api/v1/actions/renew-ssl` | Valida y renueva certificados SSL / Tailscale MagicDNS. |
+| `POST` | `/api/v1/actions/speedtest` | Dispara medición manual inmediata de latencia ICMP/DNS y throughput. |
+| `POST` | `/api/v1/actions/gfs-purge` | Aplica la política de retención GFS (7 diarios, 4 semanales, 1 mensual). |
+| `POST` | `/api/v1/actions/morning-briefing` | Genera y despacha el resumen matutino ejecutivo de 3 líneas vía Push. |
 | `POST` | `/api/v1/actions/flush-dns` | Purga la caché DNS de Pi-hole (`pihole restartdns`). |
 | `POST` | `/api/v1/actions/backup` | Dispara el snapshot manual atómico de Vaultwarden y Home Assistant. |
 | `POST` | `/api/v1/actions/reload-nginx` | Recarga configuraciones del proxy inverso sin reiniciar conexiones. |
 | `GET/POST`| `/api/v1/maintenance` | Consulta o activa/desactiva la bandera de modo mantenimiento (`maintenance.flag`). |
+| `GET` | `/api/v1/cron/tasks` | Lista las 8 tareas programadas del host con estado y periodicidad. |
+| `GET` | `/api/v1/alerts` | Historial de alertas proactivas emitidas a Home Assistant y registradas en SQLite. |
+| `GET` | `/api/v1/network/speedtest` | Historial de pruebas de velocidad y latencias de enlace WAN/DNS. |
+| `GET` | `/api/v1/dropzone/items` | Lista elementos compartidos en el DropZone y portapapeles compartido. |
+| `POST` | `/api/v1/dropzone/text` | Envía un texto o URL al portapapeles compartido del Homelab. |
+| `POST` | `/api/v1/dropzone/upload` | Recibe archivos y fotos en el SSD del servidor para transferencias PC ↔ iPhone. |
+| `GET` | `/api/v1/dropzone/download?id=...` | Descarga directa de archivos alojados en DropZone. |
 
 ### Backups & Auditoría de Seguridad
 | Método | Endpoint | Descripción |
@@ -66,6 +78,7 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 | `POST` | `/api/v1/agent/targets` | Agrega un nuevo portal o URL con criterios personalizados de búsqueda. |
 | `POST` | `/api/v1/agent/targets/toggle` | Pausa o activa el monitoreo periódico de un portal existente (`{"id": N}`). |
 | `POST` | `/api/v1/agent/generate-doc` | Genera CV en Formato Harvard ATS o Cover Letter personalizada (HTML y PDF vectorial embebido). |
+| `POST` | `/api/v1/agent/save-doc` | Guarda modificaciones de texto/HTML en CV o Cover Letter y regenera el PDF vectorial vía Edge Headless. |
 | `GET` | `/api/v1/agent/doc?id=...&type=cv\|cover_letter` | Consulta el HTML generado y representación binaria en Base64. |
 | `GET` | `/api/v1/agent/download-doc?id=...&type=cv\|cover_letter` | Descarga directa del archivo PDF vectorial nativo (`application/pdf`). |
 | `POST` | `/api/v1/agent/evaluate-match` | Calcula Match Score (0-100%), justificación y missing_skills para una vacante específica. |

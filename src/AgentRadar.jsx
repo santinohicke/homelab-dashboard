@@ -4,7 +4,7 @@ import {
   Filter, Search, Plus, Check, Archive, Clock,
   ShieldCheck, MapPin, Tag, ChevronRight, AlertCircle, X, Sliders,
   CheckCircle, Globe, Terminal, ArrowUpRight, Send, Trash2, Undo2, XCircle,
-  FileText, Download, Copy, FileCheck, ExternalLink, Printer
+  FileText, Download, Copy, FileCheck, ExternalLink, Printer, Edit3, Eye, Save
 } from "lucide-react";
 
 // Sanitizer to repair broken accents and encodings (e.g. Pasant?as -> Pasantías)
@@ -53,6 +53,10 @@ export default function AgentRadar() {
     error: null,
     docData: null
   });
+  const [isEditingDoc, setIsEditingDoc] = useState(false);
+  const [editableHtml, setEditableHtml] = useState("");
+  const [savingDoc, setSavingDoc] = useState(false);
+  const [docFeedback, setDocFeedback] = useState(null);
   const [copiedText, setCopiedText] = useState(false);
   const [evaluatingMatchId, setEvaluatingMatchId] = useState(null);
   const iframeRef = useRef(null);
@@ -365,6 +369,54 @@ export default function AgentRadar() {
       await triggerDocGeneration(finding.id, docType, lang);
     } catch (err) {
       setDocModal(prev => ({ ...prev, loading: false, error: err.message }));
+    }
+  };
+
+  const handleToggleEdit = () => {
+    if (!isEditingDoc) {
+      setEditableHtml(docModal.docData?.html || "");
+      setIsEditingDoc(true);
+    } else {
+      setIsEditingDoc(false);
+    }
+  };
+
+  const handleSaveEditedDoc = async () => {
+    if (!docModal.finding?.id || !editableHtml) return;
+    setSavingDoc(true);
+    setDocFeedback("Guardando y actualizando PDF...");
+    try {
+      const res = await fetch("/api/v1/agent/save-doc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          finding_id: docModal.finding.id,
+          doc_type: docModal.docType,
+          html: editableHtml
+        })
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setDocModal(prev => ({
+          ...prev,
+          docData: {
+            ...prev.docData,
+            html: editableHtml,
+            has_pdf: d.has_pdf,
+            pdf_base64: d.pdf_base64
+          }
+        }));
+        setIsEditingDoc(false);
+        setDocFeedback("Documento y PDF guardados con éxito");
+        fetchData();
+      } else {
+        setDocFeedback("Error al guardar cambios");
+      }
+    } catch (err) {
+      setDocFeedback("Error de comunicación");
+    } finally {
+      setSavingDoc(false);
+      setTimeout(() => setDocFeedback(null), 3000);
     }
   };
 
@@ -969,7 +1021,33 @@ export default function AgentRadar() {
 
               {/* Action Buttons */}
               <div className="flex items-center gap-1.5">
-                {docModal.docData?.has_pdf && (
+                {/* Botón Editar / Previsualizar */}
+                <button
+                  onClick={handleToggleEdit}
+                  disabled={!docModal.docData?.html}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-mono font-medium transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 border ${
+                    isEditingDoc
+                      ? "bg-amber-500/20 text-amber-300 border-amber-400/40 font-bold"
+                      : "bg-white/10 hover:bg-white/20 text-white border-white/15"
+                  }`}
+                  title={isEditingDoc ? "Volver a vista previa interactiva" : "Editar texto del documento"}
+                >
+                  {isEditingDoc ? <Eye className="w-3.5 h-3.5" /> : <Edit3 className="w-3.5 h-3.5 text-amber-400" />}
+                  <span>{isEditingDoc ? "Vista Previa" : "Editar Texto"}</span>
+                </button>
+
+                {isEditingDoc && (
+                  <button
+                    onClick={handleSaveEditedDoc}
+                    disabled={savingDoc}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{savingDoc ? "Guardando..." : "Guardar & Regenerar PDF"}</span>
+                  </button>
+                )}
+
+                {docModal.docData?.has_pdf && !isEditingDoc && (
                   <button
                     onClick={() => handleDownloadPdf(docModal.finding.id, docModal.docType)}
                     className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20"
@@ -1009,7 +1087,7 @@ export default function AgentRadar() {
               </div>
             </div>
 
-            {/* Document Preview Area */}
+            {/* Document Preview & Edit Area */}
             <div className="flex-1 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/50 flex flex-col items-center justify-center min-h-[460px]">
               {docModal.loading ? (
                 <div className="text-center space-y-3 p-8">
@@ -1032,6 +1110,19 @@ export default function AgentRadar() {
                   >
                     Reintentar
                   </button>
+                </div>
+              ) : isEditingDoc ? (
+                <div className="w-full h-full p-4 flex flex-col space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-mono text-amber-300/90 pb-1">
+                    <span>Modo Edición: Modificá palabras, fechas o datos directamente. Guardar regenerará el PDF vectorial.</span>
+                    {docFeedback && <span className="text-cyan-300 font-bold animate-pulse">{docFeedback}</span>}
+                  </div>
+                  <textarea
+                    value={editableHtml}
+                    onChange={(e) => setEditableHtml(e.target.value)}
+                    rows={18}
+                    className="w-full flex-1 p-4 rounded-xl bg-black/60 border border-white/15 text-xs text-white/90 font-mono focus:outline-none focus:border-amber-400/60 resize-none selection:bg-amber-500/30"
+                  />
                 </div>
               ) : docModal.docData?.html ? (
                 <iframe

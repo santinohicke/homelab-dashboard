@@ -128,3 +128,10 @@ Verificar estado:
 sudo systemctl status homelab-api
 curl http://localhost:8088/api/v1/system
 ```
+
+---
+
+## Seguridad & Resiliencia (Auditoría Octubre 2026)
+* **Zero-PHP**: Inmune a vulnerabilidades críticas de PHP/FastCGI (CVE-2026-109618 y CVE-2026-109619 / PHP2Shell) al estar implementado puramente en Python estándar sin módulos PHP.
+* **Integridad TLS**: Validación estricta con almacén de certificados del sistema actualizado (`ca-certificates`) sin dependencia de CAs intermedias desconfiadas (incidente eMudhra).
+

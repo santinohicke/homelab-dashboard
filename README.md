@@ -240,6 +240,12 @@ En cumplimiento estricto con las especificaciones de seguridad de Apple WebKit:
 
 ---
 
+## Auditoría y Mitigaciones de Seguridad (Octubre 2026)
+* **Inmunidad a PHP2Shell (CVE-2026-109618 / CVE-2026-109619)**: El ecosistema opera sin PHP, PHP-FPM ni módulos FastCGI. La totalidad de servicios son SPA React servidos por Nginx Alpine estático y microservicios nativos en Python, Go, Rust y Node.js.
+* **Blindaje TLS / CAs Intermedias eMudhra**: Certificados públicos emitidos exclusivamente por Let's Encrypt (CN = YE1) en Tailscale Ingress y CA privada local para la LAN. Almacenes `ca-certificates` del host y `certifi` actualizados con listas de revocación activas.
+
+---
+
 ## Licencia
 
 Este proyecto está bajo la Licencia **MIT**. Consulta el archivo [LICENSE](LICENSE) para más detalles.

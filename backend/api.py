@@ -1327,8 +1327,16 @@ DIRECTIVAS ESTRICTAS DE FORMATO HARVARD (ATS-FRIENDLY):
 3. Encabezado centrado:
    - Nombre: {profile.get('name', 'SANTINO HICKETHIER').upper()} (18pt, bold, mayusculas).
    - Datos de contacto: {profile.get('contact', {}).get('location', 'Buenos Aires, Argentina')} | {profile.get('contact', {}).get('phone', '')} | {profile.get('contact', {}).get('email', '')} | {profile.get('contact', {}).get('linkedin', '')} | {profile.get('contact', {}).get('github', '')}.
-4. Secciones: EDUCATION (UCA 40% aprobado), TECHNICAL SKILLS, PROJECTS & INFRASTRUCTURE EXPERIENCE (Homelab Linux/Docker/Python), LANGUAGES & CERTIFICATIONS (Cambridge C1 Advanced).
-5. Devuelve un documento HTML5 completo y autocontenido en un bloque ```html ... ```."""
+4. Secciones con formato Harvard estricto:
+   - EDUCATION: Pontificia Universidad Cat?lica Argentina (UCA) ? Ingenier?a en Inform?tica (Bachelor of Science in Informatics Engineering). Graduaci?n Estimada: Dic 2028 (Expected Graduation: Dec 2028). IMPORTANTE: NUNCA menciones porcentaje de materias aprobadas ni plan completado.
+   - TECHNICAL SKILLS: Agrupadas por categor?a, priorizando tecnolog?as est?ndar y requeridas por el puesto (Python, Node.js, TypeScript, React, Docker, Git, CI/CD, Scrum, REST APIs, Linux, SQL).
+   - PROJECTS & INFRASTRUCTURE EXPERIENCE:
+     * Destaca proyectos pertinentes (Tex AI RAG, AlertAR, UCA MCP, Homelab & Dashboard, Voronoi).
+     * FECHAS OBLIGATORIAS: Tex AI (2026), AlertAR (2026), UCA MCP (2026), Homelab & Dashboard (2026); Voronoi y los dem?s (2025).
+     * DIRECTIVAS DE REDACCI?N PARA RECURSOS HUMANOS (HR-FRIENDLY): Explica con claridad: (1) qu? problema soluciona, (2) qu? funcionalidades principales tiene, (3) qu? tecnolog?as conocidas utiliza. NUNCA uses nombres de herramientas oscuras como Uptime Kuma, Vaultwarden o LittleFS dentro de las descripciones de proyectos (d?jalas en habilidades t?cnicas).
+   - LANGUAGES & CERTIFICATIONS: Ingl?s C1 Advanced (Cambridge CAE biling?e profesional), Espa?ol nativo.
+5. Tipograf?a y estilo visual: Tipograf?a serif cl?sica ("Times New Roman", Times, Georgia, serif), m?rgenes 0.45in a 0.50in, INTERLINEADO C?MODO Y AIREADO (line-height: 1.34 a 1.36; espaciado entre vi?etas 3px a 4px). Asegurar estrictamente que el CV quepa en EXACTAMENTE UNA SOLA HOJA (single page letter portrait).
+6. Devuelve un documento HTML5 completo y autocontenido en un bloque ```html ... ```."""
     else:
         prompt = f"""Actua como un experto en redaccion ejecutiva de cartas de presentacion segun el estandar de Harvard Career Services.
 Redacta una COVER LETTER profesional, convincente y personalizada para la siguiente oferta laboral.
@@ -1480,9 +1488,49 @@ NON_TECH_BLACKLIST = [
     'administracion', 'administración', 'asistente administrativo'
 ]
 
+def canonicalize_job_url(url):
+    if not url:
+        return ""
+    m = re.search(r'linkedin\.com/jobs/view/(?:[^/?#]*-)?(\d+)', url)
+    if m:
+        return f"https://www.linkedin.com/jobs/view/{m.group(1)}"
+    p = urllib.parse.urlparse(url)
+    clean_params = []
+    if p.query:
+        for q in p.query.split("&"):
+            k = q.split("=")[0].lower()
+            if k not in ['ref', 'refid', 'trackingid', 'position', 'pagenum', 'utmsource', 'utm_source', 'utm_medium', 'utm_campaign']:
+                clean_params.append(q)
+    new_query = "&".join(clean_params)
+    return urllib.parse.urlunparse((p.scheme, p.netloc, p.path.rstrip('/'), p.params, new_query, ""))
+
+def normalize_job_key(title, company):
+    t = re.sub(r'\(.*?\)|\[.*?\]', '', (title or "").lower()).strip()
+    t = re.sub(r'[^a-z0-9\s]', ' ', t)
+    t = re.sub(r'\s+', ' ', t).strip()
+    c = (company or "").lower().replace("argentina", "").replace("sa", "").replace("s.a.", "").strip()
+    c = re.sub(r'[^a-z0-9\s]', ' ', c)
+    c = re.sub(r'\s+', ' ', c).strip()
+    return (t, c)
+
+EXPERIENCE_BLACKLIST = [
+    '2+ a?os', '3+ a?os', '4+ a?os', '5+ a?os', '2 a?os de experiencia', '3 a?os de experiencia',
+    '4 a?os de experiencia', '5 a?os de experiencia', '2+ years', '3+ years', '4+ years', '5+ years',
+    'experiencia m?nima de 2', 'experiencia m?nima de 3', 'experiencia m?nima 2', 'experiencia m?nima 3',
+    'al menos 2 a?os', 'al menos 3 a?os', 'minimum 2 years', 'minimum 3 years', '2 a?os m?nimo', '3 a?os m?nimo'
+]
+
+ENTRY_LEVEL_KEYWORDS = [
+    'junior', 'jr', 'trainee', 'pasantia', 'pasant?a', 'intern', 'internship', 'practicante',
+    'pasante', 'estudiante', 'part-time', 'part time', 'media jornada', 'entry-level', 'entry level',
+    'sin experiencia', 'primer empleo'
+]
+
 SEMI_SENIOR_BLACKLIST = [
     'semi-senior', 'semisenior', ' ssr', 'mid-senior', 'semi senior', 'ssr ', '(ssr)', '[ssr]',
-    'ssr.', 'semi-sr', 'semisr'
+    'ssr.', 'semi-sr', 'semisr', 'senior', ' sr.', ' sr ', 'lead', 'staff', 'principal',
+    'architect', 'arquitecto', 'gerente', 'head of', 'jefe ', 'director', 'consultant', 'consultor',
+    'founding', 'manager'
 ]
 
 FULL_TIME_BLACKLIST = [
@@ -1519,7 +1567,7 @@ def extract_raw_jobs_from_target(t):
         # 1. CAFÉDEV (Official REST API with tech queries)
         if "cafedev.co" in t_url:
             seen_cafe = set()
-            for q_term in ["junior", "trainee", "pasantia", "desarrollo", "devops"]:
+            for q_term in ["junior", "trainee", "pasantia"]:
                 api_url = f"https://api.cafedev.co/v1/jobs?limit=50&q={urllib.parse.quote(q_term)}"
                 try:
                     req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
@@ -1534,26 +1582,29 @@ def extract_raw_jobs_from_target(t):
                             country = (it.get("country") or "").lower()
                             wp = (it.get("workplace_type") or "").lower()
                             countries = [c.lower() for c in it.get("countries", [])]
-                            # Must be Argentina or Remote
                             if country != "ar" and wp != "remote" and "ar" not in countries:
                                 continue
                                 
                             sen = (it.get("seniority") or "").lower()
-                            if any(s in sen for s in ['senior', 'lead', 'manager', 'semi', 'ssr']):
-                                continue
-                                
                             t_title = it.get("title", "")
                             tl = t_title.lower()
-                            if any(b in tl for b in NON_TECH_BLACKLIST) or any(s in tl for s in SEMI_SENIOR_BLACKLIST):
+                            jtl = f"{tl} {sen}"
+                            
+                            if any(b in tl for b in NON_TECH_BLACKLIST) or any(s in jtl for s in SEMI_SENIOR_BLACKLIST):
                                 continue
-                            if any(s in tl for s in ['senior', 'lead', 'principal', 'gerente']):
+                            if any(exp in jtl for exp in EXPERIENCE_BLACKLIST):
+                                continue
+                            if not any(k in jtl for k in ENTRY_LEVEL_KEYWORDS):
+                                continue
+                            if any(ft in jtl for ft in FULL_TIME_BLACKLIST) and not any(al in jtl for al in ['pasantia', 'pasantía', 'trainee', 'intern', 'part-time', 'part time']):
                                 continue
                                 
                             skills_list = it.get("skills", [])
                             skills_str = ", ".join(skills_list[:5]) if isinstance(skills_list, list) else ""
                             city = it.get("city") or ""
                             loc_str = f"{city}, {country}".strip(', ') or ("Remoto (LATAM)" if wp == "remote" else "Buenos Aires, Argentina")
-                            link = it.get("url") or it.get("apply_url") or f"https://cafedev.co/empleos/{i_id}"
+                            raw_link = it.get("url") or it.get("apply_url") or f"https://cafedev.co/empleos/{i_id}"
+                            link = canonicalize_job_url(raw_link)
                             
                             jobs.append({
                                 "target_id": t_id,
@@ -1575,9 +1626,7 @@ def extract_raw_jobs_from_target(t):
                 "https://work-search-ten.vercel.app/api/jobs?country=AR&q=pasantia",
                 "https://work-search-ten.vercel.app/api/jobs?country=AR&q=trainee",
                 "https://work-search-ten.vercel.app/api/jobs?country=AR&q=junior",
-                "https://work-search-ten.vercel.app/api/jobs?country=AR&q=part-time",
-                "https://work-search-ten.vercel.app/api/jobs?country=AR&q=sistemas",
-                "https://work-search-ten.vercel.app/api/jobs?country=AR&area=tecnologia&limit=50"
+                "https://work-search-ten.vercel.app/api/jobs?country=AR&q=part-time"
             ]
             for ws_url in ws_urls:
                 try:
@@ -1596,17 +1645,16 @@ def extract_raw_jobs_from_target(t):
                         tl = j_title.lower()
                         jtl = (j_title + " " + j_type).lower()
                         
-                        # Discard non tech, senior, semi senior
-                        if any(b in tl for b in NON_TECH_BLACKLIST) or any(s in tl for s in SEMI_SENIOR_BLACKLIST):
+                        if any(b in tl for b in NON_TECH_BLACKLIST) or any(s in jtl for s in SEMI_SENIOR_BLACKLIST):
                             continue
-                        if any(s in tl for s in ['senior', 'lead', 'principal', 'gerente']):
+                        if any(exp in jtl for exp in EXPERIENCE_BLACKLIST):
+                            continue
+                        if not any(k in jtl for k in ENTRY_LEVEL_KEYWORDS):
+                            continue
+                        if any(ft in jtl for ft in FULL_TIME_BLACKLIST) and not any(al in jtl for al in ['pasantia', 'pasantía', 'trainee', 'intern', 'part-time', 'part time']):
                             continue
                             
-                        # Discard full-time unless pasantia/trainee/part-time
-                        if any(ft in jtl for ft in FULL_TIME_BLACKLIST):
-                            if not any(al in jtl for al in ['pasantia', 'pasantía', 'trainee', 'intern', 'part-time', 'part time']):
-                                continue
-                                
+                        link = canonicalize_job_url(j.get("url", ""))
                         jobs.append({
                             "target_id": t_id,
                             "target_name": t_name,
@@ -1615,20 +1663,20 @@ def extract_raw_jobs_from_target(t):
                             "modality": f"{j_type or 'Part-Time'} / {j.get('remote', 'Remoto/Híbrido')}",
                             "location": j.get("location", "Buenos Aires, Argentina"),
                             "skills": "",
-                            "link": j.get("url", "")
+                            "link": link
                         })
                 except Exception:
                     pass
 
-        # 3. GET ON BOARD (Official REST API with zero-tolerance for foreign onsite & SSR)
+        # 3. GET ON BOARD (Official REST API)
         elif "getonbrd.com" in t_url:
             seen_gob = set()
             gob_urls = [
-                "https://www.getonbrd.com/api/v0/categories/programming/jobs?per_page=50",
-                "https://www.getonbrd.com/api/v0/categories/sysadmin-devops-qa/jobs?per_page=50",
-                "https://www.getonbrd.com/api/v0/search/jobs?query=argentina",
                 "https://www.getonbrd.com/api/v0/search/jobs?query=trainee",
-                "https://www.getonbrd.com/api/v0/search/jobs?query=part-time"
+                "https://www.getonbrd.com/api/v0/search/jobs?query=pasantia",
+                "https://www.getonbrd.com/api/v0/search/jobs?query=part-time",
+                "https://www.getonbrd.com/api/v0/categories/programming/jobs?per_page=50",
+                "https://www.getonbrd.com/api/v0/categories/sysadmin-devops-qa/jobs?per_page=50"
             ]
             for gob_url in gob_urls:
                 try:
@@ -1643,13 +1691,11 @@ def extract_raw_jobs_from_target(t):
                             
                             attr = item.get("attributes", {})
                             sen_id = attr.get("seniority", {}).get("data", {}).get("id", 0)
-                            # Strictly discard Semi-Senior (3), Senior (4), Lead (5)
-                            if sen_id >= 3:
+                            if sen_id > 2:
                                 continue
                                 
                             is_rem = attr.get("remote", False)
                             countries = [c.lower() for c in attr.get("countries", [])]
-                            # Strictly discard onsite jobs in Chile, Mexico, Colombia etc.
                             if not is_rem and "argentina" not in countries:
                                 continue
                                 
@@ -1657,14 +1703,19 @@ def extract_raw_jobs_from_target(t):
                             gtl = g_title.lower()
                             if any(b in gtl for b in NON_TECH_BLACKLIST) or any(s in gtl for s in SEMI_SENIOR_BLACKLIST):
                                 continue
-                            if any(s in gtl for s in ['senior', 'lead', 'principal', 'gerente']):
+                            if any(exp in gtl for exp in EXPERIENCE_BLACKLIST):
+                                continue
+                            if sen_id == 0 and not any(k in gtl for k in ENTRY_LEVEL_KEYWORDS):
+                                continue
+                            if any(ft in gtl for ft in FULL_TIME_BLACKLIST) and not any(al in gtl for al in ['pasantia', 'pasantía', 'trainee', 'intern', 'part-time', 'part time']):
                                 continue
                                 
                             comp_name = attr.get("company", {}).get("data", {}).get("attributes", {}).get("name", "Get on Board Partner")
-                            g_link = item.get("links", {}).get("public_url") or attr.get("links", {}).get("public_url", "")
-                            if not g_link:
+                            raw_link = item.get("links", {}).get("public_url") or attr.get("links", {}).get("public_url", "")
+                            if not raw_link:
                                 continue
-                                
+                            link = canonicalize_job_url(raw_link)
+                            
                             modality = attr.get("remote_modality", "Remoto" if is_rem else "Híbrido")
                             loc = "Argentina / Remoto" if is_rem else "Buenos Aires, Argentina"
                             
@@ -1676,7 +1727,7 @@ def extract_raw_jobs_from_target(t):
                                 "modality": modality,
                                 "location": loc,
                                 "skills": "",
-                                "link": g_link
+                                "link": link
                             })
                 except Exception:
                     pass
@@ -1710,6 +1761,8 @@ def extract_raw_jobs_from_target(t):
                                     jl = (j_name + " " + j_area).lower()
                                     if any(b in jl for b in NON_TECH_BLACKLIST) or any(s in jl for s in SEMI_SENIOR_BLACKLIST):
                                         continue
+                                    if any(exp in jl for exp in EXPERIENCE_BLACKLIST):
+                                        continue
                                     if any(s in jl for s in ['senior', 'lead', 'principal', 'gerente']):
                                         continue
                                     seen_hr.add(slug)
@@ -1721,12 +1774,12 @@ def extract_raw_jobs_from_target(t):
                                         "modality": j.get("job_type", "Pasantia"),
                                         "location": f"{j.get('city', '')}, Argentina",
                                         "skills": j_area,
-                                        "link": f"{base_jobs_url}/{slug}"
+                                        "link": canonicalize_job_url(f"{base_jobs_url}/{slug}")
                                     })
                 except Exception:
                     pass
 
-        # 5. LINKEDIN JOBS (Filtered for past 7 days & active postings, up to page 3)
+        # 5. LINKEDIN JOBS (Filtered for past 7 days & active postings)
         elif "linkedin.com" in t_url:
             raw_lines = []
             for start_idx in [0, 25, 50]:
@@ -1753,13 +1806,19 @@ def extract_raw_jobs_from_target(t):
                 link = link_m.group(1) if link_m else ""
                 if not link or "/jobs/view/" not in link:
                     continue
+                link = canonicalize_job_url(link)
                 title_company = l.split('[LINK:')[0].strip()
                 tl = title_company.lower()
                 if len(title_company) < 5 or any(p in tl for p in JUNK_TITLE_PATTERNS) or any(b in tl for b in NON_TECH_BLACKLIST):
                     continue
-                if any(s in tl for s in SEMI_SENIOR_BLACKLIST) or any(s in tl for s in ['senior', 'lead', 'gerente', 'head of', 'principal']):
+                if any(s in tl for s in SEMI_SENIOR_BLACKLIST):
+                    continue
+                if any(exp in tl for exp in EXPERIENCE_BLACKLIST):
                     continue
                 if any(c in tl for c in CLOSED_JOB_INDICATORS):
+                    continue
+                # Strictly require entry-level keyword in title
+                if not any(k in tl for k in ENTRY_LEVEL_KEYWORDS):
                     continue
                 if any(ft in tl for ft in FULL_TIME_BLACKLIST) and not any(al in tl for al in ['pasantia', 'pasantía', 'trainee', 'intern', 'part-time', 'part time']):
                     continue
@@ -1768,7 +1827,7 @@ def extract_raw_jobs_from_target(t):
                     "target_name": t_name,
                     "title": title_company[:70],
                     "company": "LinkedIn Job",
-                    "modality": "Part-Time / Pasantía",
+                    "modality": "Part-Time / Pasantía" if any(k in tl for k in ['pasantia', 'pasantía', 'part-time', 'part time', 'intern']) else "Junior / Trainee",
                     "location": "Buenos Aires, Argentina",
                     "skills": "",
                     "link": link
@@ -1789,12 +1848,17 @@ def extract_raw_jobs_from_target(t):
             raw_lines = [l for l in parser.get_content().split('\n') if len(l) > 4]
             for l in raw_lines:
                 link_m = re.search(r'\[LINK:\s*(https?://[^\]]+)\]', l)
-                link = link_m.group(1) if link_m else t_url
+                raw_l = link_m.group(1) if link_m else t_url
+                link = canonicalize_job_url(raw_l)
                 title_c = l.split('[LINK:')[0].strip()
                 tl = title_c.lower()
                 if len(title_c) < 5 or any(p in tl for p in JUNK_TITLE_PATTERNS) or any(b in tl for b in NON_TECH_BLACKLIST):
                     continue
-                if any(s in tl for s in SEMI_SENIOR_BLACKLIST) or any(s in tl for s in ['senior', 'lead', 'principal']):
+                if any(s in tl for s in SEMI_SENIOR_BLACKLIST):
+                    continue
+                if any(exp in tl for exp in EXPERIENCE_BLACKLIST):
+                    continue
+                if not any(k in tl for k in ENTRY_LEVEL_KEYWORDS):
                     continue
                 if any(c in tl for c in CLOSED_JOB_INDICATORS):
                     continue
@@ -1803,7 +1867,7 @@ def extract_raw_jobs_from_target(t):
                     "target_name": t_name,
                     "title": title_c[:70],
                     "company": t_name,
-                    "modality": "Part-Time / Remoto",
+                    "modality": "Part-Time / Pasantía" if any(k in tl for k in ['pasantia', 'pasantía', 'part-time', 'part time', 'intern']) else "Junior / Trainee",
                     "location": "Buenos Aires, Argentina",
                     "skills": "",
                     "link": link
@@ -1846,16 +1910,17 @@ def run_agent_job_scraper(target_id=None, force=True):
     # 2. Check existing findings to avoid duplicate evaluations
     cur.execute("SELECT link, title, company FROM agent_findings")
     existing_rows = cur.fetchall()
-    existing_links = {r[0] for r in existing_rows if r[0]}
-    existing_titles = {(r[1].lower().strip(), r[2].lower().strip()) for r in existing_rows if r[1] and r[2]}
+    existing_links = {canonicalize_job_url(r[0]) for r in existing_rows if r[0]}
+    existing_keys = {normalize_job_key(r[1], r[2]) for r in existing_rows if r[1]}
 
     # 3. Fast pre-filter and intelligent prioritization for Santino's genuine profile
     candidates = []
-    seen_in_batch = set()
+    seen_in_batch_links = set()
+    seen_in_batch_keys = set()
     for j in all_raw_jobs:
         t_title = j.get("title", "").strip()
         t_comp = j.get("company", "").strip()
-        t_link = j.get("link", "").strip()
+        t_link = canonicalize_job_url(j.get("link", "").strip())
         t_skills = j.get("skills", "").strip()
         t_mod = j.get("modality", "").strip()
         t_loc = j.get("location", "").strip()
@@ -1865,28 +1930,31 @@ def run_agent_job_scraper(target_id=None, force=True):
         # Discard duplicates in DB
         if t_link in existing_links:
             continue
-        if (t_title.lower(), t_comp.lower()) in existing_titles:
+        norm_key = normalize_job_key(t_title, t_comp)
+        if norm_key in existing_keys:
             continue
         
         # Discard duplicates in current batch
-        batch_key = (t_title.lower(), t_comp.lower())
-        if batch_key in seen_in_batch:
+        if t_link in seen_in_batch_links or norm_key in seen_in_batch_keys:
             continue
-        seen_in_batch.add(batch_key)
+        seen_in_batch_links.add(t_link)
+        seen_in_batch_keys.add(norm_key)
 
         tl = (t_title + " " + t_skills + " " + t_mod + " " + t_loc).lower()
         
-        # Strictly discard senior or lead
-        if any(s in tl for s in ['senior', ' sr.', ' sr ', 'lead', 'principal', 'staff', 'gerente', 'head of', 'jefe ']):
-            continue
-        # Strictly discard semi-senior
+        # Strictly discard senior, lead, semi-senior, experience required
         if any(s in tl for s in SEMI_SENIOR_BLACKLIST):
             continue
-        # Strictly discard full-time unless pasantia/trainee/part-time allowed
+        if any(exp in tl for exp in EXPERIENCE_BLACKLIST):
+            continue
+        # Strictly require entry-level keyword
+        if not any(k in tl for k in ENTRY_LEVEL_KEYWORDS):
+            continue
+        # Strictly discard full-time
         if any(ft in tl for ft in FULL_TIME_BLACKLIST):
             if not any(al in tl for al in ['pasantia', 'pasantía', 'part-time', 'part time', 'media jornada', 'intern', 'trainee']):
                 continue
-        # Strictly discard out-of-country onsite (e.g. Santiago de Chile, Lima, etc.)
+        # Strictly discard out-of-country onsite
         is_rem = any(r in tl for r in ['remoto', 'remote'])
         if not is_rem and any(c in tl for c in OUT_OF_COUNTRY_BLACKLIST):
             continue
@@ -1902,23 +1970,23 @@ def run_agent_job_scraper(target_id=None, force=True):
         p_score = 0
         if any(tk in tl for tk in TECH_KEYWORDS):
             p_score += 40
-        if any(term in tl for term in ['pasantia', 'pasantía', 'intern', 'trainee', 'junior', 'jr', 'part-time', 'part time', 'asistente it', 'asistente', 'soporte']):
-            p_score += 25
-        if any(role in tl for role in ['networking', 'redes', 'cloud', 'devops', 'linux', 'c++', 'python', 'sistemas', 'infraestructura']):
+        if any(term in tl for term in ['pasantia', 'pasantía', 'intern', 'trainee', 'junior', 'jr', 'part-time', 'part time']):
+            p_score += 30
+        if any(role in tl for role in ['networking', 'redes', 'cloud', 'devops', 'linux', 'c++', 'python', 'sistemas', 'infraestructura', 'fullstack', 'backend']):
             p_score += 20
         if any(src in j.get("target_name", "").lower() for src in ['cafedev', 'work search', 'uca', 'belgrano', 'get on board']):
             p_score += 15
 
-        # Puntuación mínima tolerante para no descartar antes de que la IA evalúe
-        if p_score < 20:
+        if p_score < 30:
             continue
 
         j["priority_score"] = p_score
+        j["link"] = t_link
         candidates.append(j)
 
-    # Sort descending by priority_score y ampliar evaluación a hasta 70 candidatos
+    # Sort descending by priority_score
     candidates.sort(key=lambda x: x.get("priority_score", 0), reverse=True)
-    selected_candidates = candidates[:70]
+    selected_candidates = candidates[:60]
 
     print(f"[Scraper] All raw jobs: {len(all_raw_jobs)}, Candidates: {len(candidates)}, Selected: {len(selected_candidates)}", file=sys.stderr)
     for idx, sc in enumerate(selected_candidates[:5]):
@@ -1935,18 +2003,21 @@ def run_agent_job_scraper(target_id=None, force=True):
         instruction = f"""Actua como un cazatalentos senior y mentor de ingenieria informatica para el estudiante universitario Santino Hickethier de la UCA en Buenos Aires, Argentina.
 
 PERFIL REAL DEL CANDIDATO (SANTINO HICKETHIER):
-- Carrera: Ingenieria en Informatica (Pontificia Universidad Catolica Argentina - UCA). 40% de materias aprobadas.
-- Conocimientos troncales: Administracion de servidores Linux headless, contenedores Docker, microservicios REST en Python, lenguaje C (punteros, memoria, sockets), redes de comunicacion (TCP/IP, modelo OSI, Cisco routing/switching, VLANs, WireGuard), bases de datos SQL (SQLite, PostgreSQL), Git.
-- Proyectos reales: Cluster Homelab con 8 servicios en Docker, optimizacion de kernel Linux, microservicio de telemetria en Python (<20MB RAM); modelo de optimizacion logistica espacial con diagramas de Voronoi.
+- Carrera: Ingenieria en Informatica (Pontificia Universidad Catolica Argentina - UCA). Graduacion Estimada: Dic 2028.
+- Conocimientos troncales: Desarrollo Backend y Fullstack con Python, Node.js y TypeScript, administracion de servidores Linux headless, contenedores Docker, microservicios REST, redes (TCP/IP, modelo OSI, Cisco routing/switching, VLANs, VPNs), bases de datos SQL (SQLite, PostgreSQL), Git, CI/CD y metodologias agiles (Scrum).
+- Proyectos reales: Tex AI (plataforma RAG de inteligencia normativa financiera, 2026), AlertAR (sistema de monitoreo urbano y prevencion de anegamientos IoT con Python y Flask, 2026), UCA MCP (servidor seguro de integracion de IA para plataformas universitarias con cifrado nativo, 2026), Servidor Homelab y Dashboard de telemetria en Docker/React (2026), pipeline de optimizacion espacial Voronoi en Python (2025).
 - Idiomas: Ingles bilingue profesional con certificado Cambridge C1 Advanced (CAE); Espanol nativo.
 
 Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas:
-1. JORNADA Y NIVEL ESTRICTO: Solo PART-TIME, MEDIA JORNADA, PASANTIA, INTERN o TRAINEE compatible con cursada universitaria.
-   ESTRICTAMENTE DESCARTA: Jornada completa (Full-Time), Semi-Senior (SSR), Senior (SR), Principal o Lead. Si el puesto dice Full-time o requiere disponibilidad horaria completa, DESCARTALO INMEDIATAMENTE.
+1. JORNADA Y NIVEL ESTRICTO: Solo vacantes explicitamente JUNIOR, TRAINEE, PASANTIA o INTERN para estudiantes universitarios sin experiencia laboral formal previa (o Part-Time / Media Jornada compatible con cursada).
+   ESTRICTAMENTE DESCARTA:
+   - Cualquier puesto que pida experiencia previa de 2 o mas anos.
+   - Puestos Semi-Senior (SSR), Senior (SR), Lead, Principal, Staff, Architect, Gerente o similares.
+   - Jornada completa (Full-Time / 40hs). Si el puesto dice Full-Time o no es para estudiante/junior/trainee/pasante, DESCARTALO INMEDIATAMENTE.
 2. UBICACION Y MODALIDAD: Remoto 100% o Presencial/Hibrido en CABA / Gran Buenos Aires, Argentina.
-   ESTRICTAMENTE DESCARTA: Ofertas presenciales o hibridas en otras provincias o en el exterior (ej. Santiago de Chile, Valparaiso, Lima, Bogota, etc.).
-3. RAMAS DE INTERES: Redes, Telecomunicaciones, Embebidos, Firmware, IoT, C/C++, Python, Linux, Servidores, Cloud, DevOps, Contenedores, Ciberseguridad, Desarrollo de Software (Backend/Fullstack), Datos/ML.
-   DESCARTA: Soporte Tecnico, Help Desk, Service Desk, Mesa de Ayuda, QA Tester manual, Ventas, Marketing, Finanzas puras.
+   ESTRICTAMENTE DESCARTA: Ofertas presenciales o hibridas en el exterior u otras provincias (ej. Santiago de Chile, Lima, Bogota, etc.).
+3. RAMAS DE INTERES: Desarrollo de Software (Backend, Fullstack, Frontend), Python, Node.js/TypeScript, Cloud, DevOps, Infraestructura, Servidores Linux, Redes, Telecomunicaciones, Ciberseguridad, IoT, Embebidos, Datos/IA.
+   DESCARTA: Soporte Tecnico de microinformatica, Help Desk telefonico, Ventas, Marketing, Finanzas puras sin desarrollo.
 4. DESCARTA CERRADAS: No admitas puestos que esten cerrados o ya no acepten solicitudes.
 5. ESTRICTAMENTE PROHIBIDO INVENTAR: Usa UNICAMENTE los puestos y enlaces reales provistos. El campo 'link' debe ser exactamente la URL provista en [LINK: ...].
 
@@ -1963,10 +2034,10 @@ Responde estrictamente con un JSON valido:
       "titulo": "Titulo exacto del puesto",
       "empresa": "Nombre de la empresa",
       "modalidad": "Part-Time / Pasantia / Remoto / Hibrido CABA",
-      "resumen": "Resumen conciso en 1 frase",
+      "resumen": "Resumen conciso en 1 frase destacando funciones y valor",
       "link": "URL exacta extraida de [LINK: ...]",
       "match_score": 92,
-      "match_reason": "Alta compatibilidad con su experiencia en Linux, Docker y Python.",
+      "match_reason": "Alta compatibilidad con su experiencia en Python, Docker y desarrollo web.",
       "missing_skills": ["Kubernetes"],
       "language": "es"
     }}
@@ -1979,7 +2050,6 @@ Responde estrictamente con un JSON valido:
 
         if ai_res.get("status") == "ok":
             raw_text = ai_res.get("text", "")
-            print(f"[Scraper] AI Text Raw (first 400 chars): {raw_text[:400]}", file=sys.stderr)
             found_items = parse_agent_findings_json(raw_text)
             print(f"[Scraper] Parsed findings from AI: {len(found_items)}", file=sys.stderr)
             for item in found_items:
@@ -1987,7 +2057,7 @@ Responde estrictamente con un JSON valido:
                 company = sanitize_utf8_accents(item.get("empresa", "Empresa"))
                 modality = sanitize_utf8_accents(item.get("modalidad", "Part-Time / CABA"))
                 summary = sanitize_utf8_accents(item.get("resumen", ""))
-                link = item.get("link", "")
+                link = canonicalize_job_url(item.get("link", ""))
                 m_score = int(item.get("match_score", 80))
                 m_reason = sanitize_utf8_accents(item.get("match_reason", ""))
                 m_skills = json.dumps(item.get("missing_skills", []))
@@ -1997,12 +2067,16 @@ Responde estrictamente con un JSON valido:
                     continue
 
                 # Safety post-check
-                chk_text = (title + " " + modality).lower()
-                if any(s in chk_text for s in SEMI_SENIOR_BLACKLIST) or any(s in chk_text for s in ['senior', 'lead']):
+                chk_text = (title + " " + modality + " " + summary).lower()
+                if any(s in chk_text for s in SEMI_SENIOR_BLACKLIST):
+                    continue
+                if any(exp in chk_text for exp in EXPERIENCE_BLACKLIST):
                     continue
                 if any(ft in chk_text for ft in FULL_TIME_BLACKLIST) and not any(al in chk_text for al in ['pasantia', 'pasantía', 'part-time', 'part time', 'trainee', 'intern']):
                     continue
                 if any(c in chk_text for c in OUT_OF_COUNTRY_BLACKLIST) and not any(r in chk_text for r in ['remoto', 'remote']):
+                    continue
+                if not any(k in chk_text for k in ENTRY_LEVEL_KEYWORDS):
                     continue
 
                 # Identify source target_id
@@ -2012,7 +2086,9 @@ Responde estrictamente con un JSON valido:
                         match_target_id = c["target_id"]
                         break
 
-                cur.execute("SELECT id FROM agent_findings WHERE link = ? OR (title = ? AND company = ?)", (link, title, company))
+                # Deduplication check in DB
+                norm_key = normalize_job_key(title, company)
+                cur.execute("SELECT id FROM agent_findings WHERE link = ? OR (LOWER(title) = ? AND LOWER(company) = ?)", (link, title.lower(), company.lower()))
                 row = cur.fetchone()
                 if not row:
                     cur.execute("""
@@ -2030,6 +2106,7 @@ Responde estrictamente con un JSON valido:
 
     msg = f"Rastreo completado: {total_new} nuevas vacantes incorporadas" if total_new > 0 else "Rastreo completado: Todos los portales están al día (0 vacantes nuevas sin postular)."
     return {"status": "ok", "new_findings": total_new, "timestamp": now, "message": msg}
+
 
 def agent_scheduler_loop():
     while True:

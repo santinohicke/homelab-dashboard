@@ -92,6 +92,13 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 
 ### Pipeline de Ingesta Inteligente y Scraper Paralelo Multihilo
 * **Extracción Concurrente (`ThreadPoolExecutor`)**: Conexión simultánea a los 12 portales mediante `as_completed(timeout=14)` con gestión resiliente de timeouts, reduciendo el tiempo de sondeo de 155s a <3s.
+* **Deduplicacion Canonica de URLs y Vacantes (`canonicalize_job_url`, `normalize_job_key`)**:
+  - Extraccion canonica del ID numerico de oferta en LinkedIn (`/jobs/view/<id>`) y purga de parametros de rastreo (`trackingId`, `refId`, `position`, `pageNum`).
+  - Normalizacion lexica de claves compuestas (titulo y empresa) para erradicar registros redundantes en la base de datos persistente `metrics.db`.
+* **Filtros Estrictos de Nivel de Entrada, Experiencia y Jornada (`ENTRY_LEVEL_KEYWORDS`)**:
+  - Requisito obligatorio de coincidencia con nivel Junior, Trainee, Pasantia, Intern o Part-Time compatible con cursada universitaria.
+  - Bloqueo preventivo de puestos que demanden 2 o mas anos de experiencia previa formal (`EXPERIENCE_BLACKLIST`) o dedicacion exclusiva / jornada completa (`FULL_TIME_BLACKLIST`).
+  - Descarte proactivo de cargos avanzados (`SEMI_SENIOR_BLACKLIST`): Semi-Senior (SSR), Senior (SR), Lead, Staff, Principal, Arquitecto, Consultor o Gerente.
 * **Prefiltrado Léxico, Restricción Universitaria y Ponderación (`priority_score`)**:
   - **Filtro Anti-Ruido y Anti-SSR**: Descarte automático en memoria (`NON_TECH_BLACKLIST`, `SEMI_SENIOR_BLACKLIST`, `FULL_TIME_BLACKLIST`) para erradicar puestos de jornada completa, roles intermedios (Semi-Senior), carreras no afines y botones de interfaz.
   - **Restricción Geográfica**: Descarte de puestos fuera de CABA / GBA salvo que sean 100% remotos (`OUT_OF_COUNTRY_BLACKLIST`).
@@ -105,6 +112,9 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 El backend implementa un despachador dinámico de inferencia (`execute_hybrid_ai`) con detección automática de presencia:
 1. **Modo PC Encendida (Prioridad 1):** Delega la inferencia mediante Tailscale WireGuard a un micro-puente HTTP en la máquina de escritorio (`100.64.0.20:8099`), el cual ejecuta el CLI oficial de Google Antigravity (`agy.exe -p`) resolviendo con **Gemini 3.8 Flash (High)** a través de los canales prioritarios de Cloud Code (sin saturación 503).
 2. **Modo PC Apagada (Autonomía 24/7):** Si la PC de escritorio se encuentra apagada o suspendida, el servidor conmuta de inmediato y de forma autónoma a una cascada directa sobre la API de Google (`gemini-3.8-flash` -> `gemini-3.6-flash` -> `gemini-3.5-flash` -> `gemini-flash-lite-latest`), garantizando que el homelab nunca detenga sus tareas analíticas.
+
+### Microservicios Complementarios en el Servidor
+* **Tex AI RAG Server (`:3050`)**: Microservicio Next.js 16 containerizado (`tex-ai`) que orquesta un sistema RAG corporativo para Adcap Grupo Financiero. Soporta inferencia multi-proveedor (Claude 3.5 Sonnet / Gemini Flash-Lite / PC Bridge), validación de políticas en Python y rate limiting de 12 req/min por cliente.
 
 ---
 

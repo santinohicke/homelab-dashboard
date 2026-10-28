@@ -246,6 +246,14 @@ En cumplimiento estricto con las especificaciones de seguridad de Apple WebKit:
 
 ---
 
+## Ecosistema de Microservicios & Asistentes IA
+* **Tex AI (`:3050`)**: Asistente RAG corporativo de soporte operativo, normativas e instrumentos financieros. Desarrollado con Next.js 16, TypeScript, Python y Docker.
+* **AlertAR**: Sistema de ciudad inteligente para monitoreo urbano y prevencion de anegamientos en pasos bajo nivel vehiculares con microcontroladores ESP32, FreeRTOS, backend Flask REST API, almacenamiento SQLite y resiliencia ante cortes de red.
+* **UCA MCP**: Servidor Model Context Protocol (MCP) open source para conexion segura de asistentes de inteligencia artificial (Claude, Cursor, Gemini) con plataformas institucionales universitarias, utilizando cifrado de credenciales en el llavero nativo del sistema operativo.
+* **Radar Laboral IT & Generador de Documentos Harvard**: Sistema autonomo de rastreo y filtrado de vacantes para perfiles Junior, Trainee, Pasantia y Part-Time, con deduplicacion canonica de URLs y generador de CVs y Cover Letters adaptados por rol. Asistente RAG corporativo de soporte operativo, normativas (AML/KYC, CNV, UIF) e instrumentos de mercado (Dólar MEP/CCL, Cauciones bursátiles, CEDEARs) para **Adcap Grupo Financiero**. Desarrollado con Next.js 16 App Router, TypeScript, motor híbrido LLM (Anthropic Claude 3.5 Sonnet y Google Gemini) y suite de ingesta/auditoría en Python. Desplegado en Docker container (`tex-ai-tex-ai:latest`) en red interna con healthcheck automático.
+
+---
+
 ## Licencia
 
 Este proyecto está bajo la Licencia **MIT**. Consulta el archivo [LICENSE](LICENSE) para más detalles.

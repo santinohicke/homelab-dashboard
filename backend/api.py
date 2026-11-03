@@ -1668,7 +1668,10 @@ TECH_KEYWORDS = [
     'network', 'telecom', 'telecomunicaciones', 'sistemas', 'infraestructura', 'data',
     'datos', 'ciberseguridad', 'seguridad', 'firmware', 'embebido', 'embedded',
     'iot', 'hardware', 'c++', 'golang', 'sql', 'ingenieria', 'ingeniería', 'ingeniero', 'it',
-    'tecnologia', 'tecnología', 'programador', 'microservicios'
+    'tecnologia', 'tecnología', 'programador', 'microservicios',
+    'technology', 'tech', 'informatica', 'computacion', 'ai', 'ia', 'inteligencia artificial', 'machine learning',
+    'llm', 'genai', 'automation', 'automatizacion', 'rpa', 'analytics', 'analitica', 'business intelligence', 'bi',
+    'qa', 'testing', 'sap', 'erp', 'transformacion digital', 'digital', 'engineering', 'validaciones de software'
 ]
 
 

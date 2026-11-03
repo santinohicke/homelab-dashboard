@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Radar, Briefcase, Sparkles, RefreshCw, CheckCircle2,
   Filter, Search, Plus, Check, Archive, Clock,
@@ -1279,4 +1279,3 @@ export default function AgentRadar() {
     </div>
   );
 }
-

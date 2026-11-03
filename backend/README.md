@@ -95,15 +95,19 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 * **Deduplicacion Canonica de URLs y Vacantes (`canonicalize_job_url`, `normalize_job_key`)**:
   - Extraccion canonica del ID numerico de oferta en LinkedIn (`/jobs/view/<id>`) y purga de parametros de rastreo (`trackingId`, `refId`, `position`, `pageNum`).
   - Normalizacion lexica de claves compuestas (titulo y empresa) para erradicar registros redundantes en la base de datos persistente `metrics.db`.
-* **Filtros Estrictos de Nivel de Entrada, Experiencia y Jornada (`ENTRY_LEVEL_KEYWORDS`)**:
-  - Requisito obligatorio de coincidencia con nivel Junior, Trainee, Pasantia, Intern o Part-Time compatible con cursada universitaria.
-  - Bloqueo preventivo de puestos que demanden 2 o mas anos de experiencia previa formal (`EXPERIENCE_BLACKLIST`) o dedicacion exclusiva / jornada completa (`FULL_TIME_BLACKLIST`).
-  - Descarte proactivo de cargos avanzados (`SEMI_SENIOR_BLACKLIST`): Semi-Senior (SSR), Senior (SR), Lead, Staff, Principal, Arquitecto, Consultor o Gerente.
+* **Filtros Estrictos de Primera Oportunidad Laboral (`entry_level_label`, `has_experience_requirement`, `is_full_time_only`, `is_senior_role`)**:
+  - Requisito obligatorio de senal explicita: Pasantia, Intern, Practicante, Part-Time / Media Jornada, Trainee o Primer empleo / estudiantes. Junior, Jr o Analyst por si solos **no** califican.
+  - Texto normalizado sin tildes y regex con limites de palabra (`intern` no coincide con `Internal` / `International` / `Internet`).
+  - Bloqueo de puestos que exigen experiencia previa (`2+ anos`, `3 years`, `experiencia comprobable`) o jornada completa sin declararse pasantia / intern / part-time (un Trainee full-time se descarta).
+  - Descarte de cargos avanzados: Semi-Senior (SSR), Senior (SR), Lead, Staff, Principal, Director o Gerente siempre; Architect / Consultant / Manager solo si no es intern (ej. `Solution Architect Intern` es valido).
+  - Trainee y Primer empleo exigen ademas que el puesto sea tech; QA es valido con prioridad menor a IA / Automation.
+  - El post-check de la IA valida contra el candidato original (link) y no contra la modalidad que escribe el modelo.
+* **Fuentes con estructura propia**: HiringRoom Campus (usa `job_type` real: `Pasantia` / `Full-time`), Get on Board (seniority `1 = Sin experiencia`), Computrabajo (listado server-rendered) y LinkedIn (keywords de pasantia/intern, ya que el buscador publico ignora `f_JT` / `f_E`).
 * **Prefiltrado Léxico, Restricción Universitaria y Ponderación (`priority_score`)**:
-  - **Filtro Anti-Ruido y Anti-SSR**: Descarte automático en memoria (`NON_TECH_BLACKLIST`, `SEMI_SENIOR_BLACKLIST`, `FULL_TIME_BLACKLIST`) para erradicar puestos de jornada completa, roles intermedios (Semi-Senior), carreras no afines y botones de interfaz.
+  - **Filtro Anti-Ruido y Anti-SSR**: Descarte automático en memoria (`NON_TECH_BLACKLIST`, `is_senior_role`, `is_full_time_only`) para erradicar puestos de jornada completa, roles intermedios (Semi-Senior), carreras no afines y botones de interfaz.
   - **Restricción Geográfica**: Descarte de puestos fuera de CABA / GBA salvo que sean 100% remotos (`OUT_OF_COUNTRY_BLACKLIST`).
   - **Paginación y Enlaces Limpios en LinkedIn**: Coincidencia obligatoria de `/jobs/view/` y ventana temporal estricta (`f_TPR=r604800`, últimos 7 días).
-  - **Ponderación Técnica Ponderada**: Puntuación automática (`TECH_KEYWORDS`) que ubica al inicio de la remesa evaluada por la IA las vacantes con palabras clave troncales (software, linux, devops, cloud, redes, sistemas, python, docker, pasantía, junior).
+  - **Ponderación Técnica Ponderada**: Puntuación automática (`TECH_KEYWORDS` vía `has_term`, palabra completa) que ubica al inicio de la remesa evaluada por la IA las vacantes de IA/Automation, Data, desarrollo, cloud, redes y sistemas, priorizando pasantías, intern y part-time sobre trainee.
 * **Evaluación Consolidada por Lotes**: Remesa de hasta 35 vacantes concurrentes evaluadas en una única inferencia LLM (`max_tokens=3500`, timeout=70s) contra el perfil real de Santino Hickethier.
 * **Parser Híbrido de Recuperación Regex (`parse_agent_findings_json`)**: Extracción resiliente por coincidencia estructural de objetos JSON o viñetas Markdown (`Selected Candidate`, `PUESTO: ...`, `EMPRESA: ...`) si el modelo presenta preámbulos o formatos alternativos.
 * **Enforcement de `responseMimeType: application/json`**: Obliga a los modelos de respaldo en la nube a generar JSON canónico sin Markdown exterior.
@@ -144,4 +148,5 @@ curl http://localhost:8088/api/v1/system
 ## Seguridad & Resiliencia (Auditoría Octubre 2026)
 * **Zero-PHP**: Inmune a vulnerabilidades críticas de PHP/FastCGI (CVE-2026-109618 y CVE-2026-109619 / PHP2Shell) al estar implementado puramente en Python estándar sin módulos PHP.
 * **Integridad TLS**: Validación estricta con almacén de certificados del sistema actualizado (`ca-certificates`) sin dependencia de CAs intermedias desconfiadas (incidente eMudhra).
+
 

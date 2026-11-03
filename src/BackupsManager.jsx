@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Archive, Calendar, Download, RefreshCw, CheckCircle2, AlertCircle,
   FileText, HardDrive, Database, ShieldCheck, Play, ArrowRight,
@@ -534,4 +534,3 @@ export default function BackupsManager() {
     </div>
   );
 }
-

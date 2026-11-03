@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Sparkles, Cpu, Zap, Activity, Clock, RefreshCw, CheckCircle2,
   AlertCircle, BarChart3, ArrowUpRight, Check, X, Shield, Terminal,
@@ -562,4 +562,3 @@ export default function AIObservatory() {
     </div>
   );
 }
-

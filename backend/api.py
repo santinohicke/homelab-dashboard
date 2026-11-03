@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 =============================================================================
 Homelab Telemetry & Operations Micro-API
@@ -20,7 +20,9 @@ import threading
 import urllib.request
 import base64
 import re
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from html import unescape as html_unescape
 from html.parser import HTMLParser
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, urljoin
@@ -335,14 +337,14 @@ def init_db():
             "Work Search Argentina (Tech Jobs API)",
             "https://work-search-ten.vercel.app/api/jobs?country=AR&area=tecnologia&limit=50",
             "Work Search Tech",
-            "API oficial de empleos tech en Argentina (Mercado Libre, PedidosYa, BBVA, etc.) buscando pasantías, trainee, junior y part-time.",
+            "API oficial de empleos tech en Argentina (Mercado Libre, PedidosYa, BBVA, etc.) buscando pasantías, intern, trainee y part-time.",
             6
         ),
         (
             "CaféDev - Empleos Tech & Remotos",
             "https://cafedev.co/empleos/",
             "CaféDev",
-            "Ofertas de desarrollo de software, backend, infraestructura y empleo remoto junior/trainee.",
+            "Pasantías, internships, trainee y part-time de desarrollo de software, backend e infraestructura.",
             6
         ),
         (
@@ -361,35 +363,35 @@ def init_db():
         ),
         (
             "LinkedIn Jobs - Pasantías & Part-Time IT",
-            "https://www.linkedin.com/jobs/search?keywords=sistemas&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I&f_TPR=r604800",
+            "https://www.linkedin.com/jobs/search?keywords=pasantia%20sistemas&location=Buenos%20Aires%2C%20Argentina&f_TPR=r604800",
             "LinkedIn Argentina",
             "Pasantías y empleos part-time en Buenos Aires de sistemas, redes, hardware, firmware o infraestructura.",
             6
         ),
         (
             "LinkedIn Jobs - Redes, Telecomunicaciones & Electrónica",
-            "https://www.linkedin.com/jobs/search?keywords=redes%20o%20telecomunicaciones%20o%20electronica&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I&f_TPR=r604800",
+            "https://www.linkedin.com/jobs/search?keywords=pasantia%20redes%20OR%20pasantia%20telecomunicaciones%20OR%20pasantia%20electronica&location=Buenos%20Aires%2C%20Argentina&f_TPR=r604800",
             "LinkedIn Redes/Hardware",
             "Pasantías y medio tiempo en redes, telecomunicaciones, electrónica, microcontroladores, firmware o IoT en CABA.",
             6
         ),
         (
             "LinkedIn Jobs - Pasantías Ingeniería & Tecnología",
-            "https://www.linkedin.com/jobs/search?keywords=pasantia%20tecnologia%20o%20ingenieria&location=Buenos%20Aires%2C%20Argentina&f_JT=I&f_TPR=r604800",
+            "https://www.linkedin.com/jobs/search?keywords=intern%20software%20OR%20internship%20engineering%20OR%20intern%20IT&location=Buenos%20Aires%2C%20Argentina&f_TPR=r604800",
             "LinkedIn Pasantías",
             "Pasantías universitarias de ingeniería informática, telecomunicaciones, cloud y arquitectura de sistemas en CABA.",
             6
         ),
         (
-            "LinkedIn Jobs - Trainee / Junior Infraestructura & DevOps",
-            "https://www.linkedin.com/jobs/search?keywords=trainee%20o%20junior%20infraestructura%20o%20cloud&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I&f_TPR=r604800",
+            "LinkedIn Jobs - Trainee & Part-Time Infraestructura & DevOps",
+            "https://www.linkedin.com/jobs/search?keywords=trainee%20OR%20part%20time%20infraestructura%20OR%20cloud%20OR%20devops&location=Buenos%20Aires%2C%20Argentina&f_TPR=r604800",
             "LinkedIn Infra/Cloud",
-            "Puestos trainee o junior part-time de Linux, redes, administración de servidores y cloud en CABA.",
+            "Programas trainee sin experiencia o part-time de Linux, redes, administración de servidores y cloud en CABA.",
             6
         ),
         (
             "LinkedIn Jobs - Programación Embebida, Firmware & IoT",
-            "https://www.linkedin.com/jobs/search?keywords=embebidos%20o%20firmware%20o%20iot&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I&f_TPR=r604800",
+            "https://www.linkedin.com/jobs/search?keywords=pasantia%20OR%20intern%20embebidos%20OR%20firmware%20OR%20iot&location=Buenos%20Aires%2C%20Argentina&f_TPR=r604800",
             "LinkedIn Hardware/Embebidos",
             "Oportunidades de electrónica, firmware, microcontroladores y programación de bajo nivel C/C++ en Buenos Aires.",
             6
@@ -409,13 +411,73 @@ def init_db():
             6
         ),
         (
-            "Get on Board - Programación & Desarrollo Junior",
+            "Get on Board - Programación & Desarrollo (Pasantes / Sin experiencia)",
             "https://www.getonbrd.com/empleos-programacion",
             "Get on Board Dev",
-            "Ofertas de desarrollo de software, backend Python/C/Go y sistemas para perfiles junior o pasantes.",
+            "Ofertas de desarrollo de software, backend Python/C/Go y sistemas para pasantes o perfiles sin experiencia.",
+            6
+        ),
+        (
+            "Universidad de Palermo - Bolsa Campus",
+            "https://up.hiringroomcampus.com/jobs",
+            "Bolsa Universitaria",
+            "Pasantías universitarias de sistemas, desarrollo, datos e IT publicadas en la bolsa de la UP.",
+            6
+        ),
+        (
+            "LinkedIn Jobs - Pasantías IA, Automatización & Data",
+            "https://www.linkedin.com/jobs/search?keywords=pasantia%20inteligencia%20artificial%20OR%20pasantia%20automatizacion%20OR%20pasantia%20data%20OR%20pasante%20IA&location=Argentina&f_TPR=r604800",
+            "LinkedIn IA/Automation",
+            "Pasantías de inteligencia artificial, automatización (RPA, n8n, LLMs) y datos en Argentina o remoto.",
+            6
+        ),
+        (
+            "LinkedIn Jobs - AI / Automation / Data Intern",
+            "https://www.linkedin.com/jobs/search?keywords=AI%20intern%20OR%20automation%20intern%20OR%20data%20intern%20OR%20machine%20learning%20intern&location=Argentina&f_TPR=r604800",
+            "LinkedIn AI Intern",
+            "Internships de AI, automation, machine learning y data en Argentina o remoto LATAM.",
+            6
+        ),
+        (
+            "Computrabajo - Pasante Sistemas",
+            "https://ar.computrabajo.com/trabajo-de-pasante-sistemas",
+            "Computrabajo",
+            "Pasantías de sistemas, IT y desarrollo publicadas en Computrabajo Argentina.",
+            6
+        ),
+        (
+            "Computrabajo - Pasante IT / Programador",
+            "https://ar.computrabajo.com/trabajo-de-pasante-programador",
+            "Computrabajo Dev",
+            "Pasantías de programación y desarrollo de software en Computrabajo Argentina.",
+            6
+        ),
+        (
+            "Computrabajo - Programador Part-Time",
+            "https://ar.computrabajo.com/trabajo-de-programador-part-time",
+            "Computrabajo Part-Time",
+            "Empleos part-time de programación compatibles con la cursada universitaria.",
             6
         )
     ]
+    # Migrate old LinkedIn targets: guest search ignores f_JT=I/P, so those URLs returned
+    # Jr / Ssr / Analyst full-time roles. Rewrite them in place to the pasantia/intern keyword versions.
+    legacy_target_urls = {
+        "https://www.linkedin.com/jobs/search?keywords=sistemas&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I&f_TPR=r604800": 4,
+        "https://www.linkedin.com/jobs/search?keywords=redes%20o%20telecomunicaciones%20o%20electronica&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I&f_TPR=r604800": 5,
+        "https://www.linkedin.com/jobs/search?keywords=pasantia%20tecnologia%20o%20ingenieria&location=Buenos%20Aires%2C%20Argentina&f_JT=I&f_TPR=r604800": 6,
+        "https://www.linkedin.com/jobs/search?keywords=trainee%20o%20junior%20infraestructura%20o%20cloud&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I&f_TPR=r604800": 7,
+        "https://www.linkedin.com/jobs/search?keywords=embebidos%20o%20firmware%20o%20iot&location=Buenos%20Aires%2C%20Argentina&f_JT=P&f_JT=I&f_TPR=r604800": 8,
+    }
+    for old_url, seed_idx in legacy_target_urls.items():
+        name, url, cat, crit, _ = targets_seed[seed_idx]
+        cur.execute("SELECT id FROM agent_targets WHERE url = ?", (url,))
+        if cur.fetchone():
+            cur.execute("DELETE FROM agent_targets WHERE url = ?", (old_url,))
+        else:
+            cur.execute("UPDATE agent_targets SET name = ?, url = ?, category = ?, criteria = ? WHERE url = ?",
+                        (name, url, cat, crit, old_url))
+
     for name, url, cat, crit, int_h in targets_seed:
         cur.execute("SELECT id FROM agent_targets WHERE url = ?", (url,))
         if not cur.fetchone():
@@ -605,7 +667,7 @@ def run_zero_pip_speedtest(source="manual"):
     try:
         now = int(time.time())
         # 1. Pings ICMP reales a Gateway, Cloudflare y Google
-        p_gw = read_ping_ms("192.168.0.1")
+        p_gw = read_ping_ms("192.168.1.1")
         p_cf = read_ping_ms("1.1.1.1")
         p_goog = read_ping_ms("8.8.8.8")
         dns_lat = measure_dns_latency("cloudflare.com")
@@ -921,14 +983,14 @@ def get_docker_storage():
     }
 
 KNOWN_DEVICES = {
-    "20:9a:7d:ad:f4:54": {"hostname": "sagemcom-gateway", "type": "Gateway Fibertel/Claro", "vendor": "Sagemcom Broadband", "speed": "1 Gbps"},
-    "44:8a:5b:3c:d9:11": {"hostname": "lenovo-server", "type": "Servidor Homelab", "vendor": "Lenovo ThinkCentre", "speed": "1 Gbps Full"},
-    "86:2d:a6:15:03:4f": {"hostname": "iPhone-11-Santino", "type": "Móvil Personal", "vendor": "Apple Inc.", "speed": "433 Mbps"},
-    "b0:99:d7:66:3c:28": {"hostname": "Galaxy-A52-Personal", "type": "Móvil", "vendor": "Samsung Electronics", "speed": "390 Mbps"},
-    "46:64:96:d7:99:93": {"hostname": "iPhone-15-Casa", "type": "Móvil", "vendor": "Apple Inc.", "speed": "520 Mbps"},
-    "dc:f5:05:cf:30:49": {"hostname": "Notebook-HP-250G7", "type": "Laptop", "vendor": "HP Inc.", "speed": "866 Mbps"},
-    "1c:e5:7f:04:a6:71": {"hostname": "Moto-E7-Dashboard", "type": "Tablet / Panel", "vendor": "Motorola Mobility", "speed": "72 Mbps"},
-    "3e:1c:04:59:df:b7": {"hostname": "Dispositivo-WiFi", "type": "Dispositivo LAN", "vendor": "Espressif WiFi", "speed": "150 Mbps"}
+    "02:00:00:00:00:01": {"hostname": "sagemcom-gateway", "type": "Gateway Fibertel/Claro", "vendor": "Sagemcom Broadband", "speed": "1 Gbps"},
+    "02:00:00:00:00:02": {"hostname": "lenovo-server", "type": "Servidor Homelab", "vendor": "Lenovo ThinkCentre", "speed": "1 Gbps Full"},
+    "02:00:00:00:00:03": {"hostname": "iPhone-11-Santino", "type": "Móvil Personal", "vendor": "Apple Inc.", "speed": "433 Mbps"},
+    "02:00:00:00:00:04": {"hostname": "Galaxy-A52-Personal", "type": "Móvil", "vendor": "Samsung Electronics", "speed": "390 Mbps"},
+    "02:00:00:00:00:05": {"hostname": "iPhone-15-Casa", "type": "Móvil", "vendor": "Apple Inc.", "speed": "520 Mbps"},
+    "02:00:00:00:00:06": {"hostname": "Notebook-HP-250G7", "type": "Laptop", "vendor": "HP Inc.", "speed": "866 Mbps"},
+    "02:00:00:00:00:07": {"hostname": "Moto-E7-Dashboard", "type": "Tablet / Panel", "vendor": "Motorola Mobility", "speed": "72 Mbps"},
+    "02:00:00:00:00:08": {"hostname": "Dispositivo-WiFi", "type": "Dispositivo LAN", "vendor": "Espressif WiFi", "speed": "150 Mbps"}
 }
 
 def get_network_devices():
@@ -936,8 +998,8 @@ def get_network_devices():
     # Always include Gateway and Server Host
     devices.append({
         "hostname": "sagemcom-gateway",
-        "ip": "192.168.0.1",
-        "mac": "20:9A:7D:AD:F4:54",
+        "ip": "192.168.1.1",
+        "mac": "02:00:00:00:00:01",
         "type": "Gateway Fibertel/Claro",
         "lease": "Estática",
         "iface": "WAN / LAN 1",
@@ -948,7 +1010,7 @@ def get_network_devices():
     devices.append({
         "hostname": "lenovo-server",
         "ip": "192.168.1.100",
-        "mac": "44:8A:5B:3C:D9:11",
+        "mac": "02:00:00:00:00:02",
         "type": "Servidor Homelab (Host)",
         "lease": "Estática (DHCP Res)",
         "iface": "wlp3s0 (WiFi) / eth0",
@@ -957,7 +1019,7 @@ def get_network_devices():
         "status": "online"
     })
 
-    seen_ips = {"192.168.0.1", "192.168.1.100"}
+    seen_ips = {"192.168.1.1", "192.168.1.100"}
     try:
         with open("/proc/net/arp", "r") as f:
             for line in f:
@@ -1482,7 +1544,7 @@ NON_TECH_BLACKLIST = [
     'logística', 'abastecimiento', 'marketing', 'community manager', 'disenador', 'diseñador',
     'rrhh', 'recursos humanos', 'seleccion', 'selección', 'liquidación', 'liquidacion',
     'gastronomia', 'gastronomía', 'ventas telefónicas', 'atención al cliente', 'atencion al cliente',
-    'soporte tecnico', 'help desk', 'service desk', 'mesa de ayuda', 'qa tester', 'testing manual',
+    'soporte tecnico', 'help desk', 'service desk', 'mesa de ayuda',
     'auditoria contable', 'tax', 'impuestos', 'payroll', 'liquidaciones', 'call center',
     'docente', 'profesor', 'profesora', 'maestro', 'maestra', 'pedagog', 'colegio', 'escuela',
     'administracion', 'administración', 'asistente administrativo'
@@ -1513,18 +1575,59 @@ def normalize_job_key(title, company):
     c = re.sub(r'\s+', ' ', c).strip()
     return (t, c)
 
-EXPERIENCE_BLACKLIST = [
-    '2+ a?os', '3+ a?os', '4+ a?os', '5+ a?os', '2 a?os de experiencia', '3 a?os de experiencia',
-    '4 a?os de experiencia', '5 a?os de experiencia', '2+ years', '3+ years', '4+ years', '5+ years',
-    'experiencia m?nima de 2', 'experiencia m?nima de 3', 'experiencia m?nima 2', 'experiencia m?nima 3',
-    'al menos 2 a?os', 'al menos 3 a?os', 'minimum 2 years', 'minimum 3 years', '2 a?os m?nimo', '3 a?os m?nimo'
+def _norm_text(*parts):
+    """Lowercase + strip accents so 'pasantía' == 'pasantia'."""
+    raw = " ".join(str(p) for p in parts if p)
+    return "".join(c for c in unicodedata.normalize("NFKD", raw.lower()) if not unicodedata.combining(c))
+
+# Solo cuentan como "primera oportunidad": pasantia, intern, practicante, part-time/media jornada,
+# trainee o declaracion explicita de "sin experiencia / primer empleo". Junior/Jr/Analyst NO alcanzan.
+# Todos con limites de palabra: 'intern' ya no matchea 'internal'/'international'/'internet'.
+# 'pasant' va sin \b final para tolerar tildes corruptas ('Pasant?a' y otros mojibake).
+ENTRY_LEVEL_SIGNALS = [
+    ("Pasantía", re.compile(r"\bpasant|\bbecari[oa]s?\b|\bpracticas? (?:profesional|rentada|universitaria)|\bpracticantes?\b")),
+    ("Intern", re.compile(r"\binterns?\b|\binternships?\b|\bsummer students?\b|\bworking students?\b")),
+    ("Part-Time", re.compile(r"\bpart[\s\-]?time\b|\bmedia jornada\b|\bmedio tiempo\b|\bjornada (?:reducida|parcial)\b")),
+    ("Trainee", re.compile(r"\btrainees?\b|\bprograma de jovenes profesionales\b|\bgraduate program\b")),
+    ("Primer empleo", re.compile(r"\bsin experiencia\b|\bno experience\b|\bprimer (?:empleo|trabajo)\b|\bprimera (?:experiencia|oportunidad)\b|\bfirst job\b|\bentry[\s\-]?level\b|\bestudiantes?\b|\bstudents?\b")),
 ]
 
-ENTRY_LEVEL_KEYWORDS = [
-    'junior', 'jr', 'trainee', 'pasantia', 'pasant?a', 'intern', 'internship', 'practicante',
-    'pasante', 'estudiante', 'part-time', 'part time', 'media jornada', 'entry-level', 'entry level',
-    'sin experiencia', 'primer empleo'
-]
+# Anios de experiencia exigidos (>=2) o experiencia previa explicita.
+EXPERIENCE_REQUIRED_RE = re.compile(
+    r"\b(?:[2-9]|1\d)\s*\+?\s*(?:anos?|years?|yrs?)\b"
+    r"|\bexperiencia (?:previa|comprobable|minima|laboral previa|demostrable)\b"
+    r"|\bproven experience\b|\bprevious experience\b|\bminimum (?:of )?\d"
+)
+
+FULL_TIME_RE = re.compile(
+    r"\bjornada completa\b|\bfull[\s\-]?time\b|\btiempo completo\b|\bdedicacion exclusiva\b|\b(?:40|45|48) ?(?:hs|horas)\b"
+)
+# Pasantias / intern / part-time pueden mencionar 'full time' (ej. summer internship) y siguen valiendo.
+# Trainee NO esta aca: un "Programa Trainee full-time" se descarta porque no es compatible con la cursada.
+PART_TIME_OR_INTERN_RE = re.compile(
+    r"\bpasant|\binterns?\b|\binternships?\b|\bpracticantes?\b|\bpart[\s\-]?time\b|\bmedia jornada\b|\bmedio tiempo\b"
+)
+
+def entry_level_label(*parts):
+    """Devuelve 'Pasantía' / 'Intern' / 'Part-Time' / 'Trainee' / 'Primer empleo' o None si no es primera oportunidad."""
+    text = _norm_text(*parts)
+    for label, rx in ENTRY_LEVEL_SIGNALS:
+        if rx.search(text):
+            return label
+    return None
+
+def has_experience_requirement(*parts):
+    return bool(EXPERIENCE_REQUIRED_RE.search(_norm_text(*parts)))
+
+def is_full_time_only(*parts):
+    """True si es full-time y NO se declara pasantia/intern/part-time."""
+    text = _norm_text(*parts)
+    return bool(FULL_TIME_RE.search(text)) and not PART_TIME_OR_INTERN_RE.search(text)
+
+def has_term(text, terms):
+    """Match por palabra completa (evita que 'it' matchee 'capital' o 'data' dentro de 'database')."""
+    t = _norm_text(text)
+    return any(re.search(r"(?<![a-z0-9])" + re.escape(_norm_text(k)) + r"(?![a-z0-9])", t) for k in terms)
 
 SEMI_SENIOR_BLACKLIST = [
     'semi-senior', 'semisenior', ' ssr', 'mid-senior', 'semi senior', 'ssr ', '(ssr)', '[ssr]',
@@ -1533,10 +1636,19 @@ SEMI_SENIOR_BLACKLIST = [
     'founding', 'manager'
 ]
 
-FULL_TIME_BLACKLIST = [
-    'jornada completa', 'full-time', 'full time', 'tiempo completo', 'fulltime', 'dedicacion exclusiva',
-    '40 hs', '40 horas', '45 horas'
-]
+HARD_SENIORITY_RE = re.compile(
+    r"\bsemi[\s\-]?senior\b|\bsemi[\s\-]?sr\b|\bssr\b|\bmid[\s\-]?senior\b|\bsenior\b|\bsr\b|\bleads?\b|\bstaff\b|\bprincipal\b"
+    r"|\bhead of\b|\bdirector|\bgerente\b|\bjefe\b|\bjefa\b|\bfounding\b"
+)
+SOFT_SENIORITY_RE = re.compile(r"\barchitect|\barquitect|\bconsultant\b|\bconsultor|\bmanager\b")
+
+def is_senior_role(*parts):
+    """Senior/SSR/Lead siempre descarta; Architect/Consultant/Manager solo si NO es un intern/pasante
+    (ej. 'Solution Architect Intern' o 'Product Manager Intern' son validos)."""
+    text = _norm_text(*parts)
+    if HARD_SENIORITY_RE.search(text):
+        return True
+    return bool(SOFT_SENIORITY_RE.search(text)) and entry_level_label(text) not in ("Pasantía", "Intern")
 
 OUT_OF_COUNTRY_BLACKLIST = [
     'santiago de chile', 'santiago, chile', 'santiago cl', 'santiago', 'valparaiso', 'concepcion',
@@ -1567,7 +1679,7 @@ def extract_raw_jobs_from_target(t):
         # 1. CAFÉDEV (Official REST API with tech queries)
         if "cafedev.co" in t_url:
             seen_cafe = set()
-            for q_term in ["junior", "trainee", "pasantia"]:
+            for q_term in ["pasantia", "intern", "trainee", "part-time", "sin experiencia"]:
                 api_url = f"https://api.cafedev.co/v1/jobs?limit=50&q={urllib.parse.quote(q_term)}"
                 try:
                     req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
@@ -1590,15 +1702,16 @@ def extract_raw_jobs_from_target(t):
                             tl = t_title.lower()
                             jtl = f"{tl} {sen}"
                             
-                            if any(b in tl for b in NON_TECH_BLACKLIST) or any(s in jtl for s in SEMI_SENIOR_BLACKLIST):
+                            if any(b in tl for b in NON_TECH_BLACKLIST) or is_senior_role(jtl):
                                 continue
-                            if any(exp in jtl for exp in EXPERIENCE_BLACKLIST):
+                            if has_experience_requirement(jtl):
                                 continue
-                            if not any(k in jtl for k in ENTRY_LEVEL_KEYWORDS):
+                            entry_label = entry_level_label(jtl)
+                            if not entry_label:
                                 continue
-                            if any(ft in jtl for ft in FULL_TIME_BLACKLIST) and not any(al in jtl for al in ['pasantia', 'pasantía', 'trainee', 'intern', 'part-time', 'part time']):
+                            if is_full_time_only(jtl):
                                 continue
-                                
+
                             skills_list = it.get("skills", [])
                             skills_str = ", ".join(skills_list[:5]) if isinstance(skills_list, list) else ""
                             city = it.get("city") or ""
@@ -1611,7 +1724,7 @@ def extract_raw_jobs_from_target(t):
                                 "target_name": t_name,
                                 "title": t_title,
                                 "company": it.get("company_name", "CaféDev Partner"),
-                                "modality": f"{it.get('seniority', 'Junior')} / {'Remoto' if wp == 'remote' else 'Híbrido'}",
+                                "modality": f"{entry_label} / {'Remoto' if wp == 'remote' else 'Híbrido'}",
                                 "location": loc_str,
                                 "skills": skills_str,
                                 "link": link
@@ -1624,8 +1737,8 @@ def extract_raw_jobs_from_target(t):
             seen_ws = set()
             ws_urls = [
                 "https://work-search-ten.vercel.app/api/jobs?country=AR&q=pasantia",
+                "https://work-search-ten.vercel.app/api/jobs?country=AR&q=intern",
                 "https://work-search-ten.vercel.app/api/jobs?country=AR&q=trainee",
-                "https://work-search-ten.vercel.app/api/jobs?country=AR&q=junior",
                 "https://work-search-ten.vercel.app/api/jobs?country=AR&q=part-time"
             ]
             for ws_url in ws_urls:
@@ -1645,22 +1758,23 @@ def extract_raw_jobs_from_target(t):
                         tl = j_title.lower()
                         jtl = (j_title + " " + j_type).lower()
                         
-                        if any(b in tl for b in NON_TECH_BLACKLIST) or any(s in jtl for s in SEMI_SENIOR_BLACKLIST):
+                        if any(b in tl for b in NON_TECH_BLACKLIST) or is_senior_role(jtl):
                             continue
-                        if any(exp in jtl for exp in EXPERIENCE_BLACKLIST):
+                        if has_experience_requirement(jtl):
                             continue
-                        if not any(k in jtl for k in ENTRY_LEVEL_KEYWORDS):
+                        entry_label = entry_level_label(jtl)
+                        if not entry_label:
                             continue
-                        if any(ft in jtl for ft in FULL_TIME_BLACKLIST) and not any(al in jtl for al in ['pasantia', 'pasantía', 'trainee', 'intern', 'part-time', 'part time']):
+                        if is_full_time_only(jtl):
                             continue
-                            
+
                         link = canonicalize_job_url(j.get("url", ""))
                         jobs.append({
                             "target_id": t_id,
                             "target_name": t_name,
                             "title": j_title,
                             "company": j.get("company", "Empresa"),
-                            "modality": f"{j_type or 'Part-Time'} / {j.get('remote', 'Remoto/Híbrido')}",
+                            "modality": f"{j_type or entry_label} / {j.get('remote', 'Remoto/Híbrido')}",
                             "location": j.get("location", "Buenos Aires, Argentina"),
                             "skills": "",
                             "link": link
@@ -1672,8 +1786,9 @@ def extract_raw_jobs_from_target(t):
         elif "getonbrd.com" in t_url:
             seen_gob = set()
             gob_urls = [
-                "https://www.getonbrd.com/api/v0/search/jobs?query=trainee",
                 "https://www.getonbrd.com/api/v0/search/jobs?query=pasantia",
+                "https://www.getonbrd.com/api/v0/search/jobs?query=intern",
+                "https://www.getonbrd.com/api/v0/search/jobs?query=trainee",
                 "https://www.getonbrd.com/api/v0/search/jobs?query=part-time",
                 "https://www.getonbrd.com/api/v0/categories/programming/jobs?per_page=50",
                 "https://www.getonbrd.com/api/v0/categories/sysadmin-devops-qa/jobs?per_page=50"
@@ -1690,7 +1805,11 @@ def extract_raw_jobs_from_target(t):
                             seen_gob.add(i_id)
                             
                             attr = item.get("attributes", {})
-                            sen_id = attr.get("seniority", {}).get("data", {}).get("id", 0)
+                            # Get on Board seniority ids: 1 = Sin experiencia, 2 = Junior, 3 = Semi Senior, 4 = Senior, 5 = Expert
+                            try:
+                                sen_id = int(attr.get("seniority", {}).get("data", {}).get("id", 0))
+                            except (TypeError, ValueError):
+                                sen_id = 0
                             if sen_id > 2:
                                 continue
                                 
@@ -1701,13 +1820,15 @@ def extract_raw_jobs_from_target(t):
                                 
                             g_title = attr.get("title", "")
                             gtl = g_title.lower()
-                            if any(b in gtl for b in NON_TECH_BLACKLIST) or any(s in gtl for s in SEMI_SENIOR_BLACKLIST):
+                            if any(b in gtl for b in NON_TECH_BLACKLIST) or is_senior_role(gtl):
                                 continue
-                            if any(exp in gtl for exp in EXPERIENCE_BLACKLIST):
+                            if has_experience_requirement(gtl):
                                 continue
-                            if sen_id == 0 and not any(k in gtl for k in ENTRY_LEVEL_KEYWORDS):
+                            # Junior (2) ya no alcanza: tiene que decir pasantia/intern/part-time/trainee o ser "Sin experiencia" (1)
+                            entry_label = entry_level_label(gtl) or ("Primer empleo" if sen_id == 1 else None)
+                            if not entry_label:
                                 continue
-                            if any(ft in gtl for ft in FULL_TIME_BLACKLIST) and not any(al in gtl for al in ['pasantia', 'pasantía', 'trainee', 'intern', 'part-time', 'part time']):
+                            if is_full_time_only(gtl):
                                 continue
                                 
                             comp_name = attr.get("company", {}).get("data", {}).get("attributes", {}).get("name", "Get on Board Partner")
@@ -1716,7 +1837,7 @@ def extract_raw_jobs_from_target(t):
                                 continue
                             link = canonicalize_job_url(raw_link)
                             
-                            modality = attr.get("remote_modality", "Remoto" if is_rem else "Híbrido")
+                            modality = f"{entry_label} / {attr.get('remote_modality') or ('Remoto' if is_rem else 'Híbrido')}"
                             loc = "Argentina / Remoto" if is_rem else "Buenos Aires, Argentina"
                             
                             jobs.append({
@@ -1757,13 +1878,16 @@ def extract_raw_jobs_from_target(t):
                                 slug = j.get("url")
                                 j_name = j.get("name", "").strip()
                                 j_area = j.get("job_area", "")
+                                # job_type viene como "Pasantía" / "Full-time" / "No especificado": antes se ignoraba
+                                j_type = (j.get("job_type") or "").strip()
                                 if slug and slug not in seen_hr and j_name:
                                     jl = (j_name + " " + j_area).lower()
-                                    if any(b in jl for b in NON_TECH_BLACKLIST) or any(s in jl for s in SEMI_SENIOR_BLACKLIST):
+                                    if any(b in jl for b in NON_TECH_BLACKLIST) or is_senior_role(jl):
                                         continue
-                                    if any(exp in jl for exp in EXPERIENCE_BLACKLIST):
+                                    if has_experience_requirement(jl):
                                         continue
-                                    if any(s in jl for s in ['senior', 'lead', 'principal', 'gerente']):
+                                    entry_label = entry_level_label(j_name, j_type)
+                                    if not entry_label or is_full_time_only(j_name, j_type):
                                         continue
                                     seen_hr.add(slug)
                                     jobs.append({
@@ -1771,13 +1895,55 @@ def extract_raw_jobs_from_target(t):
                                         "target_name": t_name,
                                         "title": j_name,
                                         "company": j.get("company", {}).get("name", ""),
-                                        "modality": j.get("job_type", "Pasantia"),
+                                        "modality": entry_label,
                                         "location": f"{j.get('city', '')}, Argentina",
                                         "skills": j_area,
                                         "link": canonicalize_job_url(f"{base_jobs_url}/{slug}")
                                     })
                 except Exception:
                     pass
+
+        # 4b. COMPUTRABAJO (server-rendered listing, one slug per search)
+        elif "computrabajo.com" in t_url:
+            parsed_t = urllib.parse.urlparse(t_url)
+            base_host = f"{parsed_t.scheme}://{parsed_t.netloc}"
+            for page in (1, 2):
+                page_url = t_url + (f"?p={page}" if page > 1 else "")
+                try:
+                    req = urllib.request.Request(page_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept-Language': 'es-AR,es;q=0.9'})
+                    with urllib.request.urlopen(req, timeout=8) as r:
+                        raw_b = r.read()
+                        try:
+                            html = raw_b.decode('utf-8')
+                        except UnicodeDecodeError:
+                            html = raw_b.decode('latin-1', errors='replace')
+                except Exception:
+                    break
+                for art in re.findall(r'<article.*?</article>', html, re.S):
+                    m = re.search(r'class="js-o-link[^"]*"[^>]*href="([^"]+)"[^>]*>\s*(.*?)\s*</a>', art, re.S)
+                    if not m:
+                        continue
+                    c_title = html_unescape(re.sub(r'<.*?>', '', m.group(2))).strip()
+                    comp_m = re.search(r'offer-grid-article-company-url[^>]*>\s*(.*?)\s*</a>', art, re.S)
+                    loc_m = re.search(r'<span class="mr10">\s*(.*?)\s*</span>', art, re.S)
+                    tl = c_title.lower()
+                    if any(b in tl for b in NON_TECH_BLACKLIST) or is_senior_role(tl):
+                        continue
+                    if has_experience_requirement(tl) or is_full_time_only(tl):
+                        continue
+                    entry_label = entry_level_label(tl)
+                    if not entry_label:
+                        continue
+                    jobs.append({
+                        "target_id": t_id,
+                        "target_name": t_name,
+                        "title": c_title[:90],
+                        "company": html_unescape(re.sub(r'<.*?>', '', comp_m.group(1))).strip() if comp_m else "Computrabajo",
+                        "modality": entry_label,
+                        "location": html_unescape(re.sub(r'<.*?>', '', loc_m.group(1))).strip() if loc_m else "Argentina",
+                        "skills": "",
+                        "link": canonicalize_job_url(base_host + m.group(1).split('#')[0])
+                    })
 
         # 5. LINKEDIN JOBS (Filtered for past 7 days & active postings)
         elif "linkedin.com" in t_url:
@@ -1811,23 +1977,25 @@ def extract_raw_jobs_from_target(t):
                 tl = title_company.lower()
                 if len(title_company) < 5 or any(p in tl for p in JUNK_TITLE_PATTERNS) or any(b in tl for b in NON_TECH_BLACKLIST):
                     continue
-                if any(s in tl for s in SEMI_SENIOR_BLACKLIST):
+                if is_senior_role(tl):
                     continue
-                if any(exp in tl for exp in EXPERIENCE_BLACKLIST):
+                if has_experience_requirement(tl):
                     continue
                 if any(c in tl for c in CLOSED_JOB_INDICATORS):
                     continue
-                # Strictly require entry-level keyword in title
-                if not any(k in tl for k in ENTRY_LEVEL_KEYWORDS):
+                # Strictly require entry-level keyword in title (LinkedIn guest search ignora f_JT=I/P,
+                # asi que el titulo es la unica señal confiable: "Analista Ssr" o "Desarrollador Jr" no pasan)
+                entry_label = entry_level_label(tl)
+                if not entry_label:
                     continue
-                if any(ft in tl for ft in FULL_TIME_BLACKLIST) and not any(al in tl for al in ['pasantia', 'pasantía', 'trainee', 'intern', 'part-time', 'part time']):
+                if is_full_time_only(tl):
                     continue
                 jobs.append({
                     "target_id": t_id,
                     "target_name": t_name,
                     "title": title_company[:70],
                     "company": "LinkedIn Job",
-                    "modality": "Part-Time / Pasantía" if any(k in tl for k in ['pasantia', 'pasantía', 'part-time', 'part time', 'intern']) else "Junior / Trainee",
+                    "modality": entry_label,
                     "location": "Buenos Aires, Argentina",
                     "skills": "",
                     "link": link
@@ -1854,11 +2022,12 @@ def extract_raw_jobs_from_target(t):
                 tl = title_c.lower()
                 if len(title_c) < 5 or any(p in tl for p in JUNK_TITLE_PATTERNS) or any(b in tl for b in NON_TECH_BLACKLIST):
                     continue
-                if any(s in tl for s in SEMI_SENIOR_BLACKLIST):
+                if is_senior_role(tl):
                     continue
-                if any(exp in tl for exp in EXPERIENCE_BLACKLIST):
+                if has_experience_requirement(tl):
                     continue
-                if not any(k in tl for k in ENTRY_LEVEL_KEYWORDS):
+                entry_label = entry_level_label(tl)
+                if not entry_label or is_full_time_only(tl):
                     continue
                 if any(c in tl for c in CLOSED_JOB_INDICATORS):
                     continue
@@ -1867,7 +2036,7 @@ def extract_raw_jobs_from_target(t):
                     "target_name": t_name,
                     "title": title_c[:70],
                     "company": t_name,
-                    "modality": "Part-Time / Pasantía" if any(k in tl for k in ['pasantia', 'pasantía', 'part-time', 'part time', 'intern']) else "Junior / Trainee",
+                    "modality": entry_label,
                     "location": "Buenos Aires, Argentina",
                     "skills": "",
                     "link": link
@@ -1943,17 +2112,17 @@ def run_agent_job_scraper(target_id=None, force=True):
         tl = (t_title + " " + t_skills + " " + t_mod + " " + t_loc).lower()
         
         # Strictly discard senior, lead, semi-senior, experience required
-        if any(s in tl for s in SEMI_SENIOR_BLACKLIST):
+        if is_senior_role(tl):
             continue
-        if any(exp in tl for exp in EXPERIENCE_BLACKLIST):
+        if has_experience_requirement(tl):
             continue
         # Strictly require entry-level keyword
-        if not any(k in tl for k in ENTRY_LEVEL_KEYWORDS):
+        entry_label = entry_level_label(tl)
+        if not entry_label:
             continue
         # Strictly discard full-time
-        if any(ft in tl for ft in FULL_TIME_BLACKLIST):
-            if not any(al in tl for al in ['pasantia', 'pasantía', 'part-time', 'part time', 'media jornada', 'intern', 'trainee']):
-                continue
+        if is_full_time_only(tl):
+            continue
         # Strictly discard out-of-country onsite
         is_rem = any(r in tl for r in ['remoto', 'remote'])
         if not is_rem and any(c in tl for c in OUT_OF_COUNTRY_BLACKLIST):
@@ -1967,12 +2136,19 @@ def run_agent_job_scraper(target_id=None, force=True):
         if any(p in tl for p in JUNK_TITLE_PATTERNS):
             continue
 
+        is_tech = has_term(tl, TECH_KEYWORDS)
+        # Trainee / "sin experiencia" son señales mas debiles: solo valen si el puesto es tech
+        if entry_label in ("Trainee", "Primer empleo") and not is_tech:
+            continue
+
         p_score = 0
-        if any(tk in tl for tk in TECH_KEYWORDS):
+        if is_tech:
             p_score += 40
-        if any(term in tl for term in ['pasantia', 'pasantía', 'intern', 'trainee', 'junior', 'jr', 'part-time', 'part time']):
+        if entry_label in ("Pasantía", "Intern", "Part-Time"):
             p_score += 30
-        if any(role in tl for role in ['networking', 'redes', 'cloud', 'devops', 'linux', 'c++', 'python', 'sistemas', 'infraestructura', 'fullstack', 'backend']):
+        else:
+            p_score += 15
+        if has_term(tl, ['networking', 'redes', 'cloud', 'devops', 'linux', 'c++', 'python', 'sistemas', 'infraestructura', 'fullstack', 'backend']):
             p_score += 20
         if any(src in j.get("target_name", "").lower() for src in ['cafedev', 'work search', 'uca', 'belgrano', 'get on board']):
             p_score += 15
@@ -1981,6 +2157,7 @@ def run_agent_job_scraper(target_id=None, force=True):
             continue
 
         j["priority_score"] = p_score
+        j["entry_label"] = entry_label
         j["link"] = t_link
         candidates.append(j)
 
@@ -2009,20 +2186,22 @@ PERFIL REAL DEL CANDIDATO (SANTINO HICKETHIER):
 - Idiomas: Ingles bilingue profesional con certificado Cambridge C1 Advanced (CAE); Espanol nativo.
 
 Filtra estrictamente las ofertas del listado cumpliendo TODAS estas reglas:
-1. JORNADA Y NIVEL ESTRICTO: Solo vacantes explicitamente JUNIOR, TRAINEE, PASANTIA o INTERN para estudiantes universitarios sin experiencia laboral formal previa (o Part-Time / Media Jornada compatible con cursada).
+1. PRIMERA OPORTUNIDAD LABORAL ESTRICTA: Solo PASANTIAS, INTERNSHIPS / INTERN, PRACTICANTES, puestos PART-TIME / MEDIA JORNADA compatibles con la cursada, o programas TRAINEE pensados para gente SIN experiencia previa.
    ESTRICTAMENTE DESCARTA:
-   - Cualquier puesto que pida experiencia previa de 2 o mas anos.
+   - Puestos JUNIOR / JR / ANALISTA / ANALYST / DEVELOPER que no sean pasantia, intern, part-time o trainee: un "Junior" full-time NO es una pasantia.
+   - Cualquier puesto que pida experiencia previa (aunque sea 1 ano) o "experiencia comprobable".
    - Puestos Semi-Senior (SSR), Senior (SR), Lead, Principal, Staff, Architect, Gerente o similares.
-   - Jornada completa (Full-Time / 40hs). Si el puesto dice Full-Time o no es para estudiante/junior/trainee/pasante, DESCARTALO INMEDIATAMENTE.
+   - Jornada completa (Full-Time / 40hs / 9hs diarias), incluidos programas Trainee full-time para graduados. Ante la duda, DESCARTALO.
 2. UBICACION Y MODALIDAD: Remoto 100% o Presencial/Hibrido en CABA / Gran Buenos Aires, Argentina.
    ESTRICTAMENTE DESCARTA: Ofertas presenciales o hibridas en el exterior u otras provincias (ej. Santiago de Chile, Lima, Bogota, etc.).
-3. RAMAS DE INTERES: Desarrollo de Software (Backend, Fullstack, Frontend), Python, Node.js/TypeScript, Cloud, DevOps, Infraestructura, Servidores Linux, Redes, Telecomunicaciones, Ciberseguridad, IoT, Embebidos, Datos/IA.
-   DESCARTA: Soporte Tecnico de microinformatica, Help Desk telefonico, Ventas, Marketing, Finanzas puras sin desarrollo.
+3. RAMAS DE INTERES: cualquier puesto de informatica en cualquier industria (fintech, tech, banca, consumo masivo, energia, sector publico, etc.):
+   Inteligencia Artificial, Automatizacion (RPA, n8n, LLMs, agentes), Datos, Desarrollo de Software (Backend, Fullstack, Frontend), Python, Node.js/TypeScript, Cloud, DevOps, Infraestructura, Servidores Linux, Redes, Telecomunicaciones, Ciberseguridad, IoT, Embebidos, IT corporativo, QA/Testing.
+   DESCARTA: Help Desk telefonico, Ventas, Marketing, Finanzas o Administracion puras sin componente informatico.
 4. DESCARTA CERRADAS: No admitas puestos que esten cerrados o ya no acepten solicitudes.
 5. ESTRICTAMENTE PROHIBIDO INVENTAR: Usa UNICAMENTE los puestos y enlaces reales provistos. El campo 'link' debe ser exactamente la URL provista en [LINK: ...].
 
 EVALUACION DE AFINIDAD (MATCH SCORE 0-100%):
-- match_score: Puntaje de 0 a 100 con el perfil real de Santino.
+- match_score: Puntaje de 0 a 100 con el perfil real de Santino. Orden de preferencia: IA & Automation / Data > Desarrollo, Cloud, DevOps, Infraestructura > Redes, Ciberseguridad, IT corporativo > QA / Soporte (QA es valido, pero puntua mas bajo).
 - match_reason: Justificacion concisa en 1 frase de por que coincide con su perfil.
 - missing_skills: Lista JSON de tecnologias a reforzar (ej. ["Kubernetes", "AWS"]).
 - language: "es" si es empresa local/argentina, "en" si es internacional en ingles.
@@ -2066,25 +2245,30 @@ Responde estrictamente con un JSON valido:
                 if not link or not title:
                     continue
 
-                # Safety post-check
-                chk_text = (title + " " + modality + " " + summary).lower()
-                if any(s in chk_text for s in SEMI_SENIOR_BLACKLIST):
+                # Identify source candidate: la IA no puede inventar puestos ni "ascender" un Junior a pasantia
+                src_cand = None
+                for c in selected_candidates:
+                    if c["link"] == link or (c["title"].lower() == title.lower() and c["company"].lower() == company.lower()):
+                        src_cand = c
+                        break
+                if not src_cand:
                     continue
-                if any(exp in chk_text for exp in EXPERIENCE_BLACKLIST):
+                match_target_id = src_cand["target_id"]
+
+                # Safety post-check (sobre el texto real del candidato; la "modalidad" de la IA suele copiar el ejemplo del prompt)
+                chk_text = (title + " " + src_cand["title"] + " " + src_cand.get("modality", "") + " " + summary).lower()
+                if is_senior_role(chk_text):
                     continue
-                if any(ft in chk_text for ft in FULL_TIME_BLACKLIST) and not any(al in chk_text for al in ['pasantia', 'pasantía', 'part-time', 'part time', 'trainee', 'intern']):
+                if has_experience_requirement(chk_text):
+                    continue
+                if is_full_time_only(chk_text):
                     continue
                 if any(c in chk_text for c in OUT_OF_COUNTRY_BLACKLIST) and not any(r in chk_text for r in ['remoto', 'remote']):
                     continue
-                if not any(k in chk_text for k in ENTRY_LEVEL_KEYWORDS):
+                if not entry_level_label(src_cand["title"], src_cand.get("modality", "")):
                     continue
-
-                # Identify source target_id
-                match_target_id = targets[0][0] if targets else 1
-                for c in selected_candidates:
-                    if c["link"] == link or (c["title"].lower() == title.lower() and c["company"].lower() == company.lower()):
-                        match_target_id = c["target_id"]
-                        break
+                if not entry_level_label(modality):
+                    modality = f"{src_cand['entry_label']} / {modality}"
 
                 # Deduplication check in DB
                 norm_key = normalize_job_key(title, company)
@@ -3083,7 +3267,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             latest = history[0] if history else {
                 "timestamp": int(time.time()),
                 "time_str": datetime.now().strftime("%H:%M"),
-                "ping_gw_ms": read_ping_ms("192.168.0.1"),
+                "ping_gw_ms": read_ping_ms("192.168.1.1"),
                 "ping_cf_ms": read_ping_ms("1.1.1.1"),
                 "ping_google_ms": read_ping_ms("8.8.8.8"),
                 "dns_ms": measure_dns_latency(),
@@ -3347,7 +3531,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
         if path == "/api/v1/actions/renew-ssl":
             try:
                 # Renovar certificado Tailscale oficial si aplica
-                res = subprocess.run(["tailscale", "cert", "lenovo-server.tail197fd6.ts.net"], capture_output=True, text=True, timeout=30)
+                res = subprocess.run(["tailscale", "cert", "homelab.tailnet-example.ts.net"], capture_output=True, text=True, timeout=30)
                 out = res.stdout.strip() or "Certificados TLS verificados y sincronizados con NPM."
                 self._send_json({
                     "status": "ok",
@@ -4216,4 +4400,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

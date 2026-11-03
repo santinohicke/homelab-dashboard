@@ -55,10 +55,10 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 * **Vacantes 100% Reales (Zero-Mock)**: Extracción directa del estado embebido `window.__STATE__` en bolsas universitarias (UCA Campus, Universidad de Belgrano), LinkedIn Jobs y Get on Board, descartando de forma tajante datos sintéticos o alucinaciones.
 * **Arquitectura Asíncrona No Bloqueante (Anti-Timeout 504)**: El accionador "Rastrear Ahora" ejecuta el web scraper e inferencia LLM en hilos daemon en segundo plano (`threading.Thread(daemon=True)`). Responde de inmediato con HTTP 200 JSON (`{"status": "started", "scanning": true}`) y el frontend sondea de forma reactiva el estado en vivo a través de `GET /api/v1/agent/status`, garantizando cero bloqueos de red o caídas por límites de tiempo (`proxy_read_timeout`) en proxies inversos Nginx.
 * **Criterios Estrictos de Filtrado (Orientado a Estudiante de Ingeniería Informática UCA)**:
-  * **Jornada Obligatoria**: Exclusivamente Part-Time / Media Jornada / Pasantía / Trainee / Intern compatible con la cursada universitaria. **Descarta categóricamente** vacantes de jornada completa (Full-Time) y niveles intermedios/avanzados (Semi-Senior SSR, Senior SR o Lead).
+  * **Primera Oportunidad Laboral Estricta**: Solo Pasantía / Intern / Practicante / Part-Time / Media Jornada, Trainee sin experiencia (no full-time) o "Primer empleo / estudiantes". Un puesto **Junior, Jr o Analyst** sin esas señales **no** califica. **Descarta categóricamente** jornada completa (Full-Time), experiencia previa exigida y niveles Semi-Senior (SSR), Senior (SR) o Lead.
   * **Ubicación & Modalidad**: Remoto 100% o presencial/híbrido **estrictamente en CABA (Ciudad Autónoma de Buenos Aires) o Gran Buenos Aires**. **Descarta tajantemente** puestos presenciales en el interior o en el exterior (ej. Santiago de Chile, Lima, Bogotá).
-  * **Ramas Tecnológicas de Interés**: Redes, Telecomunicaciones, Sistemas Embebidos, Firmware, Bajo Nivel (C/C++, Python), Sysadmin Linux, Infraestructura, Cloud, DevOps, Ciberseguridad y Desarrollo de Software.
-  * **Exclusión Categórica**: Descarta sin excepciones puestos de Soporte Técnico, Help Desk, Service Desk, Mesa de Ayuda, Atención al Cliente, QA Tester manual, Ventas o Finanzas puras.
+  * **Ramas Tecnológicas de Interés (cualquier industria)**: IA & Automation, Data, Desarrollo de Software, Cloud, DevOps, Infraestructura, Sysadmin Linux, Redes, Telecomunicaciones, Ciberseguridad, Embebidos/IoT, IT corporativo y QA (este último con menor prioridad).
+  * **Exclusión Categórica**: Help Desk, Service Desk, Mesa de Ayuda, Atención al Cliente, Ventas o Finanzas puras sin componente informático.
   * **Descarte de Vacantes Cerradas**: Filtrado estricto de URLs reales (`/jobs/view/`) en LinkedIn para descartar enlaces que ya no aceptan solicitudes o artefactos de navegación de búsqueda.
 * **Navegación Simplificada en Frontend (`AgentRadar.jsx`)**:
   * Interfaz optimizada con dos únicas solapas operativas: **"Nuevas"** (con contador en vivo de oportunidades pendientes de postulación) y **"Mis Postulaciones"** (con contador de vacantes en proceso y registro de respuestas). Se eliminaron las pestañas redundantes "Todas" y "Alta afinidad" para un flujo de decisión inmediato.
@@ -78,20 +78,25 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
   * **Editor de Texto In-Situ & Previsualización Dual**: Modal con selector de vista previa en iframe aislado o editor de texto monospaciado en tiempo real. Permite corregir palabras, párrafos o términos específicos antes de postular.
   * **Guardado y Regeneración Automática**: Botón "Guardar & Regenerar PDF" que recompila el documento con Edge Headless, actualiza SQLite y sirve el nuevo PDF vectorial descargable en 1 clic.
 * **Búsqueda Profunda y Multi-Portal Expandido**:
-  1. *CaféDev REST API Oficial* (`api.cafedev.co/v1/jobs`): Consultas concurrentes multi-query (`junior`, `trainee`, `pasantia`) sobre más de 1.700 vacantes tech abiertas en LATAM.
-  2. *Work Search Argentina API* (`work-search-ten.vercel.app/api/jobs`): Pasantías y vacantes trainee de empresas líderes (Mercado Libre, Newsan, BBVA).
+  1. *CaféDev REST API Oficial* (`api.cafedev.co/v1/jobs`): Consultas concurrentes multi-query (`pasantia`, `intern`, `trainee`, `part-time`, `sin experiencia`) sobre más de 1.700 vacantes tech abiertas en LATAM.
+  2. *Work Search Argentina API* (`work-search-ten.vercel.app/api/jobs`): Pasantías, intern, trainee y part-time de empresas líderes (Mercado Libre, Newsan, BBVA).
   3. *Bolsa de Empleo Campus UCA* (`ucaecono.hiringroomcampus.com`)
   4. *Bolsa de Empleo Campus Universidad de Belgrano* (`ub.hiringroomcampus.com`)
-  5. *LinkedIn Jobs: Pasantías & Part-Time IT CABA* (Paginación multi-página `start=0` y `start=25`)
-  6. *LinkedIn Jobs: Redes, Telecomunicaciones & Electrónica*
-  7. *LinkedIn Jobs: Pasantías de Ingeniería & Tecnología*
-  8. *LinkedIn Jobs: Trainee / Junior Infraestructura & DevOps*
-  9. *LinkedIn Jobs: Programación Embebida, Firmware & IoT*
-  10. *Get on Board: Pasantías & Part-Time Tech*
-  11. *Get on Board: Sysadmin, DevOps & Cloud*
+  5. *Bolsa de Empleo Campus Universidad de Palermo* (`up.hiringroomcampus.com`)
+  6. *LinkedIn Jobs: Pasantías Sistemas*
+  7. *LinkedIn Jobs: Pasantías Redes, Telecomunicaciones & Electrónica*
+  8. *LinkedIn Jobs: Intern Software / Engineering / IT*
+  9. *LinkedIn Jobs: Trainee & Part-Time Infraestructura, Cloud & DevOps*
+  10. *LinkedIn Jobs: Pasantía / Intern Embebidos, Firmware & IoT*
+  11. *LinkedIn Jobs: Pasantías IA, Automatización & Data*
+  12. *LinkedIn Jobs: AI / Automation / Data / ML Intern*
+  13. *Computrabajo: Pasante Sistemas, Pasante Programador y Programador Part-Time*
+  14. *Get on Board: Part-Time, Sysadmin/DevOps y Programación (solo "Sin experiencia" o títulos de pasantía)*
+  * **Nota técnica**: el buscador público de LinkedIn ignora los filtros `f_JT=I/P` y `f_E=1`, por lo que las búsquedas usan keywords de pasantía/intern y el título se valida con límites de palabra (`intern` no coincide con `Internal` ni `International`).
 * **Pipeline de Ingesta Inteligente & Priorización de Afinidades (`priority_score`)**:
   * **Filtrado Léxico Anti-Ruido**: Descarte automático en memoria (`NON_TECH_BLACKLIST`, `JUNK_TITLE_PATTERNS`) de puestos no afines (administrativos, secretarias, finanzas) y enlaces de navegación (login, cookies, términos).
-  * **Ponderación Técnica Ponderada**: Puntuación automática (`TECH_KEYWORDS`) que ubica al inicio de la remesa evaluada por la IA las vacantes con palabras clave troncales (software, linux, devops, cloud, redes, sistemas, python, docker, pasantía, junior).
+  * **Clasificador de Nivel de Entrada**: `entry_level_label()` (Pasantía / Intern / Part-Time / Trainee / Primer empleo), `has_experience_requirement()`, `is_full_time_only()` e `is_senior_role()` con normalización de tildes y límites de palabra.
+  * **Ponderación Técnica Ponderada**: Puntuación automática (`TECH_KEYWORDS`, coincidencia por palabra completa) que ubica al inicio de la remesa evaluada por la IA las vacantes de IA/Automation, Data, desarrollo, cloud, redes y sistemas, priorizando pasantías, intern y part-time.
   * **Concurrencia Resiliente Multihilo**: Extracción paralela en menos de 3 segundos mediante `ThreadPoolExecutor(max_workers=8)` y `as_completed(timeout=14)` con manejo tolerante de timeouts para portales lentos.
   * **Evaluación Consolidada y Parser Tolerante a Fallos**: Lote de 25 candidatos de máxima afinidad evaluados en una sola inferencia de Gemini 3.8 Flash (`ai_bridge.py` en la PC host o nube de respaldo) con parser de recuperación por expresiones regulares a nivel de objeto (`parse_agent_findings_json`).
 * **Seguimiento de Postulaciones y Rechazos ("Me rechazaron")**:
@@ -235,7 +240,7 @@ En cumplimiento estricto con las especificaciones de seguridad de Apple WebKit:
 * **Contexto Seguro Requerido (`HTTPS`)**: iOS restringe el acceso a la API de Notificaciones exclusivamente a conexiones seguras (`https://`). En conexiones HTTP sin cifrar, WebKit bloquea el prompt del sistema.
 * **Modo PWA Standalone**: Para recibir notificaciones en segundo plano, la web debe iniciarse desde el acceso directo guardado en la Pantalla de Inicio de iOS.
 * **Service Worker Universal**: Las alertas se canalizan mediante `navigator.serviceWorker.ready` y `registration.showNotification()`, evitando el constructor `new Notification()` no soportado en WebKit móvil.
-* **Certificado Público Let's Encrypt**: En entornos con Tailscale MagicDNS, el panel se sirve con certificado oficial Let's Encrypt de confianza pública (`https://lenovo-server.tail197fd6.ts.net`), garantizando la descarga inmediata del icono del bastidor y el funcionamiento pleno de Web Push sin alertas de certificado en iOS.
+* **Certificado Público Let's Encrypt**: En entornos con Tailscale MagicDNS, el panel se sirve con certificado oficial Let's Encrypt de confianza pública (`https://homelab.tailnet-example.ts.net`), garantizando la descarga inmediata del icono del bastidor y el funcionamiento pleno de Web Push sin alertas de certificado en iOS.
 
 
 ---
@@ -257,3 +262,4 @@ En cumplimiento estricto con las especificaciones de seguridad de Apple WebKit:
 ## Licencia
 
 Este proyecto está bajo la Licencia **MIT**. Consulta el archivo [LICENSE](LICENSE) para más detalles.
+

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Shield, ShieldCheck, ShieldAlert, Lock, Key, Globe, Server, Terminal,
   RefreshCw, CheckCircle2, AlertCircle, AlertTriangle, Eye, EyeOff,
@@ -68,7 +68,7 @@ export default function SecurityVault() {
     { port: 22, proto: "TCP", service: "SSH OpenSSH 9.6p1", access: "Solo LAN & Tailscale", status: "open", firewall: "UFW Activo", rateLimit: "fail2ban 3 intentos" },
     { port: 80, proto: "TCP", service: "HTTP Nginx Proxy", access: "Redirige a HTTPS 443", status: "redirect", firewall: "Permitido", rateLimit: "N/A" },
     { port: 443, proto: "TCP", service: "HTTPS Nginx SSL Wildcard", access: "Público LAN / Ingress", status: "open", firewall: "Permitido (TLS 1.3)", rateLimit: "100 req/s" },
-    { port: 81, proto: "TCP", service: "Nginx Proxy Manager Admin", access: "Privado (Admin)", status: "restricted", firewall: "Restringido a LAN 192.168.0.0/24", rateLimit: "Protegido" },
+    { port: 81, proto: "TCP", service: "Nginx Proxy Manager Admin", access: "Privado (Admin)", status: "restricted", firewall: "Restringido a LAN 192.168.1.0/24", rateLimit: "Protegido" },
     { port: 53, proto: "UDP/TCP", service: "DNS Pi-hole FTL", access: "Servidor DNS LAN", status: "open", firewall: "Escuchando en 192.168.1.100", rateLimit: "Rate limit activado" },
     { port: 8123, proto: "TCP", service: "Home Assistant Web & WS", access: "Proxy Inverso :443", status: "proxied", firewall: "Aislado por Docker Bridge", rateLimit: "Autenticación MFA" },
     { port: 8085, proto: "TCP", service: "Vaultwarden SQLite API", access: "Proxy Inverso :443", status: "proxied", firewall: "Aislado por Docker Bridge", rateLimit: "Zero-Knowledge" },
@@ -486,4 +486,3 @@ Valid for *.santino.lab / Lenovo Server M93p Tiny
     </div>
   );
 }
-

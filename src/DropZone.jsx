@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Share2, UploadCloud, Copy, Check, File, Trash2, Smartphone,
   Laptop, ArrowDown, ArrowUp, Send, RefreshCw, FileText, Download,
@@ -379,4 +379,3 @@ export default function DropZone() {
     </div>
   );
 }
-

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Activity, Server, Wifi, Cpu, HardDrive, Smartphone, Laptop, Tablet,
   Shield, ShieldCheck, Lock, Zap, Radio, Globe, RefreshCw, RotateCw, Terminal, ExternalLink,
@@ -21,11 +21,11 @@ import DropZone from "./DropZone.jsx";
 // REAL HOMELAB SHARED DATA
 // ============================================================================
 export const FAMILY_MEMBERS = [
-  { name: "iPhone 11", device: "iOS · 192.168.1.150", ip: "192.168.1.150", isHome: true, ping: "4ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-42 dBm", mac: "86:2D:A6:15:03:4F" },
-  { name: "Samsung Galaxy A52", device: "Android · 192.168.0.110", ip: "192.168.0.110", isHome: true, ping: "12ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-58 dBm", mac: "66:3C:28:90:11:02" },
-  { name: "iPhone 15", device: "iOS · 192.168.0.125", ip: "192.168.0.125", isHome: true, ping: "9ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-52 dBm", mac: "46:64:96:D7:99:93" },
-  { name: "Notebook HP 250 G7", device: "Windows 11 · 192.168.1.50", ip: "192.168.1.50", isHome: true, ping: "2ms", icon: Laptop, color: "from-emerald-500 to-teal-600", signal: "-38 dBm", mac: "CF:30:49:12:88:AA" },
-  { name: "Panel Control Moto e7", device: "Wallmount · 192.168.0.150", ip: "192.168.0.150", isHome: false, ping: "OFF", icon: Tablet, color: "from-purple-500 to-pink-600", signal: "N/A", mac: "04:A6:71:B2:C3:D4" }
+  { name: "iPhone 11", device: "iOS · 192.168.1.150", ip: "192.168.1.150", isHome: true, ping: "4ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-42 dBm", mac: "02:00:00:00:00:01" },
+  { name: "Samsung Galaxy A52", device: "Android · 192.168.1.110", ip: "192.168.1.110", isHome: true, ping: "12ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-58 dBm", mac: "02:00:00:00:00:02" },
+  { name: "iPhone 15", device: "iOS · 192.168.1.125", ip: "192.168.1.125", isHome: true, ping: "9ms", icon: Smartphone, color: "from-blue-600 to-indigo-600", signal: "-52 dBm", mac: "02:00:00:00:00:03" },
+  { name: "Notebook HP 250 G7", device: "Windows 11 · 192.168.1.50", ip: "192.168.1.50", isHome: true, ping: "2ms", icon: Laptop, color: "from-emerald-500 to-teal-600", signal: "-38 dBm", mac: "02:00:00:00:00:04" },
+  { name: "Panel Control Moto e7", device: "Wallmount · 192.168.1.160", ip: "192.168.1.160", isHome: false, ping: "OFF", icon: Tablet, color: "from-purple-500 to-pink-600", signal: "N/A", mac: "02:00:00:00:00:05" }
 ];
 
 export const SERVICES = [
@@ -189,7 +189,7 @@ function generateFallbackLogs(unit) {
         `[${now}] [homeassistant.core] Starting Home Assistant 2026.8.2`,
         `[${now}] [homeassistant.components.websocket_api] Client connected from 192.168.1.100`,
         `[${now}] [homeassistant.components.weather] Updating weather data from Met.no for zone.casa`,
-        `[${now}] [homeassistant.components.device_tracker] ARP scan detected 5 active clients in 192.168.0.0/24`,
+        `[${now}] [homeassistant.components.device_tracker] ARP scan detected 5 active clients in 192.168.1.0/24`,
         `[${now}] [homeassistant.components.sensor] speedtest_descarga: 294.8 Mbit/s | speedtest_subida: 52.4 Mbit/s`,
         `[${now}] [homeassistant.core] Event loop nominal, 0 pending tasks`
       ];
@@ -2599,4 +2599,3 @@ export function AppleIslandDesign() {
 export default function App() {
   return <AppleIslandDesign />;
 }
-

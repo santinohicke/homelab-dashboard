@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Activity, Server, Wifi, Cpu, HardDrive, Smartphone, Laptop, Tablet,
   Shield, ShieldCheck, Lock, Zap, Radio, Globe, RefreshCw, RotateCw, Terminal,
@@ -1056,7 +1056,7 @@ export default function HomelabMetricsObservatory() {
               <Wifi className="w-4 h-4" />
               <span>2. Tráfico de Red, WiFi & Ancho de Banda</span>
             </h2>
-            <span className="text-[11px] font-mono text-white/40">Router Gigabit 192.168.0.1</span>
+            <span className="text-[11px] font-mono text-white/40">Router Gigabit 192.168.1.1</span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1143,7 +1143,7 @@ export default function HomelabMetricsObservatory() {
                     },
                     { 
                       name: "Samsung Galaxy A51", 
-                      ip: "192.168.0.110", 
+                      ip: "192.168.1.110", 
                       rssi: a51Batt ? `${a51Batt}% Bat` : "-58 dBm", 
                       quality: a51Home ? "En Casa · Conectado" : "Suspendido", 
                       bar: a51Batt ? parseInt(a51Batt) : 60, 
@@ -1151,7 +1151,7 @@ export default function HomelabMetricsObservatory() {
                     },
                     { 
                       name: "Panel de Control Moto", 
-                      ip: "192.168.0.150", 
+                      ip: "192.168.1.160", 
                       rssi: motoBatt ? `${motoBatt}% Bat` : "-48 dBm", 
                       quality: "Enlace Fijo · Display", 
                       bar: motoBatt ? parseInt(motoBatt) : 16, 
@@ -1486,4 +1486,3 @@ export default function HomelabMetricsObservatory() {
     </div>
   );
 }
-

@@ -1675,6 +1675,57 @@ TECH_KEYWORDS = [
 ]
 
 
+LINKEDIN_GUEST_SEARCH = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+LINKEDIN_GUEST_POSTING = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/"
+
+def fetch_linkedin_cards(params, pages=3):
+    """Tarjetas de la API publica de LinkedIn: [{title, company, location, link, date}]. 10 por pagina."""
+    cards = []
+    for page in range(pages):
+        url = LINKEDIN_GUEST_SEARCH + "?" + urllib.parse.urlencode({**params, "start": page * 10})
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept-Language': 'es-AR,es;q=0.9'})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                html = r.read().decode('utf-8', errors='replace')
+        except Exception:
+            break
+        found = 0
+        for block in re.split(r'<li>', html)[1:]:
+            t_m = re.search(r'base-search-card__title[^>]*>\s*(.*?)\s*<', block, re.S)
+            u_m = re.search(r'href="(https://[a-z]+\.linkedin\.com/jobs/view/[^"?]+)', block)
+            if not t_m or not u_m:
+                continue
+            c_m = re.search(r'base-search-card__subtitle[^>]*>.*?<a[^>]*>\s*(.*?)\s*<', block, re.S)
+            l_m = re.search(r'job-search-card__location[^>]*>\s*(.*?)\s*<', block, re.S)
+            d_m = re.search(r'datetime="([\d-]+)"', block)
+            found += 1
+            cards.append({
+                "title": html_unescape(t_m.group(1)).strip(),
+                "company": html_unescape(c_m.group(1)).strip() if c_m else "",
+                "location": html_unescape(l_m.group(1)).strip() if l_m else "",
+                "link": canonicalize_job_url(u_m.group(1)),
+                "date": d_m.group(1) if d_m else ""
+            })
+        if found < 10:
+            break
+        time.sleep(1.2)
+    return cards
+
+def fetch_linkedin_company(job_link):
+    """Nombre real de la empresa de un aviso de LinkedIn (para reparar filas viejas guardadas como 'LinkedIn Job')."""
+    m = re.search(r'/jobs/view/(\d+)', job_link or "")
+    if not m:
+        return ""
+    try:
+        req = urllib.request.Request(LINKEDIN_GUEST_POSTING + m.group(1), headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            html = r.read().decode('utf-8', errors='replace')
+        c_m = re.search(r'topcard__org-name-link[^>]*>\s*(.*?)\s*<', html, re.S) or re.search(r'topcard__flavor[^>]*>\s*(.*?)\s*<', html, re.S)
+        return html_unescape(c_m.group(1)).strip() if c_m else ""
+    except Exception:
+        return ""
+
+
 def extract_raw_jobs_from_target(t):
     t_id, t_name, t_url, t_criteria, t_last_chk, t_last_hash = t
     jobs = []
@@ -1950,58 +2001,31 @@ def extract_raw_jobs_from_target(t):
 
         # 5. LINKEDIN JOBS (Filtered for past 7 days & active postings)
         elif "linkedin.com" in t_url:
-            raw_lines = []
-            for start_idx in [0, 25, 50]:
-                paginated_url = t_url + f"&start={start_idx}" if "start=" not in t_url else t_url
-                if "f_TPR=" not in paginated_url:
-                    paginated_url += "&f_TPR=r604800"
-                try:
-                    req = urllib.request.Request(paginated_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-                    with urllib.request.urlopen(req, timeout=6) as r:
-                        raw_b = r.read()
-                        try:
-                            html = raw_b.decode('utf-8')
-                        except UnicodeDecodeError:
-                            html = raw_b.decode('latin-1', errors='replace')
-                    parser = JobPageExtractor(paginated_url)
-                    parser.feed(html)
-                    for l in parser.get_content().split('\n'):
-                        if len(l) > 4 and l not in raw_lines:
-                            raw_lines.append(l)
-                except Exception:
-                    pass
-            for l in raw_lines:
-                link_m = re.search(r'\[LINK:\s*(https?://[^\]]+)\]', l)
-                link = link_m.group(1) if link_m else ""
-                if not link or "/jobs/view/" not in link:
+            # Guest jobs API: trae titulo, empresa, ubicacion y fecha por tarjeta (la pagina de busqueda
+            # parseada como texto perdia la empresa). Respeta keywords, location y f_C; ignora f_JT/f_E.
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(t_url).query)
+            params = {k: q[k][0] for k in ("keywords", "location", "f_C", "geoId") if k in q}
+            params.setdefault("location", "Argentina")
+            for card in fetch_linkedin_cards(params, pages=4):
+                title = card["title"]
+                tl = title.lower()
+                if len(title) < 5 or any(p in tl for p in JUNK_TITLE_PATTERNS) or any(b in tl for b in NON_TECH_BLACKLIST):
                     continue
-                link = canonicalize_job_url(link)
-                title_company = l.split('[LINK:')[0].strip()
-                tl = title_company.lower()
-                if len(title_company) < 5 or any(p in tl for p in JUNK_TITLE_PATTERNS) or any(b in tl for b in NON_TECH_BLACKLIST):
+                if is_senior_role(tl) or has_experience_requirement(tl) or any(c in tl for c in CLOSED_JOB_INDICATORS):
                     continue
-                if is_senior_role(tl):
-                    continue
-                if has_experience_requirement(tl):
-                    continue
-                if any(c in tl for c in CLOSED_JOB_INDICATORS):
-                    continue
-                # Strictly require entry-level keyword in title (LinkedIn guest search ignora f_JT=I/P,
-                # asi que el titulo es la unica señal confiable: "Analista Ssr" o "Desarrollador Jr" no pasan)
+                # El titulo es la unica señal confiable: "Analista Ssr" o "Desarrollador Jr" no pasan
                 entry_label = entry_level_label(tl)
-                if not entry_label:
-                    continue
-                if is_full_time_only(tl):
+                if not entry_label or is_full_time_only(tl):
                     continue
                 jobs.append({
                     "target_id": t_id,
                     "target_name": t_name,
-                    "title": title_company[:70],
-                    "company": "LinkedIn Job",
+                    "title": title[:90],
+                    "company": card["company"] or "LinkedIn",
                     "modality": entry_label,
-                    "location": "Buenos Aires, Argentina",
+                    "location": card["location"] or "Argentina",
                     "skills": "",
-                    "link": link
+                    "link": card["link"]
                 })
 
         # 6. GENERIC FALLBACK

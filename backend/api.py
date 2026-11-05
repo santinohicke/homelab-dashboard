@@ -2319,6 +2319,336 @@ Responde estrictamente con un JSON valido:
     return {"status": "ok", "new_findings": total_new, "timestamp": now, "message": msg}
 
 
+# ---------------------------------------------------------------------------------------------
+# EMPRESAS TOP: monitor directo de grandes empresas (big tech, multinacionales con hub en BA,
+# empresas remotas que contratan desde Argentina y tech argentinas grandes).
+# Fuente comun: LinkedIn guest API filtrada por f_C (id de empresa) + location=Argentina, que si
+# respeta el filtro de empresa. Donde el portal oficial tiene API publica se consulta tambien
+# (Google, Amazon, JPMorgan/Oracle, Workday, Lever, Greenhouse) para enterarse antes que LinkedIn.
+# ---------------------------------------------------------------------------------------------
+
+TOP_TIERS = ["Big Tech", "Finanzas y multinacionales con hub tech en BA", "Remoto desde Argentina (inglés C1)", "Tech argentinas grandes"]
+
+def _li_jobs(cid):
+    return f"https://www.linkedin.com/jobs/search?f_C={cid}&location=Argentina&sortBy=DD"
+
+# (nombre, tier, linkedin_id, portal_empleo, portal_estudiantes, ats, nota)
+TOP_COMPANIES = [
+    ("Google", 0, "1441", "https://www.google.com/about/careers/applications/jobs/results?location=Argentina",
+     "https://www.google.com/about/careers/applications/students/", {"type": "google"}, "Oficina en Puerto Madero. Programa de pasantías rentado con inscripción anual."),
+    ("Microsoft", 0, "1035", "https://apply.careers.microsoft.com/careers?location=Argentina",
+     "https://careers.microsoft.com/v2/global/en/students", None, "Oficina en CABA; internships de estudiantes publicados por temporada."),
+    ("Amazon", 0, "1586", "https://www.amazon.jobs/en/search?country%5B%5D=ARG",
+     "https://www.amazon.jobs/content/en/career-programs/university", {"type": "amazon"}, "Incluye AWS Buenos Aires (Solutions Architect Intern)."),
+    ("Amazon Web Services (AWS)", 0, "2382910", "https://www.amazon.jobs/en/search?country%5B%5D=ARG&business_category%5B%5D=amazon-web-services",
+     "https://www.amazon.jobs/content/en/career-programs/university", None, ""),
+    ("IBM", 0, "1009", "https://www.ibm.com/careers/search?field_keyword_05[0]=Argentina",
+     "https://www.ibm.com/careers/internships", None, "Programa de Pasantías IBM Argentina (20 hs, CABA) varias veces al año."),
+    ("Apple", 0, "162479", "https://jobs.apple.com/es-mx/search?location=argentina-ARG",
+     "https://www.apple.com/careers/us/work-at-apple/students.html", None, "Sin oficina tech en Argentina: casi nunca publica acá."),
+    ("Meta", 0, "10667", "https://www.metacareers.com/jobs",
+     "https://www.metacareers.com/careerprograms/students", None, "Sin oficina en Argentina: internships solo en EEUU/Europa."),
+    ("Tesla", 0, "15564", "https://www.tesla.com/careers/search/?country=AR",
+     "https://www.tesla.com/careers/students", None, "Sin operación tech en Argentina."),
+    ("NVIDIA", 0, "3608", "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite",
+     "https://www.nvidia.com/en-us/about-nvidia/careers/university-recruiting/", None, ""),
+    ("Oracle", 0, "1028", "https://careers.oracle.com/en/sites/jobsearch",
+     "https://www.oracle.com/careers/students-grads/", None, "Oficina en CABA."),
+    ("Salesforce", 0, "3185", "https://www.salesforce.com/company/careers/jobs/?country=Argentina",
+     "https://www.salesforce.com/company/careers/university/internships/",
+     {"type": "workday", "host": "salesforce.wd12.myworkdayjobs.com", "tenant": "salesforce", "site": "External_Career_Site", "q": "Argentina"},
+     "Futureforce: LATAM Internship Program con sede en Buenos Aires."),
+    ("SAP", 0, "1115", "https://jobs.sap.com/search/?locationsearch=Argentina",
+     "https://jobs.sap.com/en/students-and-graduates/", None, ""),
+    ("Cisco", 0, "1063", "https://careers.cisco.com/global/en",
+     "https://www.cisco.com/c/en/us/about/careers/working-at-cisco/students-and-new-graduate-programs.html", None, ""),
+    ("Intel", 0, "1053", "https://intel.wd1.myworkdayjobs.com/External", "", None, ""),
+    ("OpenAI", 0, "11130470", "https://openai.com/careers/search/", "", None, "Remoto desde Argentina es poco frecuente."),
+    ("Anthropic", 0, "74126343", "https://www.anthropic.com/careers/jobs", "", None, "Remoto desde Argentina es poco frecuente."),
+
+    ("JPMorganChase", 1, "1068", "https://www.jpmorganchase.com/careers",
+     "https://www.jpmorganchase.com/careers/explore-opportunities/programs", {"type": "jpmc"},
+     "Centro tecnológico en CABA. Drive the Future Program for Students (part-time)."),
+    ("Citi", 1, "11448", "https://jobs.citi.com/location/argentina-jobs/287/3865483/2", "", None, ""),
+    ("Mastercard", 1, "3015", "https://careers.mastercard.com/us/en/search-results?keywords=Argentina", "",
+     {"type": "workday", "host": "mastercard.wd1.myworkdayjobs.com", "tenant": "mastercard", "site": "CorporateCareers", "q": "Argentina"}, ""),
+    ("Visa", 1, "2190", _li_jobs("2190"), "", None, ""),
+    ("Goldman Sachs", 1, "1382", _li_jobs("1382"), "", None, ""),
+    ("Morgan Stanley", 1, "497017", _li_jobs("497017"), "", None, ""),
+    ("Chevron", 1, "2192", "https://chevron.wd5.myworkdayjobs.com/jobs", "",
+     {"type": "workday", "host": "chevron.wd5.myworkdayjobs.com", "tenant": "chevron", "site": "jobs", "q": "Buenos Aires"},
+     "Centro de servicios globales en Puerto Madero (BASSC): IT Internship anual."),
+    ("Accenture", 1, "1033", "https://www.accenture.com/ar-es/careers",
+     "https://www.accenture.com/ar-es/careers/life-at-accenture/internships-students",
+     {"type": "workday", "host": "accenture.wd103.myworkdayjobs.com", "tenant": "accenture", "site": "AccentureCareers", "q": "Argentina"},
+     "Programa Changemakers (pasantías 20 hs, inglés avanzado)."),
+    ("Deloitte", 1, "1038", _li_jobs("1038"), "", None, ""),
+    ("PwC", 1, "1044", "https://pwc.wd3.myworkdayjobs.com/Global_Experienced_Careers", "",
+     {"type": "workday", "host": "pwc.wd3.myworkdayjobs.com", "tenant": "pwc", "site": "Global_Experienced_Careers", "q": "Argentina"}, ""),
+    ("KPMG", 1, "2525300", _li_jobs("2525300"), "https://kpmg.com/ar/es/carreras/programa-de-pasantias.html", None, ""),
+    ("Siemens", 1, "1043", _li_jobs("1043"), "", None, ""),
+    ("EPAM Systems", 1, "4972", "https://www.epam.com/careers/job-listings?country=Argentina", "", None, ""),
+    ("Endava", 1, "9707", "https://www.endava.com/careers", "", None, ""),
+    ("Capgemini", 1, "157240", _li_jobs("157240"), "", None, ""),
+    ("NTT DATA", 1, "76533648", _li_jobs("76533648"), "", None, ""),
+    ("Marvell", 1, "", "https://marvell.wd1.myworkdayjobs.com/MarvellCareers", "",
+     {"type": "workday", "host": "marvell.wd1.myworkdayjobs.com", "tenant": "marvell", "site": "MarvellCareers", "q": "Argentina"},
+     "Diseño de chips en Córdoba (internships de software/firmware)."),
+
+    ("Sezzle", 2, "7581873", "https://job-boards.greenhouse.io/sezzle", "",
+     {"type": "greenhouse", "slug": "sezzle", "loc": "argentin"}, "Fintech de EEUU que contrata interns remotos/híbridos en Argentina."),
+    ("Deel", 2, "18922914", "https://www.deel.com/careers/", "", None, "100% remoto."),
+    ("Toptal", 2, "1545609", "https://www.toptal.com/careers", "", None, "Remoto; no suele tomar sin experiencia."),
+    ("BairesDev", 2, "798671", "https://www.bairesdev.com/join-us/", "", None, "Remoto desde Argentina."),
+    ("Canonical (Ubuntu)", 2, "234280", "https://canonical.com/careers", "", None, "Remoto global; publica roles de graduate/entry-level."),
+    ("GitLab", 2, "5101804", "https://about.gitlab.com/jobs/", "", None, "Remoto global."),
+    ("Automattic", 2, "58194", "https://automattic.com/work-with-us/", "", None, "Remoto global."),
+    ("Outlier AI", 2, "6644006", "https://outlier.ai/", "", None, "Part-time remoto entrenando modelos de IA (freelance)."),
+    ("DataAnnotation", 2, "", "https://www.dataannotation.tech/", "", None, "Part-time remoto, tareas de código para IA (freelance)."),
+    ("Mercor", 2, "", "https://work.mercor.com/", "", None, "Marketplace de trabajos remotos de IA/datos (freelance)."),
+    ("Turing", 2, "", "https://www.turing.com/jobs", "", None, "Remoto; trabajos de código para entrenar LLMs."),
+
+    ("Mercado Libre", 3, "14226", "https://careers-meli.mercadolibre.com/es", "", None, "Programas de pasantías IT y Bootcamps; también publica en LinkedIn."),
+    ("Mercado Pago", 3, "10664354", "https://careers-meli.mercadolibre.com/es", "", None, ""),
+    ("Globant", 3, "8141", "https://career.globant.com/", "", None, ""),
+    ("Ualá", 3, "3263024", "https://www.ua.la/sumate", "", None, ""),
+    ("Naranja X", 3, "487057", _li_jobs("487057"), "", None, "Programa Talento GO (pasantías, inscripción anual vía LinkedIn)."),
+    ("Banco Galicia", 3, "11987", "https://empleos.galicia.com.ar/", "", None, ""),
+    ("Brubank", 3, "11852029", _li_jobs("11852029"), "", None, ""),
+    ("Personal / Telecom", 3, "209495", _li_jobs("209495"), "", None, "Programa de pasantías universitarias."),
+    ("Personal Pay", 3, "71912243", _li_jobs("71912243"), "", None, ""),
+    ("Tiendanube", 3, "2309561", _li_jobs("2309561"), "", None, ""),
+    ("Despegar", 3, "", "https://jobs.lever.co/despegar", "", {"type": "lever", "slug": "despegar", "loc": "buenos aires|argentin|remot"}, ""),
+    ("Etermax", 3, "496884", "https://www.etermax.com/careers", "", None, ""),
+    ("Satellogic", 3, "1341432", "https://satellogic.com/company/careers/", "", None, ""),
+    ("Pomelo", 3, "76745301", _li_jobs("76745301"), "", None, ""),
+    ("belo", 3, "65704569", _li_jobs("65704569"), "", None, ""),
+    ("Prisma Medios de Pago", 3, "9465265", _li_jobs("9465265"), "", None, ""),
+    ("Santander Argentina", 3, "365334", _li_jobs("365334"), "", None, ""),
+    ("BBVA", 3, "4860", _li_jobs("4860"), "", None, ""),
+    ("ICBC Argentina", 3, "3060422", _li_jobs("3060422"), "", None, ""),
+    ("YPF", 3, "11052764", _li_jobs("11052764"), "", None, "YPF Digital / Tecnología."),
+    ("PedidosYa", 3, "1498871", _li_jobs("1498871"), "", None, ""),
+    ("Rappi", 3, "9997324", _li_jobs("9997324"), "", None, ""),
+]
+
+TOP_NON_IT_RE = re.compile(r"\b(finance|finanzas|financial|accounting|contab\w*|contador\w*|legal|legales|audit|auditor\w*|tax|impuest\w*|hr|rrhh|"
+                           r"recursos humanos|people|talent|learning|recruit\w*|marketing|sales|ventas|comercial|alliances|channels|"
+                           r"communications|comunicacion\w*|media|eminence|responsibility|sustainability|treasury|tesoreria|procurement|"
+                           r"compras|logistic\w*|supply|chargeback|fraud|disputes|risk|compliance|investment banking|real estate|regulatory|"
+                           r"strategy|consulting|graphic|analog|layout|physical design)\b")
+# Un termino IT fuerte gana sobre el filtro anterior (ej. "Cybersecurity Risk Intern", "Data Strategy Intern")
+TOP_IT_OVERRIDE_RE = re.compile(r"\b(cyber\w*|ciberseguridad|security engineer|software|developer|desarroll\w*|data|datos|ai|ia|"
+                                r"machine learning|automation|automatizacion|cloud|devops|it|sistemas|informatica|tecnologia|technology)\b")
+_top_scan_state = {"scanning": False, "last_scan": 0, "last_error": ""}
+_top_scan_lock = threading.Lock()
+
+def _ensure_top_table(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS top_company_status (
+            name TEXT PRIMARY KEY,
+            last_checked INTEGER DEFAULT 0,
+            total_ar INTEGER DEFAULT 0,
+            entry_json TEXT DEFAULT '[]',
+            error TEXT DEFAULT ''
+        )
+    """)
+
+def _top_http_json(url, payload=None, timeout=12):
+    data = json.dumps(payload).encode('utf-8') if payload is not None else None
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept': 'application/json'}
+    if data is not None:
+        headers['Content-Type'] = 'application/json'
+    req = urllib.request.Request(url, data=data, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode('utf-8', errors='replace'))
+
+def _top_ats_postings(ats):
+    """Postings del portal oficial: [{title, location, link}] ya filtrados a Argentina / remoto."""
+    t = ats.get("type")
+    out = []
+    if t == "workday":
+        base = f"https://{ats['host']}/wday/cxs/{ats['tenant']}/{ats['site']}"
+        d = _top_http_json(base + "/jobs", {"appliedFacets": {}, "limit": 20, "offset": 0, "searchText": ats.get("q", "")})
+        for j in d.get("jobPostings", []):
+            loc = j.get("locationsText") or ""
+            out.append({"title": j.get("title", ""), "location": loc,
+                        "link": f"https://{ats['host']}/{ats['site']}{j.get('externalPath', '')}"})
+    elif t == "greenhouse":
+        d = _top_http_json(f"https://boards-api.greenhouse.io/v1/boards/{ats['slug']}/jobs")
+        loc_re = re.compile(ats.get("loc", "argentin"), re.I)
+        for j in d.get("jobs", []):
+            loc = (j.get("location") or {}).get("name", "")
+            if loc_re.search(loc):
+                out.append({"title": j.get("title", ""), "location": loc, "link": j.get("absolute_url", "")})
+    elif t == "lever":
+        d = _top_http_json(f"https://api.lever.co/v0/postings/{ats['slug']}?mode=json")
+        loc_re = re.compile(ats.get("loc", "argentin"), re.I)
+        for j in d if isinstance(d, list) else []:
+            cats = j.get("categories") or {}
+            loc = " / ".join(filter(None, [cats.get("location"), ", ".join(cats.get("allLocations") or []), j.get("workplaceType")]))
+            if loc_re.search(loc):
+                out.append({"title": j.get("text", ""), "location": loc, "link": j.get("hostedUrl", "")})
+    elif t == "amazon":
+        d = _top_http_json("https://www.amazon.jobs/en/search.json?normalized_country_code%5B%5D=ARG&result_limit=50&offset=0&sort=recent")
+        for j in d.get("jobs", []):
+            out.append({"title": j.get("title", ""), "location": j.get("city", "") or "Argentina",
+                        "link": "https://www.amazon.jobs" + (j.get("job_path") or "")})
+    elif t == "jpmc":
+        d = _top_http_json("https://jpmc.fa.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions?onlyData=true"
+                           "&expand=requisitionList.secondaryLocations&finder=findReqs;siteNumber=CX_1001,limit=25,keyword=Buenos%20Aires,sortBy=POSTING_DATES_DESC")
+        for j in (d.get("items") or [{}])[0].get("requisitionList", []):
+            loc = j.get("PrimaryLocation", "")
+            if re.search(r"argentin|buenos aires", loc, re.I):
+                out.append({"title": j.get("Title", ""), "location": loc,
+                            "link": f"https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/{j.get('Id', '')}"})
+    elif t == "google":
+        req = urllib.request.Request("https://www.google.com/about/careers/applications/jobs/results?location=Argentina&target_level=INTERN_AND_APPRENTICE",
+                                     headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        with urllib.request.urlopen(req, timeout=12) as r:
+            page = r.read().decode('utf-8', errors='replace')
+        for m in re.finditer(r'href="(jobs/results/\d+[^"]*)"[^>]*>.*?<h3[^>]*>(.*?)</h3>', page, re.S):
+            out.append({"title": html_unescape(re.sub(r'<.*?>', '', m.group(2))).strip(), "location": "Argentina",
+                        "link": "https://www.google.com/about/careers/applications/" + html_unescape(m.group(1))})
+    return out
+
+def _top_is_entry(title):
+    tl = title.lower()
+    if is_senior_role(tl) or has_experience_requirement(tl) or is_full_time_only(tl):
+        return None
+    return entry_level_label(tl)
+
+def _top_target_id(cur):
+    url = "internal://top-companies"
+    cur.execute("SELECT id FROM agent_targets WHERE url = ?", (url,))
+    row = cur.fetchone()
+    if row:
+        return row[0]
+    # active = 0: no lo procesa el scraper generico; lo alimenta scan_top_companies()
+    cur.execute("""INSERT INTO agent_targets (name, url, category, criteria, interval_hours, last_checked, active)
+                   VALUES (?, ?, ?, ?, 2, 0, 0)""",
+                ("Empresas Top (monitor directo)", url, "Empresas Top",
+                 "Pasantías / intern / trainee en big tech, multinacionales con hub en BA, remotas y tech argentinas grandes."))
+    return cur.lastrowid
+
+def scan_top_companies():
+    """Revisa todas las empresas top, guarda el estado por empresa e inserta pasantias nuevas en el radar."""
+    with _top_scan_lock:
+        if _top_scan_state["scanning"]:
+            return {"status": "busy"}
+        _top_scan_state["scanning"] = True
+    new_findings = []
+    try:
+        # timeout: si otro proceso esta escribiendo (scraper, evaluacion de match) espera en vez de fallar con "database is locked"
+        conn = sqlite3.connect(DB_PATH, timeout=60)
+        cur = conn.cursor()
+        _ensure_top_table(cur)
+        target_id = _top_target_id(cur)
+        conn.commit()
+        for name, tier, li_id, careers, students, ats, note in TOP_COMPANIES:
+            postings, errors = [], []
+            if li_id:
+                try:
+                    for c in fetch_linkedin_cards({"f_C": li_id, "location": "Argentina", "sortBy": "DD"}, pages=2):
+                        postings.append({"title": c["title"], "location": c["location"], "link": c["link"], "source": "LinkedIn", "date": c["date"]})
+                except Exception as e:
+                    errors.append(f"LinkedIn: {e}")
+                time.sleep(1.5)
+            if ats:
+                try:
+                    for p in _top_ats_postings(ats):
+                        postings.append({**p, "source": "Portal oficial", "date": ""})
+                except Exception as e:
+                    errors.append(f"Portal: {type(e).__name__}")
+            seen, seen_titles, entry = set(), set(), []
+            for p in postings:
+                key = p["link"] or p["title"]
+                # el mismo aviso puede venir de LinkedIn y del portal oficial con links distintos
+                norm_title = re.sub(r"[^a-z0-9]+", " ", _norm_text(p["title"])).strip()
+                if not p["title"] or key in seen or norm_title in seen_titles:
+                    continue
+                seen.add(key)
+                seen_titles.add(norm_title)
+                label = _top_is_entry(p["title"])
+                if label:
+                    nt = _norm_text(p["title"])
+                    entry.append({**p, "label": label, "is_it": not TOP_NON_IT_RE.search(nt) or bool(TOP_IT_OVERRIDE_RE.search(nt))})
+            cur.execute("""INSERT INTO top_company_status (name, last_checked, total_ar, entry_json, error) VALUES (?, ?, ?, ?, ?)
+                           ON CONFLICT(name) DO UPDATE SET last_checked = excluded.last_checked, total_ar = excluded.total_ar,
+                           entry_json = excluded.entry_json, error = excluded.error""",
+                        (name, int(time.time()), len(seen), json.dumps(entry, ensure_ascii=False), "; ".join(errors)))
+            for e in entry:
+                if not e["is_it"] or not e["link"]:
+                    continue
+                cur.execute("SELECT id FROM agent_findings WHERE link = ? OR (LOWER(title) = ? AND LOWER(company) = ?)",
+                            (e["link"], e["title"].lower(), name.lower()))
+                if cur.fetchone():
+                    continue
+                cur.execute("""INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link,
+                               is_read, is_archived, is_applied, match_score, match_reason, missing_skills, language)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, '', '[]', 'es')""",
+                            (target_id, int(time.time()), e["title"], name, f"TOP · {e['label']}",
+                             f"{TOP_TIERS[tier]} · {e['location'] or 'Argentina'} · vía {e['source']}", e["link"]))
+                new_findings.append((name, e["title"]))
+            conn.commit()
+        conn.close()
+        # Una sola push por escaneo, agrupada por empresa
+        if new_findings:
+            companies = list(dict.fromkeys(n for n, _ in new_findings))
+            msg = (f"{new_findings[0][1]} ({new_findings[0][0]})" if len(new_findings) == 1
+                   else f"{len(new_findings)} pasantías nuevas: {', '.join(companies[:6])}")
+            dispatch_ha_alert("Pasantía en empresa top", msg + " - revisá el Radar IT y postulate ya.",
+                              alert_type="top_company_internship", severity="info")
+        _top_scan_state["last_error"] = ""
+        return {"status": "ok", "new_findings": len(new_findings)}
+    except Exception as e:
+        _top_scan_state["last_error"] = str(e)
+        print(f"[Top Companies Scan Error] {e}", file=sys.stderr)
+        return {"status": "error", "message": str(e)}
+    finally:
+        _top_scan_state["scanning"] = False
+        _top_scan_state["last_scan"] = int(time.time())
+
+def top_companies_loop():
+    time.sleep(120)
+    while True:
+        scan_top_companies()
+        time.sleep(2 * 3600)
+
+def get_top_companies_payload():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    _ensure_top_table(cur)
+    conn.commit()
+    cur.execute("SELECT name, last_checked, total_ar, entry_json, error FROM top_company_status")
+    status = {r[0]: r for r in cur.fetchall()}
+    conn.close()
+    companies = []
+    for name, tier, li_id, careers, students, ats, note in TOP_COMPANIES:
+        st = status.get(name)
+        try:
+            entry = json.loads(st[3]) if st else []
+        except Exception:
+            entry = []
+        companies.append({
+            "name": name,
+            "tier": TOP_TIERS[tier],
+            "tier_index": tier,
+            "careers_url": careers,
+            "students_url": students,
+            "linkedin_url": _li_jobs(li_id) if li_id else "",
+            "official_api": bool(ats),
+            "note": note,
+            "last_checked": st[1] if st else 0,
+            "last_checked_str": datetime.fromtimestamp(st[1]).strftime("%d/%m %H:%M") if st and st[1] else "Pendiente",
+            "total_ar": st[2] if st else 0,
+            "entry": entry,
+            "error": st[4] if st else ""
+        })
+    return {"tiers": TOP_TIERS, "companies": companies, "scanning": _top_scan_state["scanning"],
+            "last_scan": _top_scan_state["last_scan"]}
+
+
 def agent_scheduler_loop():
     while True:
         try:

@@ -3336,6 +3336,11 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             })
             return
 
+        # 12b. EMPRESAS TOP (estado del monitor directo de grandes empresas)
+        if path == "/api/v1/agent/top-companies":
+            self._send_json(get_top_companies_payload())
+            return
+
         # 13. AGENT TARGETS (Configured Web Portals)
         if path == "/api/v1/agent/targets":
             conn = sqlite3.connect(DB_PATH)
@@ -4263,6 +4268,14 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             return
 
         # 11. AGENT: ADD TARGET
+        if path == "/api/v1/agent/top-companies/scan":
+            if _top_scan_state["scanning"]:
+                self._send_json({"status": "busy", "scanning": True})
+                return
+            threading.Thread(target=scan_top_companies, daemon=True).start()
+            self._send_json({"status": "started", "scanning": True})
+            return
+
         if path == "/api/v1/agent/targets":
             content_length = int(self.headers.get("Content-Length", 0))
             body = {}
@@ -4744,6 +4757,10 @@ def main():
     agent_thread = threading.Thread(target=agent_scheduler_loop, daemon=True)
     agent_thread.start()
     print("[*] Autonomous IT Agent scheduler loop started.")
+
+    top_thread = threading.Thread(target=top_companies_loop, daemon=True)
+    top_thread.start()
+    print("[*] Top companies internship monitor started (cada 2 h).")
 
     ThreadingHTTPServer.allow_reuse_address = True
     server = ThreadingHTTPServer(("0.0.0.0", PORT), HomelabAPIHandler)

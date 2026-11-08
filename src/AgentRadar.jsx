@@ -6,6 +6,7 @@ import {
   CheckCircle, Globe, Terminal, ArrowUpRight, Send, Trash2, Undo2, XCircle,
   FileText, Download, Copy, FileCheck, ExternalLink, Printer, Edit3, Eye, Save
 } from "lucide-react";
+import TopCompanies from "./TopCompanies";
 
 // Sanitizer to repair broken accents and encodings (e.g. Pasant?as -> Pasantías)
 const cleanText = (str) => {
@@ -25,6 +26,8 @@ const cleanText = (str) => {
     .replace(/([a-zA-ZáéíóúÁÉÍÓÚñÑ])\?([a-zA-Z])/g, "$1í$2");
 };
 
+const isTopFinding = (f) => ((f.modality || "").startsWith("TOP") ? 1 : 0);
+
 export default function AgentRadar() {
   const [findings, setFindings] = useState([]);
   const [targets, setTargets] = useState([]);
@@ -39,7 +42,7 @@ export default function AgentRadar() {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
-  const [filter, setFilter] = useState("new"); // "new" | "applied"
+  const [filter, setFilter] = useState("new"); // "new" | "applied" | "top"
   const [searchQuery, setSearchQuery] = useState("");
   const [showTargetsModal, setShowTargetsModal] = useState(false);
   
@@ -523,7 +526,8 @@ export default function AgentRadar() {
       }
       return true;
     })
-    .sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
+    // Empresas Top primero, despues por match
+    .sort((a, b) => (isTopFinding(b) - isTopFinding(a)) || ((b.match_score || 0) - (a.match_score || 0)));
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
@@ -655,7 +659,8 @@ export default function AgentRadar() {
             <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar max-w-full">
               {[
                 { id: "new", label: `Nuevas (${findings.filter(f => !f.is_applied).length})` },
-                { id: "applied", label: `Mis Postulaciones (${stats.applied_count})` }
+                { id: "applied", label: `Mis Postulaciones (${stats.applied_count})` },
+                { id: "top", label: "Empresas Top" }
               ].map(f => (
                 <button
                   key={f.id}
@@ -664,6 +669,8 @@ export default function AgentRadar() {
                     filter === f.id
                       ? f.id === "applied"
                         ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold shadow-sm"
+                        : f.id === "top"
+                        ? "bg-amber-500/20 text-amber-200 border border-amber-500/40 font-bold shadow-sm"
                         : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold shadow-sm"
                       : "text-white/50 hover:text-white/80 hover:bg-white/5"
                   }`}
@@ -700,8 +707,10 @@ export default function AgentRadar() {
         </div>
       </div>
 
-      {/* 5. OPPORTUNITIES FEED CARDS */}
-      {loading ? (
+      {/* 5. OPPORTUNITIES FEED CARDS (o la seccion de Empresas Top) */}
+      {filter === "top" ? (
+        <TopCompanies />
+      ) : loading ? (
         <div className="p-12 text-center space-y-3">
           <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />
           <div className="text-sm font-mono text-white/50">Consultando base de vacantes reales en el Homelab...</div>
@@ -741,7 +750,11 @@ export default function AgentRadar() {
                 {/* Header Pills: Modality + Match Score + Status Badge + Date */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium uppercase tracking-wider bg-white/[0.06] text-white/90 border border-white/15">
+                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium uppercase tracking-wider border ${
+                      isTopFinding(finding)
+                        ? "bg-amber-500/20 text-amber-200 border-amber-500/40 font-bold"
+                        : "bg-white/[0.06] text-white/90 border-white/15"
+                    }`}>
                       {cleanText(finding.modality)}
                     </span>
 
@@ -810,28 +823,6 @@ export default function AgentRadar() {
                   {cleanText(finding.summary)}
                 </p>
 
-                {/* Match Affinity & Missing Skills Detail */}
-                {finding.match_reason && (
-                  <div className="p-2.5 rounded-2xl bg-white/[0.03] border border-white/[0.08] text-xs space-y-1 mt-1">
-                    <div className="text-[10px] uppercase font-mono tracking-wider text-cyan-400 font-semibold flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" />
-                      <span>Afinidad con perfil de Santino:</span>
-                    </div>
-                    <p className="text-[11px] text-white/70 leading-relaxed font-sans">
-                      {finding.match_reason}
-                    </p>
-                    {finding.missing_skills && finding.missing_skills.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1 pt-0.5">
-                        <span className="text-[10px] text-white/40 font-mono">Reforzar:</span>
-                        {finding.missing_skills.map((s, idx) => (
-                          <span key={idx} className="text-[9px] px-1.5 py-0.2 rounded-md bg-white/[0.05] text-amber-300/80 border border-amber-400/20 font-mono">
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* Actions Footer */}

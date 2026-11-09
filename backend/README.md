@@ -83,6 +83,8 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 | `GET` | `/api/v1/agent/download-doc?id=...&type=cv\|cover_letter` | Descarga directa del archivo PDF vectorial nativo (`application/pdf`). |
 | `POST` | `/api/v1/agent/evaluate-match` | Calcula Match Score (0-100%), justificación y missing_skills para una vacante específica. |
 | `POST` | `/api/v1/agent/evaluate-all-unscored` | Inicia en segundo plano la evaluación secuencial de todas las vacantes sin puntaje. |
+| `GET` | `/api/v1/agent/top-companies` | Estado del monitor de Empresas Top: por empresa, grupo, links oficiales (empleo / estudiantes / LinkedIn), pasantías abiertas detectadas y última revisión. |
+| `POST` | `/api/v1/agent/top-companies/scan` | Dispara en segundo plano la revisión de todas las empresas top (LinkedIn `f_C` + portales oficiales). |
 
 ### Telemetría de Inteligencia Artificial (Observabilidad & Cuotas)
 | Método | Endpoint | Descripción |

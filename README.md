@@ -92,7 +92,12 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
   12. *LinkedIn Jobs: AI / Automation / Data / ML Intern*
   13. *Computrabajo: Pasante Sistemas, Pasante Programador y Programador Part-Time*
   14. *Get on Board: Part-Time, Sysadmin/DevOps y Programación (solo "Sin experiencia" o títulos de pasantía)*
-  * **Nota técnica**: el buscador público de LinkedIn ignora los filtros `f_JT=I/P` y `f_E=1`, por lo que las búsquedas usan keywords de pasantía/intern y el título se valida con límites de palabra (`intern` no coincide con `Internal` ni `International`).
+  * **Nota técnica**: el buscador público de LinkedIn ignora los filtros `f_JT=I/P` y `f_E=1`, por lo que las búsquedas usan keywords de pasantía/intern y el título se valida con límites de palabra (`intern` no coincide con `Internal` ni `International`). La guest API sí respeta `f_C` (empresa) y devuelve la empresa real de cada aviso.
+* **Empresas Top (monitor directo cada 2 h)**:
+  * Solapa dedicada (`TopCompanies.jsx`) con ~65 empresas en 4 grupos: Big Tech (Google, Microsoft, Amazon/AWS, IBM, Apple, Meta, Tesla, NVIDIA, Oracle, Salesforce, SAP...), finanzas y multinacionales con hub tech en Buenos Aires (JPMorganChase, Citi, Mastercard, Chevron, Accenture...), empresas remotas que contratan desde Argentina y tech argentinas grandes (Mercado Libre, Globant, Ualá, Naranja X, Galicia...).
+  * Por empresa: estado (pasantías abiertas o no), última revisión y links directos a su portal de empleo, su programa de estudiantes y sus ofertas en LinkedIn Argentina.
+  * Fuentes: LinkedIn filtrado por empresa (`f_C`) más los portales oficiales con API pública (Google, Amazon, JPMorgan/Oracle HCM, Workday, Lever, Greenhouse).
+  * Cada pasantía IT nueva entra en "Nuevas" con badge `TOP` y dispara una notificación push.
 * **Pipeline de Ingesta Inteligente & Priorización de Afinidades (`priority_score`)**:
   * **Filtrado Léxico Anti-Ruido**: Descarte automático en memoria (`NON_TECH_BLACKLIST`, `JUNK_TITLE_PATTERNS`) de puestos no afines (administrativos, secretarias, finanzas) y enlaces de navegación (login, cookies, términos).
   * **Clasificador de Nivel de Entrada**: `entry_level_label()` (Pasantía / Intern / Part-Time / Trainee / Primer empleo), `has_experience_requirement()`, `is_full_time_only()` e `is_senior_role()` con normalización de tildes y límites de palabra.

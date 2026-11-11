@@ -255,7 +255,8 @@ def init_db():
         ("generated_cv", "TEXT DEFAULT ''"),
         ("generated_cover_letter", "TEXT DEFAULT ''"),
         ("generated_cv_pdf", "TEXT DEFAULT ''"),
-        ("generated_cover_letter_pdf", "TEXT DEFAULT ''")
+        ("generated_cover_letter_pdf", "TEXT DEFAULT ''"),
+        ("location", "TEXT DEFAULT ''")
     ]
     for col, col_type in new_findings_cols:
         if col not in af_cols:
@@ -1415,8 +1416,7 @@ def _doc_ai_plan(profile, finding, doc_type, lang):
            f"Modalidad: {finding.get('modality', '')}\nDescripcion: {finding.get('summary', '')}")
     idioma = "INGLES" if lang == "en" else "ESPANOL (rioplatense neutro, sin voseo)"
     hechos = json.dumps({"summary": profile.get("summary_en" if lang == "en" else "summary", ""),
-                         "projects": [{"id": p["id"], "bullets": p["bullets_en" if lang == "en" else "bullets_es"]} for p in projects],
-                         "availability": profile.get("availability_en" if lang == "en" else "availability", "")},
+                         "projects": [{"id": p["id"], "bullets": p["bullets_en" if lang == "en" else "bullets_es"]} for p in projects]},
                         ensure_ascii=False)
 
     if doc_type == "cv":
@@ -1432,7 +1432,7 @@ SKILLS DISPONIBLES (usa solo estas, no agregues ninguna): {skill_pool}
 Responde SOLO un JSON valido en {idioma}:
 {{
   "tagline": "Estudiante de Ingeniería en Informática | 2 o 3 áreas relevantes para la oferta (máx. 70 caracteres)",
-  "summary": "2 frases. Que construye el candidato y por que encaja con ESTE puesto. Solo hechos de los proyectos. Sin adjetivos vacios.",
+  "summary": "2 frases en primera persona. Qué construye el candidato y qué aporta a ESTE puesto. Solo hechos de los proyectos. Prohibido: 'encajo perfectamente', 'perfect fit', 'apasionado', adjetivos vacíos.",
   "projects": ["id", "id", "id"],
   "also": ["id"],
   "skills": [["Categoria", "skill, skill, skill"], ["Categoria", "..."], ["Categoria", "..."]]
@@ -1451,8 +1451,8 @@ Responde SOLO un JSON valido en {idioma}:
   "recipient": "Equipo de seleccion o equipo del area, en la empresa",
   "salutation": "Saludo formal",
   "opening": "3 frases: que puesto, por que esta empresa/puesto, quien es (estudiante de Ingenieria en Informatica en la UCA).",
-  "points": [{{"title": "Habilidad que pide la oferta", "text": "2 frases: problema que resolvio en un proyecto concreto y como lo hizo"}}, {{"title": "...", "text": "..."}}, {{"title": "...", "text": "..."}}],
-  "closing": "2 frases: disponibilidad e invitacion a entrevista."
+  "points": [{{"title": "Habilidad que pide la oferta", "text": "2 frases en prosa normal: qué construyó en un proyecto concreto, para qué problema y cómo (sin etiquetas tipo Problema:/Solución:)"}}, {{"title": "...", "text": "..."}}, {{"title": "...", "text": "..."}}],
+  "closing": "1 o 2 frases: invitación a una entrevista y agradecimiento. NO menciones horarios, carga horaria ni disponibilidad."
 }}
 Tono: directo, profesional, sin frases cliché. Máximo 300 palabras en total.
 Redacción: primera persona en pasado para lo que hizo (construí, programé, publiqué), ortografía y tildes correctas, nombrá los proyectos (Tex AI, UCA MCP, Homelab, AlertAR)."""
@@ -1522,10 +1522,6 @@ def _e(s):
     return html_escape(str(s or ""), quote=False)
 
 def _doc_bullet(text):
-    """"Problema: ..." -> etiqueta en negrita (Problema / Solucion / Como; Problem / Solution / How)."""
-    head, sep, rest = str(text).partition(": ")
-    if sep and len(head) <= 24:
-        return f"<li><b>{_e(head)}:</b> {_e(rest)}</li>"
     return f"<li>{_e(text)}</li>"
 
 def _doc_header(profile, tagline):
@@ -1623,14 +1619,11 @@ def _render_cover_letter_html(profile, finding, lang, plan):
         by_id = {p["id"]: p for p in profile.get("projects", [])}
         for pid in _default_project_order(profile, finding)[:3]:
             b = by_id[pid]["bullets_en" if en else "bullets_es"]
-            # sin la etiqueta "Solucion:" / "Solution:"; la solucion es la frase mas util para una carta
-            text = str(b[1] if len(b) > 1 else b[0]).partition(": ")[2] or str(b[0])
+            text = str(b[0])
             points.append({"title": by_id[pid]["name_en" if en else "name"].split(" – ")[0], "text": text[:1].upper() + text[1:]})
-    avail = (profile.get("availability_en" if en else "availability", "") or "").rstrip(". ")
-    avail = avail[:1].lower() + avail[1:]
     closing = plan.get("closing") or (
-        f"I am available {avail} and would be glad to discuss the role in an interview." if en
-        else f"Tengo disponibilidad {avail} y me encantaría conversar en una entrevista.")
+        "I would be glad to discuss the role in an interview. Thank you for your time and consideration." if en
+        else "Me encantaría conversar sobre la posición en una entrevista. Muchas gracias por su tiempo.")
     bullets = "".join(f"<li><b>{_e(pt.get('title', ''))}:</b> {_e(pt['text'])}</li>" for pt in points)
     p = profile.get("personal", {})
     tagline = "Informatics Engineering Student" if en else "Estudiante de Ingeniería en Informática"
@@ -1859,6 +1852,38 @@ OUT_OF_COUNTRY_BLACKLIST = [
     'colombia', 'bogota', 'medellin', 'peru', 'lima', 'mexico', 'cdmx', 'guadalajara', 'monterrey',
     'uruguay', 'montevideo', 'espana', 'madrid', 'barcelona', 'chile'
 ]
+
+# Solo CABA y Gran Buenos Aires (o remoto). Una ciudad o provincia nombrada fuera del AMBA descarta la oferta.
+AMBA_RE = re.compile(
+    r"\b(caba|capital federal|ciudad autonoma|buenos aires y alrededores|gran buenos aires|gba|conurbano|amba|"
+    r"vicente lopez|olivos|florida|munro|martinez|san isidro|beccar|acassuso|boulogne|tigre|san fernando|pilar|escobar|garin|"
+    r"san martin|tres de febrero|caseros|hurlingham|ituzaingo|moron|haedo|castelar|merlo|moreno|la matanza|san justo|ramos mejia|"
+    r"lanus|avellaneda|quilmes|bernal|lomas de zamora|banfield|adrogue|almirante brown|esteban echeverria|ezeiza|"
+    r"jose c\. paz|malvinas argentinas|san miguel|nordelta|llavallol|victoria|los polvorines|tortuguitas|don torcuato|"
+    r"puerto madero|palermo|belgrano|nunez|recoleta|retiro|microcentro|san telmo|caballito|almagro|villa urquiza|colegiales|"
+    r"saavedra|villa crespo|barracas|parque patricios|monserrat|san nicolas, capital)\b")
+OUTSIDE_AMBA_RE = re.compile(
+    r"\b(cordoba|rosario|santa fe|mendoza|tucuman|neuquen|salta|jujuy|chaco|resistencia|corrientes|misiones|posadas|"
+    r"entre rios|parana|san juan|san luis|la rioja|catamarca|santiago del estero|formosa|la pampa|santa rosa|rio negro|"
+    r"bariloche|chubut|comodoro|trelew|puerto madryn|santa cruz|rio gallegos|tierra del fuego|ushuaia|"
+    r"mar del plata|bahia blanca|tandil|olavarria|junin|pergamino|necochea|azul|la plata|campana|zarate|lujan|chascomus|"
+    r"rafaela|venado tuerto|villa maria|rio cuarto|arroyito|casilda|san nicolas de los arroyos|"
+    r"chile|santiago de chile|uruguay|montevideo|paraguay|brasil|brazil|sao paulo|mexico|cdmx|colombia|bogota|medellin|"
+    r"peru|lima|ecuador|espana|spain|madrid|barcelona|united states|estados unidos|usa|canada|india|poland|portugal)\b")
+REMOTE_RE = re.compile(r"\b(remoto|remota|remote|100% remoto|work from home|teletrabajo)\b")
+
+def is_outside_amba(location, title=""):
+    """True si la oferta es presencial/hibrida fuera de CABA y Gran Buenos Aires."""
+    loc = _norm_text(location)
+    if REMOTE_RE.search(_norm_text(location, title)):
+        return False
+    # CABA explicita gana; despues una ciudad/provincia de afuera; despues los partidos del GBA
+    # (asi "San Miguel de Tucuman" no pasa por "San Miguel")
+    if re.search(r"\b(caba|capital federal|ciudad autonoma)\b", loc):
+        return False
+    if OUTSIDE_AMBA_RE.search(loc):
+        return True
+    return False
 
 CLOSED_JOB_INDICATORS = [
     'solicitudes cerradas', 'no longer accepting', 'ya no se aceptan', 'no se aceptan nuevas',
@@ -2355,8 +2380,7 @@ def run_agent_job_scraper(target_id=None, force=True):
         if is_full_time_only(tl):
             continue
         # Strictly discard out-of-country onsite
-        is_rem = any(r in tl for r in ['remoto', 'remote'])
-        if not is_rem and any(c in tl for c in OUT_OF_COUNTRY_BLACKLIST):
+        if is_outside_amba(t_loc, t_title):
             continue
         # Strictly discard closed jobs
         if any(c in tl for c in CLOSED_JOB_INDICATORS):
@@ -2507,9 +2531,9 @@ Responde estrictamente con un JSON valido:
                 row = cur.fetchone()
                 if not row:
                     cur.execute("""
-                        INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link, is_read, is_archived, is_applied, match_score, match_reason, missing_skills, language)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?)
-                    """, (match_target_id, now, title, company, modality, summary, link, m_score, m_reason, m_skills, m_lang))
+                        INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link, is_read, is_archived, is_applied, match_score, match_reason, missing_skills, language, location)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, ?, ?)
+                    """, (match_target_id, now, title, company, modality, summary, link, m_score, m_reason, m_skills, m_lang, src_cand.get("location", "")))
                     total_new += 1
                     print(f"[Scraper] Inserted NEW finding: {title} | {company} ({link})", file=sys.stderr)
                 else:
@@ -2636,6 +2660,24 @@ TOP_COMPANIES = [
     ("Rappi", 3, "9997324", _li_jobs("9997324"), "", None, ""),
 ]
 
+def _top_aliases():
+    names = set()
+    for c in TOP_COMPANIES:
+        for part in re.split(r"[/()]", c[0]):
+            n = _norm_text(part).strip()
+            if len(n) >= 3:
+                names.add(n)
+    names.update({"jpmorgan", "j.p. morgan", "aws", "marvell technology", "telecom argentina", "mercadolibre"})
+    return sorted(names, key=len, reverse=True)
+
+_TOP_ALIASES_RE = None
+
+def is_top_company(company):
+    global _TOP_ALIASES_RE
+    if _TOP_ALIASES_RE is None:
+        _TOP_ALIASES_RE = re.compile(r"(?<![a-z0-9])(" + "|".join(re.escape(a) for a in _top_aliases()) + r")(?![a-z0-9])")
+    return bool(company) and bool(_TOP_ALIASES_RE.search(_norm_text(company)))
+
 TOP_NON_IT_RE = re.compile(r"\b(finance|finanzas|financial|accounting|contab\w*|contador\w*|legal|legales|audit|auditor\w*|tax|impuest\w*|hr|rrhh|"
                            r"recursos humanos|people|talent|learning|recruit\w*|marketing|sales|ventas|comercial|alliances|channels|"
                            r"communications|comunicacion\w*|media|eminence|responsibility|sustainability|treasury|tesoreria|procurement|"
@@ -2676,6 +2718,16 @@ def _top_ats_postings(ats):
         d = _top_http_json(base + "/jobs", {"appliedFacets": {}, "limit": 20, "offset": 0, "searchText": ats.get("q", "")})
         for j in d.get("jobPostings", []):
             loc = j.get("locationsText") or ""
+            # "2 Locations": Workday no dice cuales; para avisos de pasantia se consulta el detalle
+            if re.match(r"^\d+ Locations?$", loc.strip()) and _top_is_entry(j.get("title", "")):
+                try:
+                    det = _top_http_json(base + j.get("externalPath", "")).get("jobPostingInfo", {})
+                    loc = " / ".join(filter(None, [det.get("location", "")] + list(det.get("additionalLocations") or [])))
+                except Exception:
+                    pass
+            # searchText no filtra por pais: exigir Argentina / Buenos Aires / remoto en la ubicacion
+            if not re.search(r"argentin|buenos aires|caba|remot", _norm_text(loc)):
+                continue
             out.append({"title": j.get("title", ""), "location": loc,
                         "link": f"https://{ats['host']}/{ats['site']}{j.get('externalPath', '')}"})
     elif t == "greenhouse":
@@ -2774,7 +2826,7 @@ def scan_top_companies():
                 seen.add(key)
                 seen_titles.add(norm_title)
                 label = _top_is_entry(p["title"])
-                if label:
+                if label and not is_outside_amba(p.get("location", ""), p["title"]):
                     nt = _norm_text(p["title"])
                     entry.append({**p, "label": label, "is_it": not TOP_NON_IT_RE.search(nt) or bool(TOP_IT_OVERRIDE_RE.search(nt))})
             cur.execute("""INSERT INTO top_company_status (name, last_checked, total_ar, entry_json, error) VALUES (?, ?, ?, ?, ?)
@@ -2789,10 +2841,10 @@ def scan_top_companies():
                 if cur.fetchone():
                     continue
                 cur.execute("""INSERT INTO agent_findings (target_id, timestamp, title, company, modality, summary, link,
-                               is_read, is_archived, is_applied, match_score, match_reason, missing_skills, language)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, '', '[]', 'es')""",
+                               is_read, is_archived, is_applied, match_score, match_reason, missing_skills, language, location)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, '', '[]', 'es', ?)""",
                             (target_id, int(time.time()), e["title"], name, f"TOP · {e['label']}",
-                             f"{TOP_TIERS[tier]} · {e['location'] or 'Argentina'} · vía {e['source']}", e["link"]))
+                             f"{TOP_TIERS[tier]} · vía {e['source']}", e["link"], e.get("location", "")))
                 new_findings.append((name, e["title"]))
             conn.commit()
         conn.close()
@@ -3329,7 +3381,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
         if path == "/api/v1/agent/findings":
             is_archived = int(query.get("archived", ["0"])[0])
             view = query.get("view", ["active"])[0]
-            limit = min(100, int(query.get("limit", ["50"])[0]))
+            limit = min(300, int(query.get("limit", ["50"])[0]))
             
             conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
@@ -3341,7 +3393,8 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 CASE WHEN f.generated_cv != '' THEN 1 ELSE 0 END,
                 CASE WHEN f.generated_cover_letter != '' THEN 1 ELSE 0 END,
                 CASE WHEN f.generated_cv_pdf != '' THEN 1 ELSE 0 END,
-                CASE WHEN f.generated_cover_letter_pdf != '' THEN 1 ELSE 0 END
+                CASE WHEN f.generated_cover_letter_pdf != '' THEN 1 ELSE 0 END,
+                COALESCE(f.location, '')
             """
 
             if view == "applied":
@@ -3434,7 +3487,9 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                     "has_cv": bool(r[17]),
                     "has_cover_letter": bool(r[18]),
                     "has_cv_pdf": bool(r[19]),
-                    "has_cover_letter_pdf": bool(r[20])
+                    "has_cover_letter_pdf": bool(r[20]),
+                    "location": r[21],
+                    "is_top": (r[6] or "").startswith("TOP") or is_top_company(r[5])
                 })
 
             self._send_json({

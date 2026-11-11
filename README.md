@@ -72,8 +72,10 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
   * Justificación ejecutiva en 1 frase de fortalezas clave y listado interactivo de tecnologías a reforzar (`missing_skills`).
   * Píldora de filtrado "Alta Afinidad (>=80%)" y cálculo por lotes en background (`/api/v1/agent/evaluate-all-unscored`).
 * **Generador de CV Harvard Estricto & Cover Letter en PDF Vectorial**:
-  * **CV Formato Harvard FAS**: Estructura canónica ATS de 1 sola página, márgenes estándar de 0.65in, tipografía serif Georgia, encabezados con borde inferior y métricas reales de impacto técnico (cero experiencia ficticia).
-  * **Cover Letter Personalizada**: Redacción persuasiva y formal orientada a la empresa y sus tecnologías, destacando autonomía y homelab.
+  * **Generación en 2 pasos (~12 s)**: la IA solo elige y ordena contenido real del perfil (JSON chico: proyectos a destacar, resumen, skills o párrafos de la carta) y una plantilla fija arma el HTML. Antes la IA escribía el HTML completo (26-82 s y formato inconsistente). Si la IA no responde, el documento se genera igual con un orden por coincidencia de tags.
+  * **CV de 1 página A4, ATS-friendly**: encabezado, perfil, educación, 3 proyectos destacados + línea "Además", skills en 3 categorías e idiomas. Cada proyecto se cuenta como **Problema → Solución → Cómo**, sin "Relevant Coursework".
+  * **Cover Letter Personalizada**: apertura, 3 puntos que conectan lo que pide la oferta con un problema real resuelto en un proyecto, y cierre con disponibilidad.
+  * **Inferencia rápida en la nube**: carrera en paralelo entre modelos Gemini de cuota gratuita; gana el de mejor calidad que responda (los saturados ya no bloquean la cascada).
   * **Renderizado Vectorial con Edge Headless**: Conversión limpia a PDF vectorial nativo (90-125 KB) sin dependencias externas pesadas.
   * **Editor de Texto In-Situ & Previsualización Dual**: Modal con selector de vista previa en iframe aislado o editor de texto monospaciado en tiempo real. Permite corregir palabras, párrafos o términos específicos antes de postular.
   * **Guardado y Regeneración Automática**: Botón "Guardar & Regenerar PDF" que recompila el documento con Edge Headless, actualiza SQLite y sirve el nuevo PDF vectorial descargable en 1 clic.

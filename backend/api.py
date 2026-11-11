@@ -2932,7 +2932,8 @@ _verify_lock = threading.Lock()
 
 def _http_get_follow(url, timeout=12, max_redirects=4):
     """GET siguiendo 301/302/303/307/308 (urllib de Python 3.10 no sigue 308)."""
-    for _ in range(max_redirects + 1):
+    throttled = 0
+    for _ in range(max_redirects + 3):
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept-Language': 'es-AR,es;q=0.9,en;q=0.8'})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -2940,6 +2941,11 @@ def _http_get_follow(url, timeout=12, max_redirects=4):
         except urllib.error.HTTPError as e:
             if e.code in (301, 302, 303, 307, 308) and e.headers.get("Location"):
                 url = urljoin(url, e.headers["Location"])
+                continue
+            if e.code == 429 and throttled < 2:
+                # LinkedIn limita consultas seguidas: esperar y reintentar
+                throttled += 1
+                time.sleep(8 * throttled)
                 continue
             return e.code, ""
     return 310, ""
@@ -3016,7 +3022,7 @@ def _verify_batch_with_pc(bridge_url, items):
     """items: [{id, title, company, location, text}] -> {id: (veredicto, motivo)}"""
     avisos = "\n\n".join(
         f"=== OFERTA id={it['id']} ===\nPuesto: {it['title']}\nEmpresa: {it['company']}\nUbicación: {it['location'] or 'no informada'}\n"
-        f"Texto del aviso:\n{it['text'][:4200]}" for it in items)
+        f"Texto del aviso:\n{it['text'][:3500]}" for it in items)
     prompt = f"""Sos un reclutador que revisa si un candidato puede postularse a cada oferta. Leé el TEXTO COMPLETO de cada aviso.
 
 CANDIDATO: estudiante de Ingeniería en Informática en la UCA (cursa desde marzo 2024, se recibe en 2028), vive en CABA, SIN experiencia laboral formal (solo proyectos propios). Busca pasantía, internship, part-time, trainee o primer empleo de informática (IA, datos, desarrollo, infraestructura, redes, QA, sistemas).
@@ -3035,10 +3041,10 @@ Para cada oferta elegí UN veredicto:
 Respondé SOLO el JSON {{"resultados": [{{"id": <id>, "veredicto": "...", "motivo": "..."}}]}} con una entrada por oferta.
 
 {avisos}"""
-    payload = json.dumps({"prompt": prompt, "model": "gemini-3.8-flash-high", "effort": "medium",
-                          "timeout": 180, "json_schema": _VERIFY_SCHEMA}).encode("utf-8")
+    payload = json.dumps({"prompt": prompt, "model": "gemini-3.8-flash-high",
+                          "timeout": 240, "json_schema": _VERIFY_SCHEMA}).encode("utf-8")
     req = urllib.request.Request(f"{bridge_url}/infer", data=payload, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=200) as resp:
+    with urllib.request.urlopen(req, timeout=290) as resp:
         res = json.loads(resp.read().decode("utf-8"))
     if res.get("status") != "ok":
         raise RuntimeError(res.get("message", "bridge error"))
@@ -3054,7 +3060,7 @@ Respondé SOLO el JSON {{"resultados": [{{"id": <id>, "veredicto": "...", "motiv
             continue
     return out
 
-def verify_findings_with_pc(max_items=36, batch_size=3, force=False):
+def verify_findings_with_pc(max_items=36, batch_size=2, force=False):
     """Revisa las ofertas activas no verificadas en las ultimas 24 h. Solo corre con el PC Bridge online."""
     with _verify_lock:
         if _verify_state["running"]:
@@ -3084,7 +3090,7 @@ def verify_findings_with_pc(max_items=36, batch_size=3, force=False):
                 decisions[fid] = ("sin_leer", "No se pudo leer el texto del aviso.")
             else:
                 pending.append({"id": fid, "title": title, "company": company, "location": page_loc or loc, "text": text, "page_loc": page_loc})
-            time.sleep(0.8)
+            time.sleep(1.5)
         for i in range(0, len(pending), batch_size):
             batch = pending[i:i + batch_size]
             try:
@@ -3094,15 +3100,22 @@ def verify_findings_with_pc(max_items=36, batch_size=3, force=False):
                 print(f"[Verifier] batch error: {e}", file=sys.stderr)
                 if not check_pc_bridge_online():
                     break
+                # reintento de a una (lote mas chico = menos timeout); si vuelve a fallar queda para la proxima pasada
+                for it in batch:
+                    try:
+                        decisions.update(_verify_batch_with_pc(bridge_url, [it]))
+                    except Exception as e2:
+                        print(f"[Verifier] retry error #{it['id']}: {e2}", file=sys.stderr)
         page_locs = {p["id"]: p["page_loc"] for p in pending if p.get("page_loc")}
         conn = sqlite3.connect(DB_PATH, timeout=60)
         applied_ids = {r[0] for r in rows if r[5]}
         for fid, (verdict, reason) in decisions.items():
             archive = verdict not in ("ok", "sin_leer") and fid not in applied_ids
-            conn.execute("""UPDATE agent_findings SET verify_status = ?, verify_reason = ?, verified_at = ?,
+            # "sin_leer" (red caida, sitio en JS) no cuenta como verificada: se reintenta en la proxima pasada
+            conn.execute("""UPDATE agent_findings SET verify_status = ?, verify_reason = ?, verified_at = CASE WHEN ? = 'sin_leer' THEN 0 ELSE ? END,
                             location = CASE WHEN COALESCE(location, '') = '' AND ? <> '' THEN ? ELSE location END,
-                            is_archived = CASE WHEN ? THEN 1 ELSE is_archived END WHERE id = ?""",
-                         (verdict, reason, now, page_locs.get(fid, ""), page_locs.get(fid, ""), 1 if archive else 0, fid))
+                            is_archived = CASE WHEN ? AND COALESCE(is_applied, 0) = 0 THEN 1 ELSE is_archived END WHERE id = ?""",
+                         (verdict, reason, verdict, now, page_locs.get(fid, ""), page_locs.get(fid, ""), 1 if archive else 0, fid))
             checked += 1
             archived += 1 if archive else 0
         conn.commit()

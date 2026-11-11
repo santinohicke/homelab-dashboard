@@ -73,8 +73,8 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
   * Píldora de filtrado "Alta Afinidad (>=80%)" y cálculo por lotes en background (`/api/v1/agent/evaluate-all-unscored`).
 * **Generador de CV Harvard Estricto & Cover Letter en PDF Vectorial**:
   * **Generación en 2 pasos (~12 s)**: la IA solo elige y ordena contenido real del perfil (JSON chico: proyectos a destacar, resumen, skills o párrafos de la carta) y una plantilla fija arma el HTML. Antes la IA escribía el HTML completo (26-82 s y formato inconsistente). Si la IA no responde, el documento se genera igual con un orden por coincidencia de tags.
-  * **CV de 1 página A4, ATS-friendly**: encabezado, perfil, educación, 3 proyectos destacados + línea "Además", skills en 3 categorías e idiomas. Cada proyecto se cuenta como **Problema → Solución → Cómo**, sin "Relevant Coursework".
-  * **Cover Letter Personalizada**: apertura, 3 puntos que conectan lo que pide la oferta con un problema real resuelto en un proyecto, y cierre con disponibilidad.
+  * **CV de 1 página A4, ATS-friendly**: encabezado, perfil, educación, 3 proyectos destacados + línea "Además", skills en 3 categorías e idiomas. Los proyectos usan viñetas de CV con verbo de acción que cuentan qué problema resolvió y cómo; sin "Relevant Coursework".
+  * **Cover Letter Personalizada**: apertura, 3 puntos que conectan lo que pide la oferta con un proyecto concreto y cierre con invitación a entrevista (sin mencionar carga horaria).
   * **Inferencia rápida en la nube**: carrera en paralelo entre modelos Gemini de cuota gratuita; gana el de mejor calidad que responda (los saturados ya no bloquean la cascada).
   * **Renderizado Vectorial con Edge Headless**: Conversión limpia a PDF vectorial nativo (90-125 KB) sin dependencias externas pesadas.
   * **Editor de Texto In-Situ & Previsualización Dual**: Modal con selector de vista previa en iframe aislado o editor de texto monospaciado en tiempo real. Permite corregir palabras, párrafos o términos específicos antes de postular.
@@ -96,10 +96,11 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
   14. *Get on Board: Part-Time, Sysadmin/DevOps y Programación (solo "Sin experiencia" o títulos de pasantía)*
   * **Nota técnica**: el buscador público de LinkedIn ignora los filtros `f_JT=I/P` y `f_E=1`, por lo que las búsquedas usan keywords de pasantía/intern y el título se valida con límites de palabra (`intern` no coincide con `Internal` ni `International`). La guest API sí respeta `f_C` (empresa) y devuelve la empresa real de cada aviso.
 * **Empresas Top (monitor directo cada 2 h)**:
-  * Solapa dedicada (`TopCompanies.jsx`) con ~65 empresas en 4 grupos: Big Tech (Google, Microsoft, Amazon/AWS, IBM, Apple, Meta, Tesla, NVIDIA, Oracle, Salesforce, SAP...), finanzas y multinacionales con hub tech en Buenos Aires (JPMorganChase, Citi, Mastercard, Chevron, Accenture...), empresas remotas que contratan desde Argentina y tech argentinas grandes (Mercado Libre, Globant, Ualá, Naranja X, Galicia...).
-  * Por empresa: estado (pasantías abiertas o no), última revisión y links directos a su portal de empleo, su programa de estudiantes y sus ofertas en LinkedIn Argentina.
+  * Se vigilan ~65 empresas en 4 grupos: Big Tech (Google, Microsoft, Amazon/AWS, IBM, Apple, Meta, Tesla, NVIDIA, Oracle, Salesforce, SAP...), finanzas y multinacionales con hub tech en Buenos Aires (JPMorganChase, Citi, Mastercard, Chevron, Accenture...), empresas remotas que contratan desde Argentina y tech argentinas grandes (Mercado Libre, Globant, Ualá, Naranja X, Galicia...).
+  * Solapa "Empresas Top" con las mismas tarjetas que "Nuevas" (Ver Oferta, CV, Cover Letter, Postularse): muestra solo las ofertas de esas empresas (`is_top`, por nombre de empresa o detectadas por el monitor), más un botón "Revisar ahora".
   * Fuentes: LinkedIn filtrado por empresa (`f_C`) más los portales oficiales con API pública (Google, Amazon, JPMorgan/Oracle HCM, Workday, Lever, Greenhouse).
-  * Cada pasantía IT nueva entra en "Nuevas" con badge `TOP` y dispara una notificación push.
+  * Cada pasantía IT nueva en Buenos Aires dispara una notificación push.
+* **Solo CABA y Gran Buenos Aires**: `is_outside_amba()` descarta ofertas presenciales o híbridas en otras ciudades o provincias (Córdoba, Mar del Plata, La Plata, Tucumán, exterior...); las remotas se mantienen. Cada oferta guarda su ubicación (`location`) y la muestra en la tarjeta.
 * **Pipeline de Ingesta Inteligente & Priorización de Afinidades (`priority_score`)**:
   * **Filtrado Léxico Anti-Ruido**: Descarte automático en memoria (`NON_TECH_BLACKLIST`, `JUNK_TITLE_PATTERNS`) de puestos no afines (administrativos, secretarias, finanzas) y enlaces de navegación (login, cookies, términos).
   * **Clasificador de Nivel de Entrada**: `entry_level_label()` (Pasantía / Intern / Part-Time / Trainee / Primer empleo), `has_experience_requirement()`, `is_full_time_only()` e `is_senior_role()` con normalización de tildes y límites de palabra.

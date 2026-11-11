@@ -100,6 +100,10 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
   * Solapa "Empresas Top" con las mismas tarjetas que "Nuevas" (Ver Oferta, CV, Cover Letter, Postularse): muestra solo las ofertas de esas empresas (`is_top`, por nombre de empresa o detectadas por el monitor), más un botón "Revisar ahora".
   * Fuentes: LinkedIn filtrado por empresa (`f_C`) más los portales oficiales con API pública (Google, Amazon, JPMorgan/Oracle HCM, Workday, Lever, Greenhouse).
   * Cada pasantía IT nueva en Buenos Aires dispara una notificación push.
+* **Verificador de ofertas con Gemini 3.8 Flash (cada 3 h, con la PC prendida)**:
+  * El servidor abre el aviso real de cada oferta activa (LinkedIn guest API, Greenhouse, Workday y Oracle HCM vía API, Computrabajo, HiringRoom, etc.), extrae el texto completo y detecta avisos cerrados sin gastar IA.
+  * El texto se analiza en lotes de 3 con Gemini 3.8 Flash (High) a través del Antigravity CLI de la PC (`/infer` del PC Bridge con `--model` y `--json-schema`), que devuelve un veredicto por oferta: `ok`, `cerrada`, `full_time`, `fuera_de_zona`, `pide_experiencia`, `requiere_graduado` o `no_it`, con el motivo citado del aviso.
+  * Las que no sirven se archivan solas; las ya postuladas solo se marcan. Cada tarjeta muestra "Verificada" (con el motivo al pasar el mouse) y hay un botón "Verificar ofertas" para correrlo a mano. Con la PC apagada no hace nada.
 * **Solo CABA y Gran Buenos Aires**: `is_outside_amba()` descarta ofertas presenciales o híbridas en otras ciudades o provincias (Córdoba, Mar del Plata, La Plata, Tucumán, exterior...); las remotas se mantienen. Cada oferta guarda su ubicación (`location`) y la muestra en la tarjeta.
 * **Pipeline de Ingesta Inteligente & Priorización de Afinidades (`priority_score`)**:
   * **Filtrado Léxico Anti-Ruido**: Descarte automático en memoria (`NON_TECH_BLACKLIST`, `JUNK_TITLE_PATTERNS`) de puestos no afines (administrativos, secretarias, finanzas) y enlaces de navegación (login, cookies, términos).

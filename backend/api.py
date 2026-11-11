@@ -256,7 +256,10 @@ def init_db():
         ("generated_cover_letter", "TEXT DEFAULT ''"),
         ("generated_cv_pdf", "TEXT DEFAULT ''"),
         ("generated_cover_letter_pdf", "TEXT DEFAULT ''"),
-        ("location", "TEXT DEFAULT ''")
+        ("location", "TEXT DEFAULT ''"),
+        ("verify_status", "TEXT DEFAULT ''"),
+        ("verify_reason", "TEXT DEFAULT ''"),
+        ("verified_at", "INTEGER DEFAULT 0")
     ]
     for col, col_type in new_findings_cols:
         if col not in af_cols:
@@ -2905,6 +2908,229 @@ def get_top_companies_payload():
             "last_scan": _top_scan_state["last_scan"]}
 
 
+# ---------------------------------------------------------------------------------------------
+# VERIFICADOR DE OFERTAS (PC Bridge + Gemini 3.8 Flash via Antigravity CLI)
+# Cada 3 h, si la PC esta prendida, abre el aviso real de cada oferta activa, extrae el texto
+# completo y Gemini decide si el candidato puede postularse. Las que no sirven se archivan con el
+# motivo (las ya postuladas solo se marcan). Si la PC esta apagada, no hace nada.
+# ---------------------------------------------------------------------------------------------
+
+VERIFY_VERDICTS = ["ok", "cerrada", "full_time", "fuera_de_zona", "pide_experiencia", "requiere_graduado", "no_it"]
+VERIFY_LABELS = {
+    "ok": "Verificada", "cerrada": "Ya no acepta postulaciones", "full_time": "Jornada completa",
+    "fuera_de_zona": "Fuera de CABA / GBA", "pide_experiencia": "Pide experiencia previa",
+    "requiere_graduado": "Requiere título", "no_it": "No es de informática", "sin_leer": "No se pudo leer el aviso",
+}
+CLOSED_PAGE_RE = re.compile(
+    r"no longer accepting applications|ya no (se )?aceptan? (solicitudes|postulaciones)|vacante no encontrada|"
+    r"no se encuentra publicada|esta oferta (ha )?(finalizado|caducado|vencido|expirado)|oferta (cerrada|finalizada|vencida)|"
+    r"job (is )?no longer available|this job (posting )?(has )?(been )?(closed|filled|expired)|position (has been )?filled|"
+    r"the job you are looking for (is no longer|no longer exists)|aviso (finalizado|vencido)", re.I)
+VERIFY_INTERVAL = 3 * 3600
+_verify_state = {"running": False, "last_run": 0, "checked": 0, "archived": 0, "last_error": ""}
+_verify_lock = threading.Lock()
+
+def _http_get_follow(url, timeout=12, max_redirects=4):
+    """GET siguiendo 301/302/303/307/308 (urllib de Python 3.10 no sigue 308)."""
+    for _ in range(max_redirects + 1):
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept-Language': 'es-AR,es;q=0.9,en;q=0.8'})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.status, r.read().decode('utf-8', errors='replace')
+        except urllib.error.HTTPError as e:
+            if e.code in (301, 302, 303, 307, 308) and e.headers.get("Location"):
+                url = urljoin(url, e.headers["Location"])
+                continue
+            return e.code, ""
+    return 310, ""
+
+def _html_to_text(raw):
+    body = re.sub(r"(?is)<(script|style|noscript|svg|header|footer|nav)[^>]*>.*?</\1>", " ", raw)
+    body = re.sub(r"(?i)<br\s*/?>|</(p|li|div|h[1-6])>", "\n", body)
+    txt = html_unescape(re.sub(r"<[^>]+>", " ", body))
+    return re.sub(r"[ \t\r\f\v]+", " ", re.sub(r"\n\s*\n+", "\n", txt)).strip()
+
+def fetch_job_page(link):
+    """Texto real del aviso: (estado, texto, ubicacion). estado: ok | cerrada | sin_leer."""
+    try:
+        m = re.search(r"linkedin\.com/jobs/view/(\d+)", link or "")
+        if m:
+            status, raw = _http_get_follow(LINKEDIN_GUEST_POSTING + m.group(1))
+            if status in (404, 410):
+                return "cerrada", "", ""
+            if not raw:
+                return "sin_leer", "", ""
+            loc = re.search(r'topcard__flavor topcard__flavor--bullet[^>]*>\s*(.*?)\s*<', raw, re.S)
+            desc = re.search(r'show-more-less-html__markup[^>]*>(.*?)</div>', raw, re.S)
+            criteria = " | ".join(html_unescape(x).strip() for x in re.findall(r'description__job-criteria-text[^>]*>\s*(.*?)\s*<', raw, re.S))
+            text = (_html_to_text(desc.group(1)) if desc else _html_to_text(raw)) + (f"\nCriterios: {criteria}" if criteria else "")
+            closed = bool(CLOSED_PAGE_RE.search(raw)) or "closed-job" in raw
+            return ("cerrada" if closed else "ok"), text, html_unescape(loc.group(1)).strip() if loc else ""
+        m = re.search(r"https://([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com/([^/]+)(/job/.+)", link or "")
+        if m:
+            d = _top_http_json(f"https://{m.group(1)}.{m.group(2)}.myworkdayjobs.com/wday/cxs/{m.group(1)}/{m.group(3)}{m.group(4)}")
+            info = d.get("jobPostingInfo", {})
+            if not info or info.get("canApply") is False:
+                return "cerrada", "", ""
+            loc = " / ".join(filter(None, [info.get("location", "")] + list(info.get("additionalLocations") or [])))
+            return "ok", f"{info.get('title', '')}\nTipo: {info.get('timeType', '')}\n" + _html_to_text(info.get("jobDescription", "")), loc
+        m = re.search(r"jpmc\.fa\.oraclecloud\.com/.*/job/(\d+)", link or "")
+        if m:
+            d = _top_http_json("https://jpmc.fa.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails"
+                               f"?expand=all&onlyData=true&finder=ById;Id=%22{m.group(1)}%22,siteNumber=CX_1001")
+            items = d.get("items") or []
+            if not items:
+                return "cerrada", "", ""
+            it = items[0]
+            text = "\n".join(_html_to_text(it.get(k) or "") for k in ("ExternalDescriptionStr", "ExternalResponsibilitiesStr", "ExternalQualificationsStr"))
+            return "ok", f"{it.get('Title', '')}\nJornada: {it.get('JobSchedule', '')}\n{text}", it.get("PrimaryLocation", "")
+        status, raw = _http_get_follow(link)
+        if status in (404, 410):
+            return "cerrada", "", ""
+        if not raw:
+            return "sin_leer", "", ""
+        text = _html_to_text(raw)
+        if CLOSED_PAGE_RE.search(text[:6000]):
+            return "cerrada", text[:500], ""
+        # Computrabajo y similares: arrancar en la descripcion para no gastar el limite en menus
+        for marker in ("Descripción de la oferta", "Descripción del puesto", "Job Description", "About the role", "Responsabilidades"):
+            i = text.find(marker)
+            if i > 0:
+                text = text[i:]
+                break
+        return "ok", text, ""
+    except Exception as e:
+        print(f"[Verifier] fetch error {link}: {e}", file=sys.stderr)
+        return "sin_leer", "", ""
+
+_VERIFY_SCHEMA = {
+    "type": "object",
+    "properties": {"resultados": {"type": "array", "items": {"type": "object", "properties": {
+        "id": {"type": "integer"},
+        "veredicto": {"type": "string", "enum": VERIFY_VERDICTS},
+        "motivo": {"type": "string"}}, "required": ["id", "veredicto", "motivo"]}}},
+    "required": ["resultados"]
+}
+
+def _verify_batch_with_pc(bridge_url, items):
+    """items: [{id, title, company, location, text}] -> {id: (veredicto, motivo)}"""
+    avisos = "\n\n".join(
+        f"=== OFERTA id={it['id']} ===\nPuesto: {it['title']}\nEmpresa: {it['company']}\nUbicación: {it['location'] or 'no informada'}\n"
+        f"Texto del aviso:\n{it['text'][:4200]}" for it in items)
+    prompt = f"""Sos un reclutador que revisa si un candidato puede postularse a cada oferta. Leé el TEXTO COMPLETO de cada aviso.
+
+CANDIDATO: estudiante de Ingeniería en Informática en la UCA (cursa desde marzo 2024, se recibe en 2028), vive en CABA, SIN experiencia laboral formal (solo proyectos propios). Busca pasantía, internship, part-time, trainee o primer empleo de informática (IA, datos, desarrollo, infraestructura, redes, QA, sistemas).
+
+Para cada oferta elegí UN veredicto:
+- "cerrada": el aviso dice que ya no acepta postulaciones, está vencido o la búsqueda finalizó.
+- "full_time": exige jornada completa (full-time, 8-9 h diarias, 40+ h semanales) y no es part-time ni compatible con la cursada.
+- "fuera_de_zona": presencial o híbrido fuera de CABA y Gran Buenos Aires, o exige vivir en otro país. Remoto desde Argentina es válido.
+- "pide_experiencia": exige experiencia laboral previa (cualquier cantidad de años) o un seniority junior/semi-senior/senior real.
+- "requiere_graduado": exige título universitario ya obtenido.
+- "no_it": el puesto no es de informática ni tecnología (ventas, finanzas, legales, RRHH, etc.).
+- "ok": ninguna de las anteriores. Ante la duda o si el texto no alcanza para decidir, "ok".
+"Deseable" o "valorable" NO cuenta como exigencia.
+
+"motivo": 1 frase en español que cite o resuma la parte del aviso que justifica el veredicto.
+Respondé SOLO el JSON {{"resultados": [{{"id": <id>, "veredicto": "...", "motivo": "..."}}]}} con una entrada por oferta.
+
+{avisos}"""
+    payload = json.dumps({"prompt": prompt, "model": "gemini-3.8-flash-high", "effort": "medium",
+                          "timeout": 180, "json_schema": _VERIFY_SCHEMA}).encode("utf-8")
+    req = urllib.request.Request(f"{bridge_url}/infer", data=payload, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=200) as resp:
+        res = json.loads(resp.read().decode("utf-8"))
+    if res.get("status") != "ok":
+        raise RuntimeError(res.get("message", "bridge error"))
+    raw = res.get("output", "")
+    start, end = raw.find("{"), raw.rfind("}")
+    data = json.loads(raw[start:end + 1]) if start != -1 and end > start else {}
+    out = {}
+    for r in data.get("resultados", []):
+        try:
+            v = r.get("veredicto", "ok")
+            out[int(r.get("id"))] = (v if v in VERIFY_VERDICTS else "ok", str(r.get("motivo", ""))[:300])
+        except Exception:
+            continue
+    return out
+
+def verify_findings_with_pc(max_items=36, batch_size=3, force=False):
+    """Revisa las ofertas activas no verificadas en las ultimas 24 h. Solo corre con el PC Bridge online."""
+    with _verify_lock:
+        if _verify_state["running"]:
+            return {"status": "busy"}
+        _verify_state["running"] = True
+    checked = archived = 0
+    ran = False
+    try:
+        bridge_url = check_pc_bridge_online()
+        if not bridge_url:
+            return {"status": "skipped", "message": "PC apagada: el verificador corre cuando el PC Bridge está online"}
+        ran = True
+        now = int(time.time())
+        conn = sqlite3.connect(DB_PATH, timeout=60)
+        since = 0 if force else now - 24 * 3600
+        rows = conn.execute("""SELECT id, title, company, link, COALESCE(location, ''), is_applied, modality, company
+                               FROM agent_findings WHERE is_archived = 0 AND COALESCE(verified_at, 0) <= ?
+                               ORDER BY COALESCE(verified_at, 0) ASC, timestamp DESC LIMIT ?""", (since, max_items)).fetchall()
+        conn.close()
+        pending = []
+        decisions = {}
+        for fid, title, company, link, loc, applied, modality, _ in rows:
+            state, text, page_loc = fetch_job_page(link)
+            if state == "cerrada":
+                decisions[fid] = ("cerrada", "El aviso ya no está publicado o no acepta postulaciones.")
+            elif state == "sin_leer" or len(text) < 120:
+                decisions[fid] = ("sin_leer", "No se pudo leer el texto del aviso.")
+            else:
+                pending.append({"id": fid, "title": title, "company": company, "location": page_loc or loc, "text": text, "page_loc": page_loc})
+            time.sleep(0.8)
+        for i in range(0, len(pending), batch_size):
+            batch = pending[i:i + batch_size]
+            try:
+                decisions.update(_verify_batch_with_pc(bridge_url, batch))
+            except Exception as e:
+                _verify_state["last_error"] = str(e)[:200]
+                print(f"[Verifier] batch error: {e}", file=sys.stderr)
+                if not check_pc_bridge_online():
+                    break
+        page_locs = {p["id"]: p["page_loc"] for p in pending if p.get("page_loc")}
+        conn = sqlite3.connect(DB_PATH, timeout=60)
+        applied_ids = {r[0] for r in rows if r[5]}
+        for fid, (verdict, reason) in decisions.items():
+            archive = verdict not in ("ok", "sin_leer") and fid not in applied_ids
+            conn.execute("""UPDATE agent_findings SET verify_status = ?, verify_reason = ?, verified_at = ?,
+                            location = CASE WHEN COALESCE(location, '') = '' AND ? <> '' THEN ? ELSE location END,
+                            is_archived = CASE WHEN ? THEN 1 ELSE is_archived END WHERE id = ?""",
+                         (verdict, reason, now, page_locs.get(fid, ""), page_locs.get(fid, ""), 1 if archive else 0, fid))
+            checked += 1
+            archived += 1 if archive else 0
+        conn.commit()
+        conn.close()
+        _verify_state.update({"checked": checked, "archived": archived})
+        print(f"[Verifier] revisadas {checked}, archivadas {archived}", file=sys.stderr)
+        return {"status": "ok", "checked": checked, "archived": archived}
+    except Exception as e:
+        _verify_state["last_error"] = str(e)[:200]
+        print(f"[Verifier Error] {e}", file=sys.stderr)
+        return {"status": "error", "message": str(e)}
+    finally:
+        _verify_state["running"] = False
+        if ran:
+            _verify_state["last_run"] = int(time.time())
+
+def offer_verifier_loop():
+    """Cada 30 min mira si la PC esta prendida; corre una pasada completa como maximo cada 3 h."""
+    time.sleep(300)
+    while True:
+        try:
+            if time.time() - _verify_state["last_run"] >= VERIFY_INTERVAL and check_pc_bridge_online():
+                verify_findings_with_pc()
+        except Exception as e:
+            print(f"[Verifier Loop Error] {e}", file=sys.stderr)
+        time.sleep(1800)
+
+
 def agent_scheduler_loop():
     while True:
         try:
@@ -3394,7 +3620,7 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                 CASE WHEN f.generated_cover_letter != '' THEN 1 ELSE 0 END,
                 CASE WHEN f.generated_cv_pdf != '' THEN 1 ELSE 0 END,
                 CASE WHEN f.generated_cover_letter_pdf != '' THEN 1 ELSE 0 END,
-                COALESCE(f.location, '')
+                COALESCE(f.location, ''), COALESCE(f.verify_status, ''), COALESCE(f.verify_reason, ''), COALESCE(f.verified_at, 0)
             """
 
             if view == "applied":
@@ -3489,12 +3715,18 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
                     "has_cv_pdf": bool(r[19]),
                     "has_cover_letter_pdf": bool(r[20]),
                     "location": r[21],
+                    "verify_status": r[22],
+                    "verify_label": VERIFY_LABELS.get(r[22], ""),
+                    "verify_reason": r[23],
+                    "verified_at": r[24],
                     "is_top": (r[6] or "").startswith("TOP") or is_top_company(r[5])
                 })
 
             self._send_json({
                 "status": "ok",
                 "findings": findings,
+                "verifier": {"running": _verify_state["running"], "last_run": _verify_state["last_run"],
+                             "checked": _verify_state["checked"], "archived": _verify_state["archived"]},
                 "stats": {
                     "total_scraped": total_scraped,
                     "unread_count": unread_count,
@@ -4527,6 +4759,17 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
             return
 
         # 11. AGENT: ADD TARGET
+        if path == "/api/v1/agent/verify":
+            if _verify_state["running"]:
+                self._send_json({"status": "busy", "running": True})
+                return
+            if not check_pc_bridge_online():
+                self._send_json({"status": "error", "message": "La PC está apagada: el verificador usa Gemini 3.8 Flash desde Antigravity en la PC."}, 503)
+                return
+            threading.Thread(target=verify_findings_with_pc, kwargs={"force": True}, daemon=True).start()
+            self._send_json({"status": "started", "running": True})
+            return
+
         if path == "/api/v1/agent/top-companies/scan":
             if _top_scan_state["scanning"]:
                 self._send_json({"status": "busy", "scanning": True})
@@ -5020,6 +5263,10 @@ def main():
     top_thread = threading.Thread(target=top_companies_loop, daemon=True)
     top_thread.start()
     print("[*] Top companies internship monitor started (cada 2 h).")
+
+    verifier_thread = threading.Thread(target=offer_verifier_loop, daemon=True)
+    verifier_thread.start()
+    print("[*] Offer verifier started (cada 3 h con la PC prendida).")
 
     ThreadingHTTPServer.allow_reuse_address = True
     server = ThreadingHTTPServer(("0.0.0.0", PORT), HomelabAPIHandler)

@@ -506,6 +506,42 @@ export default function AgentRadar() {
   };
 
   const [evaluatingAll, setEvaluatingAll] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState("");
+
+  // Verificador: abre el aviso real de cada oferta y Gemini 3.8 Flash (Antigravity en la PC) descarta las que no sirven
+  const handleVerifyOffers = async () => {
+    setVerifying(true);
+    setVerifyMsg("");
+    try {
+      const res = await fetch("/api/v1/agent/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const d = await res.json();
+      if (!res.ok || d.status === "error") {
+        setVerifyMsg(d.message || "No se pudo iniciar la verificación");
+        setVerifying(false);
+        return;
+      }
+      setVerifyMsg("Leyendo cada aviso y analizándolo con Gemini 3.8 Flash en la PC...");
+      const poll = setInterval(async () => {
+        try {
+          const r2 = await fetch("/api/v1/agent/findings?limit=300");
+          const d2 = await r2.json();
+          if (d2.verifier && !d2.verifier.running) {
+            clearInterval(poll);
+            setVerifying(false);
+            setVerifyMsg(`Listo: ${d2.verifier.checked} ofertas revisadas, ${d2.verifier.archived} archivadas.`);
+            fetchData();
+          }
+        } catch (err) {
+          void err;
+        }
+      }, 20000);
+    } catch (err) {
+      setVerifyMsg("No se pudo iniciar la verificación");
+      setVerifying(false);
+      void err;
+    }
+  };
 
   const handleEvaluateMatch = async (findingId) => {
     try {
@@ -727,6 +763,17 @@ export default function AgentRadar() {
                 <span>{evaluatingAll ? "Evaluando con IA..." : "Calcular Match Faltante"}</span>
               </button>
             )}
+
+            <button
+              onClick={handleVerifyOffers}
+              disabled={verifying}
+              className="px-3 py-1.5 rounded-2xl text-xs font-mono font-medium text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+              title="Abre el aviso real de cada oferta y descarta las cerradas, full-time, fuera de Buenos Aires o que piden experiencia (corre solo cada 3 h con la PC prendida)"
+            >
+              <ShieldCheck className={`w-3 h-3 ${verifying ? "animate-pulse" : ""}`} />
+              <span>{verifying ? "Verificando..." : "Verificar ofertas"}</span>
+            </button>
+            {verifyMsg && <span className="text-[11px] font-mono text-white/50">{verifyMsg}</span>}
           </div>
 
           {/* Search Input */}
@@ -854,6 +901,24 @@ export default function AgentRadar() {
                       <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
                         Nueva
+                      </span>
+                    ) : null}
+
+                    {finding.verify_status === "ok" ? (
+                      <span
+                        className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase bg-emerald-500/10 text-emerald-300/90 border border-emerald-500/25 flex items-center gap-1"
+                        title={finding.verify_reason || "Aviso leído y analizado"}
+                      >
+                        <ShieldCheck className="w-3 h-3" />
+                        Verificada
+                      </span>
+                    ) : finding.verify_status && finding.verify_status !== "sin_leer" ? (
+                      <span
+                        className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1"
+                        title={finding.verify_reason}
+                      >
+                        <AlertCircle className="w-3 h-3" />
+                        {finding.verify_label}
                       </span>
                     ) : null}
                   </div>

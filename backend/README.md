@@ -77,7 +77,7 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 | `POST` | `/api/v1/agent/archive` | Archiva una oferta (`{"id": N}`) de la vista activa. |
 | `POST` | `/api/v1/agent/targets` | Agrega un nuevo portal o URL con criterios personalizados de búsqueda. |
 | `POST` | `/api/v1/agent/targets/toggle` | Pausa o activa el monitoreo periódico de un portal existente (`{"id": N}`). |
-| `POST` | `/api/v1/agent/generate-doc` | Genera CV en Formato Harvard ATS o Cover Letter personalizada (HTML y PDF vectorial embebido). |
+| `POST` | `/api/v1/agent/generate-doc` | Genera CV (1 página A4, ATS) o Cover Letter: la IA devuelve un plan JSON con contenido del perfil y una plantilla fija arma el HTML; el PDF lo renderiza el PC Bridge (Edge) si está online. |
 | `POST` | `/api/v1/agent/save-doc` | Guarda modificaciones de texto/HTML en CV o Cover Letter y regenera el PDF vectorial vía Edge Headless. |
 | `GET` | `/api/v1/agent/doc?id=...&type=cv\|cover_letter` | Consulta el HTML generado y representación binaria en Base64. |
 | `GET` | `/api/v1/agent/download-doc?id=...&type=cv\|cover_letter` | Descarga directa del archivo PDF vectorial nativo (`application/pdf`). |

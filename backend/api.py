@@ -22,7 +22,7 @@ import base64
 import re
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from html import unescape as html_unescape
+from html import unescape as html_unescape, escape as html_escape
 from html.parser import HTMLParser
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, urljoin
@@ -1191,7 +1191,83 @@ def check_pc_bridge_online():
             pass
     return None
 
-def execute_hybrid_ai(prompt, purpose="General", temperature=0.1, max_tokens=800, timeout=40):
+GEMINI_CLOUD_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-lite-latest"]
+
+def _gemini_single_call(model, key, prompt, temperature, max_tokens, timeout):
+    t0 = time.time()
+    payload = json.dumps({
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens, "responseMimeType": "application/json"}
+    }).encode("utf-8")
+    req = urllib.request.Request(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
+                                 data=payload, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        res = json.loads(resp.read().decode("utf-8"))
+    usage = res.get("usageMetadata", {})
+    p_tokens = usage.get("promptTokenCount", len(prompt) // 4)
+    c_tokens = usage.get("candidatesTokenCount", 0)
+    return {
+        "status": "ok",
+        "model": f"{model} [Cloud]",
+        "engine": "cloud-api",
+        "text": res["candidates"][0]["content"]["parts"][0]["text"],
+        "prompt_tokens": p_tokens,
+        "completion_tokens": c_tokens,
+        "total_tokens": usage.get("totalTokenCount", p_tokens + c_tokens),
+        "latency_ms": int((time.time() - t0) * 1000)
+    }
+
+def _gemini_cloud_cascade(prompt, purpose, temperature, max_tokens, grace=4, hard_timeout=45):
+    """
+    Carrera en paralelo contra la API de Google (cuota gratuita). Antes era secuencial y los modelos
+    saturados (3.8 colgado 60 s, 3.6 con 503 a los 23 s) hacian esperar mas de un minuto.
+    Devuelve el modelo de mayor prioridad que responda; si ya respondio uno peor, espera a los mejores
+    como maximo `grace` segundos.
+    """
+    key = load_gemini_key()
+    if not key:
+        return {"status": "error", "message": "Ni PC Bridge ni API Key de Google configuradas"}
+    t0 = time.time()
+    results, errors = {}, {}
+    pool = ThreadPoolExecutor(max_workers=len(GEMINI_CLOUD_MODELS))
+    futures = {pool.submit(_gemini_single_call, m, key, prompt, temperature, max_tokens, hard_timeout): m for m in GEMINI_CLOUD_MODELS}
+    first_ok_at = None
+    best = None
+    while time.time() - t0 < hard_timeout + 2:
+        for fut, m in futures.items():
+            if fut.done() and m not in results and m not in errors:
+                try:
+                    results[m] = fut.result()
+                    first_ok_at = first_ok_at or time.time()
+                except Exception as e:
+                    errors[m] = str(e)
+        best = next((m for m in GEMINI_CLOUD_MODELS if m in results), None)
+        if best:
+            higher_pending = any(m not in results and m not in errors for m in GEMINI_CLOUD_MODELS[:GEMINI_CLOUD_MODELS.index(best)])
+            if not higher_pending or time.time() - first_ok_at >= grace:
+                break
+        elif len(errors) == len(GEMINI_CLOUD_MODELS):
+            break
+        time.sleep(0.15)
+    pool.shutdown(wait=False)
+    if not best:
+        return {"status": "error", "message": f"Inferencia fallida: {'; '.join(f'{m}: {e[:60]}' for m, e in errors.items()) or 'timeout'}"}
+    out = results[best]
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=10)
+        conn.execute("""
+            INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (int(t0), out["model"], out["prompt_tokens"], out["completion_tokens"], out["total_tokens"], purpose, int((time.time() - t0) * 1000), "ok"))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+    out["latency_ms"] = int((time.time() - t0) * 1000)
+    return out
+
+
+def execute_hybrid_ai(prompt, purpose="General", temperature=0.1, max_tokens=800, timeout=40, prefer_cloud=False):
     """
     Hybrid Zero-Touch AI Engine:
     1. Si la PC de escritorio esta encendida: delega la inferencia via Tailscale
@@ -1201,6 +1277,13 @@ def execute_hybrid_ai(prompt, purpose="General", temperature=0.1, max_tokens=800
     """
     now = int(time.time())
     t0 = time.time()
+
+    # 0. prefer_cloud (documentos): la API directa responde en segundos; el CLI de la PC tarda 20-70 s en arrancar
+    cloud_res = None
+    if prefer_cloud:
+        cloud_res = _gemini_cloud_cascade(prompt, purpose, temperature, max_tokens)
+        if cloud_res.get("status") == "ok":
+            return cloud_res
 
     # 1. Prioridad: PC Bridge con Antigravity CLI (Gemini 3.8 Flash High)
     bridge_url = check_pc_bridge_online()
@@ -1246,70 +1329,9 @@ def execute_hybrid_ai(prompt, purpose="General", temperature=0.1, max_tokens=800
         except Exception as bridge_err:
             print(f"[AI Hybrid Engine] Fallo en PC Bridge, conmutando a nube directa: {bridge_err}", file=sys.stderr)
 
-    # 2. Conmutacion Automatica en Servidor (Autonomia 24/7 con PC Apagada)
-    key = load_gemini_key()
-    if not key:
-        return {"status": "error", "message": "Ni PC Bridge ni API Key de Google configuradas"}
-
-    cascade_models = [
-        "gemini-3.8-flash",
-        "gemini-3.6-flash",
-        "gemini-3.5-flash",
-        "gemini-flash-lite-latest"
-    ]
-
-    last_error = None
-    for model in cascade_models:
-        try:
-            req_t0 = time.time()
-            gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
-            payload = json.dumps({
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": temperature,
-                    "maxOutputTokens": max_tokens,
-                    "responseMimeType": "application/json"
-                }
-            }).encode("utf-8")
-
-            req_gemini = urllib.request.Request(gemini_url, data=payload, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req_gemini, timeout=30) as resp:
-                res = json.loads(resp.read().decode("utf-8"))
-                latency_ms = int((time.time() - req_t0) * 1000)
-
-                usage = res.get('usageMetadata', {})
-                p_tokens = usage.get('promptTokenCount', len(prompt) // 4)
-                c_tokens = usage.get('candidatesTokenCount', 0)
-                t_tokens = usage.get('totalTokenCount', p_tokens + c_tokens)
-                text = res['candidates'][0]['content']['parts'][0]['text']
-
-                try:
-                    conn = sqlite3.connect(DB_PATH)
-                    cur = conn.cursor()
-                    cur.execute("""
-                        INSERT INTO ai_usage_logs (timestamp, model, prompt_tokens, completion_tokens, total_tokens, purpose, latency_ms, status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (now, f"{model} [Cloud Fallback]", p_tokens, c_tokens, t_tokens, purpose, latency_ms, "ok"))
-                    conn.commit()
-                    conn.close()
-                except Exception:
-                    pass
-
-                return {
-                    "status": "ok",
-                    "model": f"{model} [Cloud Fallback]",
-                    "engine": "cloud-api",
-                    "text": text,
-                    "prompt_tokens": p_tokens,
-                    "completion_tokens": c_tokens,
-                    "total_tokens": t_tokens,
-                    "latency_ms": latency_ms
-                }
-        except Exception as e:
-            last_error = str(e)
-            continue
-
-    return {"status": "error", "message": f"Inferencia fallida: {last_error}"}
+    if prefer_cloud:
+        return cloud_res or {"status": "error", "message": "Nube y PC Bridge no disponibles"}
+    return _gemini_cloud_cascade(prompt, purpose, temperature, max_tokens)
 
 
 def load_santino_profile():
@@ -1330,118 +1352,300 @@ def load_santino_profile():
 
 def generate_document_hybrid(finding, doc_type="cv", language="auto"):
     """
-    Hybrid Harvard Document Generator:
-    1. Si PC Bridge está online: delega la generación y renderizado PDF vectorial a la PC (Edge Headless + Gemini 3.8).
-    2. Si PC Bridge está offline: genera el HTML Harvard estricto mediante la cascada de nube de Google.
+    CV / Cover Letter en 2 pasos (rapido y consistente):
+    1. La IA solo ELIGE y ORDENA contenido del perfil real (JSON chico: ~600 tokens de salida)
+       -> proyectos a destacar, tagline, resumen, skills / parrafos de la carta.
+    2. Una plantilla fija arma el HTML (mismo diseno que los CVs hechos a mano) y el PC Bridge lo
+       convierte a PDF con Edge si esta online. Si la IA falla, se usa un orden por defecto.
     """
+    t0 = time.time()
+    profile = load_santino_profile()
+    lang = _doc_language(finding, language)
+    plan, model_used = _doc_ai_plan(profile, finding, doc_type, lang)
+    if doc_type == "cv":
+        doc_html = _render_cv_html(profile, finding, lang, plan)
+    else:
+        doc_html = _render_cover_letter_html(profile, finding, lang, plan)
+
+    pdf_b64 = ""
     bridge_url = check_pc_bridge_online()
     if bridge_url:
         try:
-            payload = json.dumps({
-                "doc_type": doc_type,
-                "language": language,
-                "job": {
-                    "title": finding.get("title", ""),
-                    "company": finding.get("company", ""),
-                    "modality": finding.get("modality", ""),
-                    "summary": finding.get("summary", ""),
-                    "link": finding.get("link", "")
-                }
-            }).encode("utf-8")
-            req = urllib.request.Request(f"{bridge_url}/api/v1/generate-doc", data=payload, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=85) as resp:
-                res = json.loads(resp.read().decode("utf-8"))
-                if res.get("status") == "ok":
-                    return res
+            req = urllib.request.Request(f"{bridge_url}/api/v1/render-pdf",
+                                         data=json.dumps({"html": doc_html}).encode("utf-8"),
+                                         headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=40) as resp:
+                pdf_b64 = json.loads(resp.read().decode("utf-8")).get("pdf_base64", "")
         except Exception as e:
-            print(f"[Document Engine] PC Bridge error, conmutando a nube directa: {e}", file=sys.stderr)
+            print(f"[Document Engine] PDF via PC Bridge fallo: {e}", file=sys.stderr)
 
-    profile = load_santino_profile()
-    job_title = finding.get("title", "")
-    company = finding.get("company", "")
-    modality = finding.get("modality", "")
-    job_desc = finding.get("summary", "")
-
-    if language == "auto":
-        text_corpus = f"{job_title} {job_desc}".lower()
-        matches = sum(1 for w in ["intern", "engineer", "developer", "remote", "software", "skills", "experience"] if w in text_corpus)
-        target_lang = "en" if matches >= 3 else "es"
-    else:
-        target_lang = "en" if language in ["en", "english"] else "es"
-
-    if doc_type == "cv":
-        prompt = f"""Actua como un disenador de carreras de Harvard (Harvard Office of Career Services).
-Crea un CV profesional en FORMATO HARVARD ESTRICTO adaptado especificamente para la siguiente oferta laboral.
-
-CANDIDATO (INFORMACION 100% REAL DE SU PORTFOLIO Y CARRERA UCA):
-{json.dumps(profile, ensure_ascii=False, indent=2)}
-
-OFERTA DESTINO:
-- Puesto: {job_title}
-- Empresa: {company}
-- Modalidad: {modality}
-- Descripcion / Requisitos: {job_desc}
-- Idioma de redaccion: {"INGLES (ENGLISH)" if target_lang == "en" else "ESPANOL"}
-
-DIRECTIVAS ESTRICTAS DE FORMATO HARVARD (ATS-FRIENDLY):
-1. Tipografia: Serif clasica ("Georgia", "Times New Roman", Times, serif). Color texto #111111, fondo blanco puro #ffffff.
-2. Margenes: 0.6in a 0.65in en formato carta (letter portrait), una sola pagina compacta e impecable.
-3. Encabezado centrado:
-   - Nombre: {profile.get('name', 'SANTINO HICKETHIER').upper()} (18pt, bold, mayusculas).
-   - Datos de contacto: {profile.get('contact', {}).get('location', 'Buenos Aires, Argentina')} | {profile.get('contact', {}).get('phone', '')} | {profile.get('contact', {}).get('email', '')} | {profile.get('contact', {}).get('linkedin', '')} | {profile.get('contact', {}).get('github', '')}.
-4. Secciones con formato Harvard estricto:
-   - EDUCATION: Pontificia Universidad Cat?lica Argentina (UCA) ? Ingenier?a en Inform?tica (Bachelor of Science in Informatics Engineering). Graduaci?n Estimada: Dic 2028 (Expected Graduation: Dec 2028). IMPORTANTE: NUNCA menciones porcentaje de materias aprobadas ni plan completado.
-   - TECHNICAL SKILLS: Agrupadas por categor?a, priorizando tecnolog?as est?ndar y requeridas por el puesto (Python, Node.js, TypeScript, React, Docker, Git, CI/CD, Scrum, REST APIs, Linux, SQL).
-   - PROJECTS & INFRASTRUCTURE EXPERIENCE:
-     * Destaca proyectos pertinentes (Tex AI RAG, AlertAR, UCA MCP, Homelab & Dashboard, Voronoi).
-     * FECHAS OBLIGATORIAS: Tex AI (2026), AlertAR (2026), UCA MCP (2026), Homelab & Dashboard (2026); Voronoi y los dem?s (2025).
-     * DIRECTIVAS DE REDACCI?N PARA RECURSOS HUMANOS (HR-FRIENDLY): Explica con claridad: (1) qu? problema soluciona, (2) qu? funcionalidades principales tiene, (3) qu? tecnolog?as conocidas utiliza. NUNCA uses nombres de herramientas oscuras como Uptime Kuma, Vaultwarden o LittleFS dentro de las descripciones de proyectos (d?jalas en habilidades t?cnicas).
-   - LANGUAGES & CERTIFICATIONS: Ingl?s C1 Advanced (Cambridge CAE biling?e profesional), Espa?ol nativo.
-5. Tipograf?a y estilo visual: Tipograf?a serif cl?sica ("Times New Roman", Times, Georgia, serif), m?rgenes 0.45in a 0.50in, INTERLINEADO C?MODO Y AIREADO (line-height: 1.34 a 1.36; espaciado entre vi?etas 3px a 4px). Asegurar estrictamente que el CV quepa en EXACTAMENTE UNA SOLA HOJA (single page letter portrait).
-6. Devuelve un documento HTML5 completo y autocontenido en un bloque ```html ... ```."""
-    else:
-        prompt = f"""Actua como un experto en redaccion ejecutiva de cartas de presentacion segun el estandar de Harvard Career Services.
-Redacta una COVER LETTER profesional, convincente y personalizada para la siguiente oferta laboral.
-
-CANDIDATO (INFORMACION REAL DE SU PORTFOLIO):
-{json.dumps(profile, ensure_ascii=False, indent=2)}
-
-OFERTA DESTINO:
-- Puesto: {job_title}
-- Empresa: {company}
-- Modalidad: {modality}
-- Descripcion: {job_desc}
-- Idioma de redaccion: {"INGLES (ENGLISH)" if target_lang == "en" else "ESPANOL"}
-
-Devuelve un documento HTML5 completo y autocontenido en un bloque ```html ... ```."""
-
-    ai_res = execute_hybrid_ai(prompt, purpose=f"DocGen: {doc_type} {company}", temperature=0.2, max_tokens=1500)
-    raw_out = ai_res.get("text", "") if ai_res.get("status") == "ok" else "Error generando documento"
-    html_start = raw_out.find("```html")
-    if html_start != -1:
-        html_body = raw_out[html_start + 7:]
-        html_end = html_body.find("```")
-        clean_html = html_body[:html_end].strip() if html_end != -1 else html_body.strip()
-    elif "<html" in raw_out:
-        clean_html = raw_out.strip()
-    else:
-        clean_html = f"<html><body><pre>{raw_out}</pre></body></html>"
-
-    safe_company = "".join(c for c in company if c.isalnum() or c in ['-', '_']) or "Job"
+    safe_company = "".join(c for c in finding.get("company", "") if c.isalnum() or c in ['-', '_']) or "Job"
     doc_prefix = "CV" if doc_type == "cv" else "CoverLetter"
-    filename = f"{doc_prefix}_Santino_Hickethier_{safe_company}_{target_lang.upper()}.pdf"
-
     return {
         "status": "ok",
         "doc_type": doc_type,
-        "language": target_lang,
-        "filename": filename,
-        "html": clean_html,
-        "pdf_base64": "",
-        "has_pdf": False,
-        "model_used": ai_res.get("model", "Cloud Fallback"),
-        "latency_ms": ai_res.get("latency_ms", 0)
+        "language": lang,
+        "filename": f"{doc_prefix}_Santino_Hickethier_{safe_company}_{lang.upper()}.pdf",
+        "html": doc_html,
+        "pdf_base64": pdf_b64,
+        "has_pdf": bool(pdf_b64),
+        "model_used": model_used,
+        "latency_ms": int((time.time() - t0) * 1000)
     }
+
+
+def _doc_language(finding, language):
+    if language in ("en", "english"):
+        return "en"
+    if language in ("es", "spanish", "espanol"):
+        return "es"
+    text = _norm_text(finding.get("title", ""), finding.get("summary", ""))
+    en_hits = len(re.findall(r"\b(intern|internship|engineer|developer|remote|software|skills|experience|program|students|the|and|for|with)\b", text))
+    es_hits = len(re.findall(r"\b(pasante|pasantia|desarrollador|ingeniero|estudiante|para|con|del|los|las|y)\b", text))
+    return "en" if en_hits > es_hits else "es"
+
+
+def _doc_ai_plan(profile, finding, doc_type, lang):
+    """Pide a la IA un plan JSON chico. Devuelve (plan_dict, modelo) o ({}, 'plantilla') si falla."""
+    projects = profile.get("projects", [])
+    catalog = "\n".join(f"- {p['id']}: {p['name_en']} | {p['stack']} | tags: {', '.join(p.get('tags', []))}" for p in projects)
+    skills = profile.get("technical_skills_en" if lang == "en" else "technical_skills") or profile.get("technical_skills", {})
+    skill_pool = "; ".join(f"{_skill_label(k, lang)}: {', '.join(v)}" for k, v in skills.items())
+    job = (f"Puesto: {finding.get('title', '')}\nEmpresa: {finding.get('company', '')}\n"
+           f"Modalidad: {finding.get('modality', '')}\nDescripcion: {finding.get('summary', '')}")
+    idioma = "INGLES" if lang == "en" else "ESPANOL (rioplatense neutro, sin voseo)"
+    hechos = json.dumps({"summary": profile.get("summary_en" if lang == "en" else "summary", ""),
+                         "projects": [{"id": p["id"], "bullets": p["bullets_en" if lang == "en" else "bullets_es"]} for p in projects],
+                         "availability": profile.get("availability_en" if lang == "en" else "availability", "")},
+                        ensure_ascii=False)
+
+    if doc_type == "cv":
+        instruction = f"""Sos un reclutador tecnico. Elegi y ordena contenido REAL del candidato para su CV hacia esta oferta.
+OFERTA:
+{job}
+
+PROYECTOS DISPONIBLES (id: nombre | stack | tags):
+{catalog}
+
+SKILLS DISPONIBLES (usa solo estas, no agregues ninguna): {skill_pool}
+
+Responde SOLO un JSON valido en {idioma}:
+{{
+  "tagline": "Estudiante de Ingeniería en Informática | 2 o 3 áreas relevantes para la oferta (máx. 70 caracteres)",
+  "summary": "2 frases. Que construye el candidato y por que encaja con ESTE puesto. Solo hechos de los proyectos. Sin adjetivos vacios.",
+  "projects": ["id", "id", "id"],
+  "also": ["id"],
+  "skills": [["Categoria", "skill, skill, skill"], ["Categoria", "..."], ["Categoria", "..."]]
+}}
+Reglas: "projects" = los 3 proyectos más relevantes en orden; "also" = el resto. 3 categorías de skills priorizando lo que pide la oferta, usando los nombres de categoría de la lista. Ortografía y tildes correctas. Prohibido inventar experiencia, empresas, métricas o tecnologías."""
+    else:
+        instruction = f"""Sos un redactor de cartas de presentacion para pasantias. Escribi la carta del candidato para esta oferta.
+OFERTA:
+{job}
+
+HECHOS REALES DEL CANDIDATO (usa SOLO estos; no inventes metricas, empresas ni tecnologias):
+{hechos}
+
+Responde SOLO un JSON valido en {idioma}:
+{{
+  "recipient": "Equipo de seleccion o equipo del area, en la empresa",
+  "salutation": "Saludo formal",
+  "opening": "3 frases: que puesto, por que esta empresa/puesto, quien es (estudiante de Ingenieria en Informatica en la UCA).",
+  "points": [{{"title": "Habilidad que pide la oferta", "text": "2 frases: problema que resolvio en un proyecto concreto y como lo hizo"}}, {{"title": "...", "text": "..."}}, {{"title": "...", "text": "..."}}],
+  "closing": "2 frases: disponibilidad e invitacion a entrevista."
+}}
+Tono: directo, profesional, sin frases cliché. Máximo 300 palabras en total.
+Redacción: primera persona en pasado para lo que hizo (construí, programé, publiqué), ortografía y tildes correctas, nombrá los proyectos (Tex AI, UCA MCP, Homelab, AlertAR)."""
+
+    ai_res = execute_hybrid_ai(instruction, purpose=f"DocGen: {doc_type} {finding.get('company', '')}",
+                               temperature=0.3, max_tokens=1600, timeout=45, prefer_cloud=True)
+    if ai_res.get("status") != "ok":
+        return {}, "plantilla (IA no disponible)"
+    raw = ai_res.get("text", "")
+    try:
+        start, end = raw.find("{"), raw.rfind("}")
+        plan = json.loads(raw[start:end + 1]) if start != -1 and end > start else {}
+    except Exception:
+        plan = {}
+    return (plan if isinstance(plan, dict) else {}), ai_res.get("model", "IA")
+
+
+_DOC_CSS = """
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; width: 210mm; padding: __PAD__; }
+  a { color: inherit; text-decoration: none; }
+  .name { font-size: 22pt; font-weight: 700; letter-spacing: 0.5px; text-align: center; color: #0b1f3a; }
+  .tagline { text-align: center; font-size: 10pt; color: #3a4a63; margin-top: 3px; letter-spacing: 0.2px; }
+  .contact { text-align: center; font-size: 8.8pt; color: #333; margin-top: 6px; line-height: 1.5; }
+  .rule { border: 0; border-top: 1.6px solid #0b1f3a; margin: 10px 0 0 0; }
+  .section { font-size: 10.2pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.9px; color: #0b1f3a;
+             border-bottom: 0.8px solid #8d99ad; padding-bottom: 2px; margin: 13px 0 7px 0; }
+  .summary { font-size: 9.5pt; line-height: 1.5; text-align: justify; margin-top: 12px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .title { font-weight: 700; font-size: 9.9pt; }
+  .meta { font-size: 9pt; color: #444; white-space: nowrap; margin-left: 12px; }
+  .sub { font-style: italic; font-size: 9pt; color: #3a4a63; margin-top: 2px; }
+  .entry { margin-bottom: 9px; }
+  ul { margin: 5px 0 0 0; padding-left: 16px; }
+  li { font-size: 9.2pt; line-height: 1.4; margin-bottom: 2.5px; text-align: justify; }
+  .skill { font-size: 9.3pt; line-height: 1.5; margin-bottom: 4px; }
+  .meta-row { display: flex; justify-content: space-between; font-size: 9.8pt; margin-top: 18px; }
+  .re { font-weight: 700; font-size: 10.6pt; margin-top: 16px; color: #0b1f3a; }
+  p { font-size: 10.4pt; line-height: 1.6; margin: 0 0 11px 0; text-align: justify; }
+  .salute { font-size: 10.4pt; margin-top: 16px; margin-bottom: 11px; }
+  .bul { margin: 0 0 11px 0; padding-left: 18px; }
+  .bul li { font-size: 10.4pt; line-height: 1.55; margin-bottom: 7px; }
+  .sig { font-size: 10.4pt; margin-top: 18px; line-height: 1.7; }
+  .sig b { font-size: 11pt; color: #0b1f3a; }
+"""
+
+_SKILL_LABELS = {
+    "programming_languages": ("Lenguajes", "Languages"),
+    "web_and_backend": ("Web y Backend", "Web & Backend"),
+    "ai_and_automation": ("IA y Automatización", "AI & Automation"),
+    "data": ("Datos", "Data"),
+    "systems_and_devops": ("Sistemas y DevOps", "Systems & DevOps"),
+    "networks": ("Redes", "Networks"),
+    "iot": ("IoT y Embebidos", "IoT & Embedded"),
+    "methodologies": ("Metodologías", "Methodologies"),
+}
+
+def _skill_label(key, lang):
+    k = str(key).strip().lower().replace(" ", "_")
+    if k in _SKILL_LABELS:
+        return _SKILL_LABELS[k][1 if lang == "en" else 0]
+    return str(key).strip()
+
+def _e(s):
+    return html_escape(str(s or ""), quote=False)
+
+def _doc_bullet(text):
+    """"Problema: ..." -> etiqueta en negrita (Problema / Solucion / Como; Problem / Solution / How)."""
+    head, sep, rest = str(text).partition(": ")
+    if sep and len(head) <= 24:
+        return f"<li><b>{_e(head)}:</b> {_e(rest)}</li>"
+    return f"<li>{_e(text)}</li>"
+
+def _doc_header(profile, tagline):
+    p = profile.get("personal", {})
+    return f"""<div class="name">{_e(p.get('full_name', 'Santino Hickethier')).upper()}</div>
+<div class="tagline">{_e(tagline)}</div>
+<div class="contact">{_e(p.get('location', ''))} &nbsp;|&nbsp; {_e(p.get('phone', ''))} &nbsp;|&nbsp; {_e(p.get('email', ''))}<br>
+{_e(p.get('linkedin', ''))} &nbsp;|&nbsp; {_e(p.get('github', ''))}</div>
+<hr class="rule">"""
+
+def _default_project_order(profile, finding):
+    """Orden por coincidencia de tags con la oferta (respaldo si la IA no responde)."""
+    text = _norm_text(finding.get("title", ""), finding.get("summary", ""))
+    def score(p):
+        return sum(1 for t in p.get("tags", []) if t in text) + (0.5 if p["id"] in ("tex_ai", "uca_mcp", "homelab") else 0)
+    return [p["id"] for p in sorted(profile.get("projects", []), key=score, reverse=True)]
+
+def _render_cv_html(profile, finding, lang, plan):
+    en = lang == "en"
+    projects = {p["id"]: p for p in profile.get("projects", [])}
+    order = list(dict.fromkeys(i for i in plan.get("projects", []) if i in projects))[:4]
+    for pid in _default_project_order(profile, finding):
+        if len(order) >= 3:
+            break
+        if pid not in order:
+            order.append(pid)
+    also = [i for i in projects if i not in order]
+
+    degree = "Informatics Engineering Student" if en else "Estudiante de Ingeniería en Informática"
+    areas = str(plan.get("tagline", "")).split("|")[-1].strip() if "|" in str(plan.get("tagline", "")) else ""
+    tagline = f"{degree} | {areas or ('AI, Backend & Infrastructure' if en else 'IA, Backend e Infraestructura')}"
+    summary = plan.get("summary") or profile.get("summary_en" if en else "summary", "")
+
+    edu = ""
+    for ed in profile.get("education", []):
+        edu += f"""<div class="entry"><div class="row"><span class="title">{_e(ed['institution_en' if en else 'institution'])}</span>
+<span class="meta">{_e(ed['dates_en' if en else 'dates'])}</span></div><div class="sub">{_e(ed['degree_en' if en else 'degree'])}</div></div>"""
+
+    proj = ""
+    for pid in order:
+        p = projects[pid]
+        link = f" &nbsp;·&nbsp; {_e(p['link'])}" if p.get("link") else ""
+        bullets = "".join(_doc_bullet(b) for b in p["bullets_en" if en else "bullets_es"])
+        proj += f"""<div class="entry"><div class="row"><span class="title">{_e(p['name_en' if en else 'name'])}</span>
+<span class="meta">{_e(p['dates_en' if en else 'dates'])}</span></div><div class="sub">{_e(p['stack'])}{link}</div><ul>{bullets}</ul></div>"""
+    if also:
+        items = "; ".join(f"{_e((projects[i]['name_en' if en else 'name']).split(' – ')[0])} ({_e(projects[i]['dates_en' if en else 'dates'])})" for i in also)
+        proj += f"""<div class="entry"><ul><li><b>{'Also' if en else 'Además'}:</b> {items}.</li></ul></div>"""
+
+    skill_src = profile.get("technical_skills_en" if en else "technical_skills") or profile.get("technical_skills", {})
+    allowed = {s.lower() for v in skill_src.values() for s in v}
+    skills_rows = []
+    for row in plan.get("skills", [])[:4]:
+        if isinstance(row, (list, tuple)) and len(row) == 2:
+            kept = [s.strip() for s in str(row[1]).split(",") if s.strip().lower() in allowed or any(s.strip().lower() in a for a in allowed)]
+            if kept:
+                skills_rows.append((_skill_label(row[0], lang), ", ".join(kept)))
+    if not skills_rows:
+        ts = skill_src
+        skills_rows = [("AI & Data" if en else "IA y Datos", ", ".join(ts.get("ai_and_automation", [])[:5] + ts.get("data", [])[:2])),
+                       ("Engineering" if en else "Desarrollo", ", ".join(ts.get("programming_languages", [])[:6] + ts.get("web_and_backend", [])[:4])),
+                       ("Systems" if en else "Sistemas", ", ".join(ts.get("systems_and_devops", [])[:6]))]
+    skills = "".join(f"<div class=\"skill\"><b>{_e(k)}:</b> {_e(v)}</div>" for k, v in skills_rows)
+
+    langs = " &nbsp;|&nbsp; ".join(f"<b>{_e(l['language_en' if en else 'language'])}:</b> {_e(l['level_en' if en else 'level'])}" for l in profile.get("languages", []))
+    awards = "".join(f"<div class=\"skill\">{_e(a['name_en' if en else 'name'])}</div>" for a in profile.get("awards", []))
+    s = (("Profile", "Education", "Technical Projects", "Skills", "Languages & Recognition") if en
+         else ("Perfil", "Educación", "Proyectos", "Habilidades", "Idiomas y Reconocimientos"))
+    css = _DOC_CSS.replace("__PAD__", "13mm 16mm 8mm 16mm")
+    return f"""<!DOCTYPE html><html lang="{lang}"><head><meta charset="utf-8">
+<title>Santino Hickethier - CV - {_e(finding.get('company', ''))}</title><style>{css}</style></head><body>
+{_doc_header(profile, tagline)}
+<div class="summary">{_e(summary)}</div>
+<div class="section">{s[1]}</div>{edu}
+<div class="section">{s[2]}</div>{proj}
+<div class="section">{s[3]}</div>{skills}
+<div class="section">{s[4]}</div><div class="skill">{langs}</div>{awards}
+</body></html>"""
+
+def _render_cover_letter_html(profile, finding, lang, plan):
+    en = lang == "en"
+    company = finding.get("company", "") or ("the company" if en else "la empresa")
+    title = finding.get("title", "")
+    months_es = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    today = datetime.now()
+    date_str = today.strftime("%B %d, %Y") if en else f"{today.day} de {months_es[today.month - 1]} de {today.year}"
+    recipient = plan.get("recipient") or (f"Hiring Team, {company}" if en else f"Equipo de Selección, {company}")
+    subject = f"Application for {title}" if en else f"Postulación: {title}"
+    salutation = plan.get("salutation") or ("Dear Hiring Team," if en else "Estimado equipo de selección:")
+    opening = plan.get("opening") or (
+        f"I am applying for the {title} position at {company}. I am an Informatics Engineering student at UCA and I build and ship real software." if en
+        else f"Me postulo a la posición de {title} en {company}. Soy estudiante de Ingeniería en Informática en la UCA y construyo y publico software real.")
+    points = [pt for pt in plan.get("points", []) if isinstance(pt, dict) and pt.get("text")][:3]
+    if not points:
+        by_id = {p["id"]: p for p in profile.get("projects", [])}
+        for pid in _default_project_order(profile, finding)[:3]:
+            b = by_id[pid]["bullets_en" if en else "bullets_es"]
+            # sin la etiqueta "Solucion:" / "Solution:"; la solucion es la frase mas util para una carta
+            text = str(b[1] if len(b) > 1 else b[0]).partition(": ")[2] or str(b[0])
+            points.append({"title": by_id[pid]["name_en" if en else "name"].split(" – ")[0], "text": text[:1].upper() + text[1:]})
+    avail = (profile.get("availability_en" if en else "availability", "") or "").rstrip(". ")
+    avail = avail[:1].lower() + avail[1:]
+    closing = plan.get("closing") or (
+        f"I am available {avail} and would be glad to discuss the role in an interview." if en
+        else f"Tengo disponibilidad {avail} y me encantaría conversar en una entrevista.")
+    bullets = "".join(f"<li><b>{_e(pt.get('title', ''))}:</b> {_e(pt['text'])}</li>" for pt in points)
+    p = profile.get("personal", {})
+    tagline = "Informatics Engineering Student" if en else "Estudiante de Ingeniería en Informática"
+    css = _DOC_CSS.replace("__PAD__", "17mm 20mm 14mm 20mm")
+    return f"""<!DOCTYPE html><html lang="{lang}"><head><meta charset="utf-8">
+<title>Santino Hickethier - Cover Letter - {_e(company)}</title><style>{css}</style></head><body>
+{_doc_header(profile, tagline)}
+<div class="meta-row"><span><b>{'To' if en else 'Para'}:</b> {_e(recipient)}</span><span>{_e(date_str)}</span></div>
+<div class="re">{_e(subject)}</div>
+<div class="salute">{_e(salutation)}</div>
+<p>{_e(opening)}</p>
+<ul class="bul">{bullets}</ul>
+<p>{_e(closing)}</p>
+<div class="sig">{'Sincerely' if en else 'Saludos cordiales'},<br><b>{_e(p.get('full_name', 'Santino Hickethier'))}</b></div>
+</body></html>"""
 
 
 def parse_agent_findings_json(raw_text):

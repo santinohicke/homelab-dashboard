@@ -6,7 +6,6 @@ import {
   CheckCircle, Globe, Terminal, ArrowUpRight, Send, Trash2, Undo2, XCircle,
   FileText, Download, Copy, FileCheck, ExternalLink, Printer, Edit3, Eye, Save
 } from "lucide-react";
-import TopCompanies from "./TopCompanies";
 
 // Sanitizer to repair broken accents and encodings (e.g. Pasant?as -> Pasantías)
 const cleanText = (str) => {
@@ -26,7 +25,7 @@ const cleanText = (str) => {
     .replace(/([a-zA-ZáéíóúÁÉÍÓÚñÑ])\?([a-zA-Z])/g, "$1í$2");
 };
 
-const isTopFinding = (f) => ((f.modality || "").startsWith("TOP") ? 1 : 0);
+const isTopFinding = (f) => (f.is_top || (f.modality || "").startsWith("TOP") ? 1 : 0);
 
 export default function AgentRadar() {
   const [findings, setFindings] = useState([]);
@@ -45,6 +44,42 @@ export default function AgentRadar() {
   const [filter, setFilter] = useState("new"); // "new" | "applied" | "top"
   const [searchQuery, setSearchQuery] = useState("");
   const [showTargetsModal, setShowTargetsModal] = useState(false);
+  const [topMonitor, setTopMonitor] = useState({ total: 0, last_scan: 0, scanning: false });
+
+  const fetchTopMonitor = async () => {
+    try {
+      const res = await fetch("/api/v1/agent/top-companies");
+      if (res.ok) {
+        const d = await res.json();
+        setTopMonitor({ total: (d.companies || []).length, last_scan: d.last_scan || 0, scanning: !!d.scanning });
+        return !!d.scanning;
+      }
+    } catch (err) {
+      void err;
+    }
+    return false;
+  };
+
+  const handleTopScan = async () => {
+    setTopMonitor(prev => ({ ...prev, scanning: true }));
+    try {
+      await fetch("/api/v1/agent/top-companies/scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    } catch (err) {
+      void err;
+    }
+    // Refresca hasta que termine y recarga las ofertas
+    const poll = setInterval(async () => {
+      const still = await fetchTopMonitor();
+      if (!still) {
+        clearInterval(poll);
+        fetchData();
+      }
+    }, 15000);
+  };
+
+  useEffect(() => {
+    if (filter === "top") fetchTopMonitor();
+  }, [filter]);
   
   // Document Generation Modal state
   const [docModal, setDocModal] = useState({
@@ -79,7 +114,7 @@ export default function AgentRadar() {
     try {
       setLoading(true);
       const [resFindings, resTargets] = await Promise.all([
-        fetch("/api/v1/agent/findings?limit=100"),
+        fetch("/api/v1/agent/findings?limit=300"),
         fetch("/api/v1/agent/targets")
       ]);
 
@@ -518,6 +553,7 @@ export default function AgentRadar() {
     .filter(f => {
       if (filter === "new" && f.is_applied) return false;
       if (filter === "applied" && !f.is_applied) return false;
+      if (filter === "top" && !isTopFinding(f)) return false;
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -660,7 +696,7 @@ export default function AgentRadar() {
               {[
                 { id: "new", label: `Nuevas (${findings.filter(f => !f.is_applied).length})` },
                 { id: "applied", label: `Mis Postulaciones (${stats.applied_count})` },
-                { id: "top", label: "Empresas Top" }
+                { id: "top", label: `Empresas Top (${findings.filter(f => isTopFinding(f)).length})` }
               ].map(f => (
                 <button
                   key={f.id}
@@ -707,10 +743,26 @@ export default function AgentRadar() {
         </div>
       </div>
 
-      {/* 5. OPPORTUNITIES FEED CARDS (o la seccion de Empresas Top) */}
-      {filter === "top" ? (
-        <TopCompanies />
-      ) : loading ? (
+      {/* Empresas Top: aviso del monitor (las ofertas se muestran con las mismas tarjetas) */}
+      {filter === "top" && (
+        <div className="p-3 rounded-2xl bg-amber-500/[0.07] border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <p className="text-xs text-white/70">
+            Ofertas de pasantía / intern en Buenos Aires de las {topMonitor.total || "65+"} empresas top que se revisan cada 2 horas (Google, Microsoft, Amazon, IBM, JPMorgan, Mercado Libre...).
+            {topMonitor.last_scan ? ` Última revisión: ${new Date(topMonitor.last_scan * 1000).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}.` : ""}
+          </p>
+          <button
+            onClick={handleTopScan}
+            disabled={topMonitor.scanning}
+            className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-mono text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+          >
+            <RefreshCw className={`w-3 h-3 ${topMonitor.scanning ? "animate-spin" : ""}`} />
+            <span>{topMonitor.scanning ? "Revisando empresas..." : "Revisar ahora"}</span>
+          </button>
+        </div>
+      )}
+
+      {/* 5. OPPORTUNITIES FEED CARDS */}
+      {loading ? (
         <div className="p-12 text-center space-y-3">
           <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />
           <div className="text-sm font-mono text-white/50">Consultando base de vacantes reales en el Homelab...</div>
@@ -719,13 +771,17 @@ export default function AgentRadar() {
         <div className="p-12 rounded-3xl bg-white/[0.03] border border-white/10 text-center space-y-3 glass-shine">
           <Briefcase className="w-8 h-8 text-white/30 mx-auto" />
           <div className="text-sm font-semibold text-white/70">
-            {filter === "applied" 
-              ? "Aún no te has postulado a ninguna vacante" 
+            {filter === "applied"
+              ? "Aún no te has postulado a ninguna vacante"
+              : filter === "top"
+              ? "Ninguna empresa top tiene pasantías abiertas en Buenos Aires ahora"
               : "No hay vacantes nuevas disponibles"}
           </div>
           <p className="text-xs text-white/40 max-w-md mx-auto">
             {filter === "applied"
               ? "Explorá las vacantes en 'Nuevas', postuláte pulsando 'Postularse' y haz el seguimiento aquí marcando si te contactaron o te rechazaron."
+              : filter === "top"
+              ? "Cuando abra una, aparece acá y te llega una notificación al celular."
               : searchQuery 
               ? `No hay coincidencias para "${searchQuery}". Probá con otros términos.`
               : "Pulsá 'Rastrear Ahora' para que el agente extraiga las convocatorias vigentes de la UCA, LinkedIn y portales tecnológicos."}
@@ -813,8 +869,14 @@ export default function AgentRadar() {
                   </h3>
                   <div className="flex items-center gap-2 text-xs font-mono text-white/60 mt-1">
                     <span className="text-cyan-400 font-semibold">{cleanText(finding.company)}</span>
+                    {finding.location && (
+                      <>
+                        <span className="text-white/30">·</span>
+                        <span className="text-white/50 truncate max-w-[200px] flex items-center gap-0.5"><MapPin className="w-3 h-3" />{cleanText(finding.location)}</span>
+                      </>
+                    )}
                     <span className="text-white/30">·</span>
-                    <span className="text-white/40 truncate max-w-[180px]">{cleanText(finding.target_name)}</span>
+                    <span className="text-white/40 truncate max-w-[160px]">{cleanText(finding.target_name)}</span>
                   </div>
                 </div>
 

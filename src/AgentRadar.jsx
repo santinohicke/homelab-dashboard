@@ -314,22 +314,6 @@ export default function AgentRadar() {
     }
   };
 
-  const handleMarkAllRead = async () => {
-    try {
-      const res = await fetch("/api/v1/agent/mark-read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ all: true })
-      });
-      if (res.ok) {
-        setFindings(prev => prev.map(f => ({ ...f, is_read: true })));
-        setStats(prev => ({ ...prev, unread_count: 0 }));
-      }
-    } catch (err) {
-      console.error("Error al marcar todas como leídas:", err);
-    }
-  };
-
   const handleToggleTarget = async (id) => {
     try {
       const res = await fetch("/api/v1/agent/targets/toggle", {
@@ -672,15 +656,6 @@ export default function AgentRadar() {
             <Filter className="w-4 h-4 text-cyan-400" />
             <span>Explorador de Oportunidades ({filteredFindings.length})</span>
           </h2>
-          {stats.unread_count > 0 && (
-            <button
-              onClick={handleMarkAllRead}
-              className="text-xs font-mono text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <Check className="w-3 h-3" />
-              <span>Marcar todas como leídas</span>
-            </button>
-          )}
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -832,11 +807,6 @@ export default function AgentRadar() {
                           Postulado · En espera
                         </span>
                       )
-                    ) : !finding.is_read ? (
-                      <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                        Nueva
-                      </span>
                     ) : null}
 
                     {finding.verify_status === "ok" ? (

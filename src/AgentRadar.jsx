@@ -42,6 +42,7 @@ export default function AgentRadar() {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [filter, setFilter] = useState("new"); // "new" | "applied" | "top"
+  const [appliedTopOnly, setAppliedTopOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showTargetsModal, setShowTargetsModal] = useState(false);
   const [topMonitor, setTopMonitor] = useState({ total: 0, last_scan: 0, scanning: false });
@@ -584,22 +585,22 @@ export default function AgentRadar() {
     }
   };
 
-  // Filter and search logic - Nuevas, Mis Postulaciones
-  const filteredFindings = findings
-    .filter(f => {
-      if (filter === "new" && f.is_applied) return false;
-      if (filter === "applied" && !f.is_applied) return false;
-      if (filter === "top" && !isTopFinding(f)) return false;
+  // Nuevas: sin postular y no top · Empresas Top: top sin postular · Mis Postulaciones: postuladas (opcionalmente solo top)
+  const filteredFindings = findings.filter(f => {
+    const top = isTopFinding(f);
+    if (filter === "new" && (f.is_applied || top)) return false;
+    if (filter === "top" && (f.is_applied || !top)) return false;
+    if (filter === "applied" && (!f.is_applied || (appliedTopOnly && !top))) return false;
 
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const combined = `${f.title} ${f.company} ${f.summary} ${f.modality} ${f.target_name} ${f.match_reason || ''}`.toLowerCase();
-        if (!combined.includes(q)) return false;
-      }
-      return true;
-    })
-    // Empresas Top primero, despues por match
-    .sort((a, b) => (isTopFinding(b) - isTopFinding(a)) || ((b.match_score || 0) - (a.match_score || 0)));
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const combined = `${f.title} ${f.company} ${f.summary} ${f.modality} ${f.target_name}`.toLowerCase();
+      if (!combined.includes(q)) return false;
+    }
+    return true;
+  });
+  const newCount = findings.filter(f => !f.is_applied && !isTopFinding(f)).length;
+  const topCount = findings.filter(f => !f.is_applied && isTopFinding(f)).length;
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
@@ -730,9 +731,9 @@ export default function AgentRadar() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar max-w-full">
               {[
-                { id: "new", label: `Nuevas (${findings.filter(f => !f.is_applied).length})` },
-                { id: "applied", label: `Mis Postulaciones (${stats.applied_count})` },
-                { id: "top", label: `Empresas Top (${findings.filter(f => isTopFinding(f)).length})` }
+                { id: "new", label: `Nuevas (${newCount})` },
+                { id: "top", label: `Empresas Top (${topCount})` },
+                { id: "applied", label: `Mis Postulaciones (${stats.applied_count})` }
               ].map(f => (
                 <button
                   key={f.id}
@@ -751,6 +752,19 @@ export default function AgentRadar() {
                 </button>
               ))}
             </div>
+
+            {filter === "applied" && (
+              <button
+                onClick={() => setAppliedTopOnly(v => !v)}
+                className={`px-3 py-1.5 rounded-xl text-xs border transition-colors cursor-pointer ${
+                  appliedTopOnly
+                    ? "bg-cyan-500/20 text-cyan-200 border-cyan-500/30"
+                    : "bg-white/[0.04] text-white/60 border-white/10 hover:text-white"
+                }`}
+              >
+                Solo empresas top
+              </button>
+            )}
 
             {findings.some(f => !f.match_score || f.match_score === 0) && (
               <button

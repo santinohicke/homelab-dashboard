@@ -97,7 +97,6 @@ export default function AgentRadar() {
   const [savingDoc, setSavingDoc] = useState(false);
   const [docFeedback, setDocFeedback] = useState(null);
   const [copiedText, setCopiedText] = useState(false);
-  const [evaluatingMatchId, setEvaluatingMatchId] = useState(null);
   const iframeRef = useRef(null);
 
   // Add target form
@@ -506,7 +505,6 @@ export default function AgentRadar() {
     setTimeout(() => setCopiedText(false), 2000);
   };
 
-  const [evaluatingAll, setEvaluatingAll] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState("");
 
@@ -541,47 +539,6 @@ export default function AgentRadar() {
       setVerifyMsg("No se pudo iniciar la verificación");
       setVerifying(false);
       void err;
-    }
-  };
-
-  const handleEvaluateMatch = async (findingId) => {
-    try {
-      setEvaluatingMatchId(findingId);
-      const res = await fetch("/api/v1/agent/evaluate-match", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ finding_id: findingId })
-      });
-      if (res.ok) {
-        await fetchData();
-      }
-    } catch (err) {
-      console.error("Error al evaluar afinidad:", err);
-    } finally {
-      setEvaluatingMatchId(null);
-    }
-  };
-
-  const handleEvaluateAllUnscored = async () => {
-    try {
-      setEvaluatingAll(true);
-      const res = await fetch("/api/v1/agent/evaluate-all-unscored", {
-        method: "POST"
-      });
-      if (res.ok) {
-        let checks = 0;
-        const interval = setInterval(async () => {
-          await fetchData();
-          checks++;
-          if (checks >= 8) {
-            clearInterval(interval);
-            setEvaluatingAll(false);
-          }
-        }, 4000);
-      }
-    } catch (err) {
-      console.error("Error al evaluar afinidades:", err);
-      setEvaluatingAll(false);
     }
   };
 
@@ -766,18 +723,6 @@ export default function AgentRadar() {
               </button>
             )}
 
-            {findings.some(f => !f.match_score || f.match_score === 0) && (
-              <button
-                onClick={handleEvaluateAllUnscored}
-                disabled={evaluatingAll}
-                className="px-3 py-1.5 rounded-2xl text-xs font-mono font-medium text-cyan-300 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-                title="Calcular la afinidad (Match Score) para todas las ofertas que todavía no fueron evaluadas"
-              >
-                <Sparkles className={`w-3 h-3 text-cyan-400 ${evaluatingAll ? 'animate-spin' : ''}`} />
-                <span>{evaluatingAll ? "Evaluando con IA..." : "Calcular Match Faltante"}</span>
-              </button>
-            )}
-
             <button
               onClick={handleVerifyOffers}
               disabled={verifying}
@@ -874,30 +819,6 @@ export default function AgentRadar() {
                     }`}>
                       {cleanText(finding.modality)}
                     </span>
-
-                    {/* Match Score Badge */}
-                    {finding.match_score > 0 ? (
-                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-mono font-bold uppercase border flex items-center gap-1 ${
-                        finding.match_score >= 85
-                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                          : finding.match_score >= 70
-                          ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
-                          : "bg-slate-500/20 text-slate-300 border-slate-500/30"
-                      }`}>
-                        <Sparkles className="w-3 h-3 text-cyan-400" />
-                        {finding.match_score}% Match
-                      </span>
-                    ) : (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleEvaluateMatch(finding.id); }}
-                        disabled={evaluatingMatchId === finding.id}
-                        className="text-[9px] px-2 py-0.5 rounded-full font-mono text-white/50 hover:text-white/80 bg-white/[0.04] hover:bg-white/10 border border-white/10 flex items-center gap-1 cursor-pointer transition-all disabled:opacity-50"
-                        title="Calcular afinidad con tu perfil real"
-                      >
-                        <Sparkles className="w-2.5 h-2.5 text-cyan-400" />
-                        <span>{evaluatingMatchId === finding.id ? "Evaluando..." : "Calcular Match"}</span>
-                      </button>
-                    )}
 
                     {finding.is_applied ? (
                       finding.is_rejected ? (

@@ -545,39 +545,30 @@ export default function AgentRadar() {
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
-      {/* 1. TOP CONTROL BAR (CONSISTENT WITH CENTRO DE CONTROL) */}
+      {/* 1. HEADER */}
       <div className="p-4 sm:p-5 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-shine">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-cyan-500/15 flex items-center justify-center text-cyan-400 border border-cyan-500/20">
-            <Radar className="w-5 h-5 animate-pulse" />
+            <Radar className="w-5 h-5" />
           </div>
           <div>
-            <div className="font-bold text-white text-base flex flex-wrap items-center gap-2">
-              <span>Radar de Oportunidades IT & Pasantías</span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
-                Vigilancia 24/7
-              </span>
-            </div>
-            <div className="text-xs text-white/50 font-mono">
-              Filtro estricto: Part-time / Pasantías · CABA & Remoto · Redes, Telecomunicaciones, Embebidos & Dev (Sin Soporte ni QA)
-            </div>
+            <div className="font-bold text-white text-base">Radar IT & Pasantías</div>
+            <div className="text-xs text-white/50">Part-time y pasantías · CABA y remoto</div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => handleRunScan()}
             disabled={scanning}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-cyan-500/20 disabled:opacity-50"
+            className="px-4 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/30 font-semibold text-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${scanning ? "animate-spin" : ""}`} />
-            <span>{scanning ? "Rastreando Web..." : "Rastrear Ahora"}</span>
+            <span>{scanning ? "Rastreando..." : "Rastrear ahora"}</span>
           </button>
-
           <button
             onClick={() => setShowTargetsModal(true)}
-            className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10 font-mono text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10 text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Sliders className="w-3.5 h-3.5 text-white/60" />
             <span>Portales ({targets.length})</span>
@@ -585,164 +576,113 @@ export default function AgentRadar() {
         </div>
       </div>
 
-      {/* Scan feedback alert banner */}
       {scanResult && (
-        <div className={`p-4 rounded-2xl border text-xs font-mono flex items-center justify-between gap-3 ${
-          scanResult.status === "ok" 
-            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-            : "bg-rose-500/15 border-rose-500/30 text-rose-300"
+        <div className={`px-4 py-3 rounded-2xl border text-xs flex items-center justify-between gap-3 ${
+          scanResult.status === "ok"
+            ? "bg-cyan-500/10 border-cyan-500/25 text-cyan-200"
+            : "bg-rose-500/10 border-rose-500/25 text-rose-300"
         }`}>
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>
-              {scanResult.status === "ok" 
-                ? `Rastreo completado: ${scanResult.new_findings} nuevas vacantes reales detectadas e indexadas.`
-                : `Error en el rastreo: ${scanResult.message || "Fallo de conexión"}`}
-            </span>
-          </div>
-          <button onClick={() => setScanResult(null)} className="text-white/50 hover:text-white">
+          <span>
+            {scanResult.status === "ok"
+              ? `Rastreo completado: ${scanResult.new_findings} ofertas nuevas.`
+              : `Error en el rastreo: ${scanResult.message || "fallo de conexión"}`}
+          </span>
+          <button onClick={() => setScanResult(null)} className="text-white/50 hover:text-white cursor-pointer">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
-      {/* 2. REAL METRICS SUMMARY GRID (ZERO MOCK / ZERO HARDCODING) */}
+      {/* 2. METRICS */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
-          <div className="text-[11px] text-white/50 uppercase font-semibold">Ofertas Analizadas</div>
-          <div className="text-2xl sm:text-3xl font-black text-white font-mono mt-0.5">{stats.total_scraped}</div>
-          <div className="text-[10px] text-white/40 mt-0.5">En base SQLite</div>
-        </div>
-
-        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
-          <div className="text-[11px] text-white/50 uppercase font-semibold">Nuevas sin Leer</div>
-          <div className="text-2xl sm:text-3xl font-black text-cyan-400 font-mono mt-0.5">{stats.unread_count}</div>
-          <div className="text-[10px] text-cyan-300/80 mt-0.5">Sin revisar</div>
-        </div>
-
-        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
-          <div className="text-[11px] text-white/50 uppercase font-semibold">Mis Postulaciones</div>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono mt-0.5">{stats.applied_count}</div>
-          <div className="text-[10px] text-emerald-300/80 mt-0.5">CVs enviados</div>
-        </div>
-
-        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
-          <div className="text-[11px] text-white/50 uppercase font-semibold">En Espera</div>
-          <div className="text-2xl sm:text-3xl font-black text-blue-400 font-mono mt-0.5">{stats.pending_count}</div>
-          <div className="text-[10px] text-blue-300/80 mt-0.5">Sin respuesta aún</div>
-        </div>
-
-        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
-          <div className="text-[11px] text-white/50 uppercase font-semibold">Rechazadas</div>
-          <div className="text-2xl sm:text-3xl font-black text-rose-400 font-mono mt-0.5">{stats.rejected_count}</div>
-          <div className="text-[10px] text-rose-300/80 mt-0.5">Postulaciones cerradas</div>
-        </div>
-
-        <div className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
-          <div className="text-[11px] text-white/50 uppercase font-semibold">Portales Activos</div>
-          <div className="text-2xl sm:text-3xl font-black text-purple-300 font-mono mt-0.5">
-            {stats.active_targets_count || targets.filter(t => t.active).length}
+        {[
+          { label: "Analizadas", value: stats.total_scraped, color: "text-white" },
+          { label: "Sin leer", value: stats.unread_count, color: "text-cyan-400" },
+          { label: "Postulaciones", value: stats.applied_count, color: "text-emerald-400" },
+          { label: "En espera", value: stats.pending_count, color: "text-white" },
+          { label: "Rechazadas", value: stats.rejected_count, color: "text-rose-400" },
+          { label: "Portales activos", value: stats.active_targets_count || targets.filter(t => t.active).length, color: "text-white" }
+        ].map(m => (
+          <div key={m.label} className="p-4 rounded-3xl bg-white/[0.05] backdrop-blur-2xl border border-white/10 text-center glass-shine">
+            <div className="text-[11px] text-white/50 uppercase font-semibold">{m.label}</div>
+            <div className={`text-2xl sm:text-3xl font-black font-mono mt-0.5 ${m.color}`}>{m.value}</div>
           </div>
-          <div className="text-[10px] text-purple-300/80 mt-0.5">UCA · LinkedIn · Get on Board</div>
-        </div>
+        ))}
       </div>
 
-
-
-      {/* 4. FILTER PILLS & SEARCH BAR (STRICTLY TODAS, NUEVAS, MIS POSTULACIONES) */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs uppercase tracking-wider text-white/50 font-semibold flex items-center gap-2">
-            <Filter className="w-4 h-4 text-cyan-400" />
-            <span>Explorador de Oportunidades ({filteredFindings.length})</span>
-          </h2>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* 2 filter pills: Nuevas y Mis Postulaciones */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar max-w-full">
-              {[
-                { id: "new", label: `Nuevas (${newCount})` },
-                { id: "top", label: `Empresas Top (${topCount})` },
-                { id: "applied", label: `Mis Postulaciones (${stats.applied_count})` }
-              ].map(f => (
-                <button
-                  key={f.id}
-                  onClick={() => setFilter(f.id)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-medium font-mono uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
-                    filter === f.id
-                      ? f.id === "applied"
-                        ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 font-bold shadow-sm"
-                        : f.id === "top"
-                        ? "bg-amber-500/20 text-amber-200 border border-amber-500/40 font-bold shadow-sm"
-                        : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold shadow-sm"
-                      : "text-white/50 hover:text-white/80 hover:bg-white/5"
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-
-            {filter === "applied" && (
+      {/* 3. FILTERS & SEARCH */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar max-w-full">
+            {[
+              { id: "new", label: `Nuevas (${newCount})` },
+              { id: "top", label: `Empresas Top (${topCount})` },
+              { id: "applied", label: `Mis Postulaciones (${stats.applied_count})` }
+            ].map(f => (
               <button
-                onClick={() => setAppliedTopOnly(v => !v)}
-                className={`px-3 py-1.5 rounded-xl text-xs border transition-colors cursor-pointer ${
-                  appliedTopOnly
-                    ? "bg-cyan-500/20 text-cyan-200 border-cyan-500/30"
-                    : "bg-white/[0.04] text-white/60 border-white/10 hover:text-white"
+                key={f.id}
+                onClick={() => setFilter(f.id)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                  filter === f.id
+                    ? "bg-cyan-500/20 text-cyan-200 border border-cyan-500/30"
+                    : "text-white/50 hover:text-white/80 hover:bg-white/5 border border-transparent"
                 }`}
               >
-                Solo empresas top
+                {f.label}
               </button>
-            )}
+            ))}
+          </div>
 
+          {filter === "applied" && (
             <button
-              onClick={handleVerifyOffers}
-              disabled={verifying}
-              className="px-3 py-1.5 rounded-2xl text-xs font-mono font-medium text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-              title="Abre el aviso real de cada oferta y descarta las cerradas, full-time, fuera de Buenos Aires o que piden experiencia (corre solo cada 3 h con la PC prendida)"
+              onClick={() => setAppliedTopOnly(v => !v)}
+              className={`px-3 py-1.5 rounded-xl text-xs border transition-colors cursor-pointer ${
+                appliedTopOnly
+                  ? "bg-cyan-500/20 text-cyan-200 border-cyan-500/30"
+                  : "bg-white/[0.04] text-white/60 border-white/10 hover:text-white"
+              }`}
             >
-              <ShieldCheck className={`w-3 h-3 ${verifying ? "animate-pulse" : ""}`} />
-              <span>{verifying ? "Verificando..." : "Verificar ofertas"}</span>
+              Solo empresas top
             </button>
-            {verifyMsg && <span className="text-[11px] font-mono text-white/50">{verifyMsg}</span>}
-          </div>
+          )}
 
-          {/* Search Input */}
-          <div className="relative flex-1 sm:w-72 sm:max-w-xs">
-            <Search className="w-3.5 h-3.5 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Buscar puesto, empresa, redes, C++..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-xl bg-white/[0.04] border border-white/10 text-xs text-white placeholder-white/30 focus:outline-none focus:border-cyan-400 font-sans"
-            />
-          </div>
+          {filter === "top" && (
+            <button
+              onClick={handleTopScan}
+              disabled={topMonitor.scanning}
+              className="px-3 py-1.5 rounded-xl text-xs bg-white/[0.04] text-white/60 hover:text-white border border-white/10 flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              title={topMonitor.last_scan ? `Última revisión: ${new Date(topMonitor.last_scan * 1000).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}
+            >
+              <RefreshCw className={`w-3 h-3 text-cyan-400 ${topMonitor.scanning ? "animate-spin" : ""}`} />
+              <span>{topMonitor.scanning ? "Revisando..." : "Revisar empresas"}</span>
+            </button>
+          )}
+
+          <button
+            onClick={handleVerifyOffers}
+            disabled={verifying}
+            className="px-3 py-1.5 rounded-xl text-xs bg-white/[0.04] text-white/60 hover:text-white border border-white/10 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            title="Abre el aviso real de cada oferta y descarta las cerradas, full-time, fuera de Buenos Aires o que piden experiencia"
+          >
+            <ShieldCheck className={`w-3 h-3 text-cyan-400 ${verifying ? "animate-pulse" : ""}`} />
+            <span>{verifying ? "Verificando..." : "Verificar ofertas"}</span>
+          </button>
+          {verifyMsg && <span className="text-[11px] text-white/50">{verifyMsg}</span>}
+        </div>
+
+        <div className="relative flex-1 sm:w-72 sm:max-w-xs">
+          <Search className="w-3.5 h-3.5 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Buscar puesto o empresa"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 rounded-xl bg-white/[0.04] border border-white/10 text-xs text-white placeholder-white/30 focus:outline-none focus:border-cyan-400"
+          />
         </div>
       </div>
 
-      {/* Empresas Top: aviso del monitor (las ofertas se muestran con las mismas tarjetas) */}
-      {filter === "top" && (
-        <div className="p-3 rounded-2xl bg-amber-500/[0.07] border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <p className="text-xs text-white/70">
-            Ofertas de pasantía / intern en Buenos Aires de las {topMonitor.total || "65+"} empresas top que se revisan cada 2 horas (Google, Microsoft, Amazon, IBM, JPMorgan, Mercado Libre...).
-            {topMonitor.last_scan ? ` Última revisión: ${new Date(topMonitor.last_scan * 1000).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}.` : ""}
-          </p>
-          <button
-            onClick={handleTopScan}
-            disabled={topMonitor.scanning}
-            className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-mono text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
-          >
-            <RefreshCw className={`w-3 h-3 ${topMonitor.scanning ? "animate-spin" : ""}`} />
-            <span>{topMonitor.scanning ? "Revisando empresas..." : "Revisar ahora"}</span>
-          </button>
-        </div>
-      )}
-
-      {/* 5. OPPORTUNITIES FEED CARDS */}
+      {/* 5. OPPORTUNITIES FEED CARDS */}      {/* 5. OPPORTUNITIES FEED CARDS */}
       {loading ? (
         <div className="p-12 text-center space-y-3">
           <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />

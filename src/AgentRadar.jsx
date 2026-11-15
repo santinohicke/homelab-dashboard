@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Radar, Briefcase, Sparkles, RefreshCw, CheckCircle2,
-  Filter, Search, Plus, Check, Archive, Clock,
-  ShieldCheck, MapPin, Tag, ChevronRight, AlertCircle, X, Sliders,
-  CheckCircle, Globe, Terminal, ArrowUpRight, Send, Trash2, Undo2, XCircle,
-  FileText, Download, Copy, FileCheck, ExternalLink, Printer, Edit3, Eye, Save
+  Radar, MapPin, Sparkles, RefreshCw, Search, Plus, Check, ShieldCheck, AlertCircle, X, Sliders, ArrowUpRight, Send, Trash2, Undo2, FileText, Download, Copy, Printer, Edit3, Eye, Save
 } from "lucide-react";
 
 // Sanitizer to repair broken accents and encodings (e.g. Pasant?as -> Pasantías)

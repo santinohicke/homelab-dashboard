@@ -682,208 +682,143 @@ export default function AgentRadar() {
         </div>
       </div>
 
-      {/* 5. OPPORTUNITIES FEED CARDS */}      {/* 5. OPPORTUNITIES FEED CARDS */}
+      {/* 4. OFFERS */}
       {loading ? (
-        <div className="p-12 text-center space-y-3">
-          <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />
-          <div className="text-sm font-mono text-white/50">Consultando base de vacantes reales en el Homelab...</div>
+        <div className="p-12 text-center">
+          <RefreshCw className="w-7 h-7 text-cyan-400 animate-spin mx-auto" />
         </div>
       ) : filteredFindings.length === 0 ? (
-        <div className="p-12 rounded-3xl bg-white/[0.03] border border-white/10 text-center space-y-3 glass-shine">
-          <Briefcase className="w-8 h-8 text-white/30 mx-auto" />
-          <div className="text-sm font-semibold text-white/70">
-            {filter === "applied"
-              ? "Aún no te has postulado a ninguna vacante"
-              : filter === "top"
-              ? "Ninguna empresa top tiene pasantías abiertas en Buenos Aires ahora"
-              : "No hay vacantes nuevas disponibles"}
-          </div>
-          <p className="text-xs text-white/40 max-w-md mx-auto">
-            {filter === "applied"
-              ? "Explorá las vacantes en 'Nuevas', postuláte pulsando 'Postularse' y haz el seguimiento aquí marcando si te contactaron o te rechazaron."
-              : filter === "top"
-              ? "Cuando abra una, aparece acá y te llega una notificación al celular."
-              : searchQuery 
-              ? `No hay coincidencias para "${searchQuery}". Probá con otros términos.`
-              : "Pulsá 'Rastrear Ahora' para que el agente extraiga las convocatorias vigentes de la UCA, LinkedIn y portales tecnológicos."}
-          </p>
+        <div className="p-12 rounded-3xl bg-white/[0.03] border border-white/10 text-center text-sm text-white/60 glass-shine">
+          {searchQuery
+            ? `Sin resultados para "${searchQuery}".`
+            : filter === "applied"
+            ? appliedTopOnly ? "No te postulaste a ninguna empresa top." : "Todavía no te postulaste a ninguna oferta."
+            : filter === "top"
+            ? "No hay ofertas nuevas de empresas top."
+            : "No hay ofertas nuevas."}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredFindings.map((finding) => (
             <div
               key={finding.id}
-              className={`p-5 rounded-3xl border transition-all relative flex flex-col justify-between glass-shine ${
-                finding.is_applied && finding.is_rejected
-                  ? "bg-gradient-to-br from-rose-500/[0.06] via-white/[0.02] to-transparent border-rose-500/25 hover:border-rose-400/40 shadow-lg shadow-rose-500/5"
-                  : finding.is_applied
-                  ? "bg-gradient-to-br from-emerald-500/[0.06] via-white/[0.02] to-transparent border-emerald-500/30 hover:border-emerald-400/50 shadow-lg shadow-emerald-500/5"
-                  : !finding.is_read
-                  ? "bg-gradient-to-br from-cyan-500/[0.06] via-white/[0.02] to-transparent border-cyan-500/30 hover:border-cyan-400/50 shadow-lg shadow-cyan-500/5"
-                  : "bg-white/[0.03] border-white/10 hover:bg-white/[0.05] hover:border-cyan-500/30"
-              }`}
+              className="p-5 rounded-3xl bg-white/[0.04] border border-white/10 hover:bg-white/[0.06] hover:border-cyan-500/30 transition-all flex flex-col justify-between glass-shine"
             >
               <div className="space-y-2.5">
-                {/* Header Pills: Modality + Match Score + Status Badge + Date */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-mono font-medium uppercase tracking-wider border ${
-                      isTopFinding(finding)
-                        ? "bg-amber-500/20 text-amber-200 border-amber-500/40 font-bold"
-                        : "bg-white/[0.06] text-white/90 border-white/15"
-                    }`}>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-mono uppercase tracking-wider bg-white/[0.06] text-white/80 border border-white/15">
                       {cleanText(finding.modality)}
                     </span>
-
-                    {finding.is_applied ? (
+                    {finding.is_applied && (
                       finding.is_rejected ? (
-                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1">
-                          <XCircle className="w-3 h-3 text-rose-400" />
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-mono uppercase bg-rose-500/15 text-rose-300 border border-rose-500/30">
                           Rechazada
                         </span>
                       ) : (
-                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                          <Check className="w-3 h-3 text-emerald-400" />
-                          Postulado · En espera
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-mono uppercase bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                          En espera
                         </span>
                       )
-                    ) : null}
-
+                    )}
                     {finding.verify_status === "ok" ? (
-                      <span
-                        className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase bg-emerald-500/10 text-emerald-300/90 border border-emerald-500/25 flex items-center gap-1"
-                        title={finding.verify_reason || "Aviso leído y analizado"}
-                      >
-                        <ShieldCheck className="w-3 h-3" />
+                      <span className="text-[10px] text-white/50 flex items-center gap-1" title={finding.verify_reason || "Aviso leído y analizado"}>
+                        <ShieldCheck className="w-3 h-3 text-cyan-400" />
                         Verificada
                       </span>
                     ) : finding.verify_status && finding.verify_status !== "sin_leer" ? (
-                      <span
-                        className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1"
-                        title={finding.verify_reason}
-                      >
+                      <span className="text-[10px] text-white/50 flex items-center gap-1" title={finding.verify_reason}>
                         <AlertCircle className="w-3 h-3" />
                         {finding.verify_label}
                       </span>
                     ) : null}
                   </div>
-                  <span className="text-[10px] font-mono text-white/40 truncate max-w-[130px]">
-                    {finding.date_str}
-                  </span>
+                  <span className="text-[10px] font-mono text-white/40 truncate max-w-[130px]">{finding.date_str}</span>
                 </div>
 
-                {/* Job Title & Company */}
                 <div>
                   <h3 className="text-sm sm:text-base font-bold text-white leading-snug">
                     {cleanText(finding.title)}
                   </h3>
-                  <div className="flex items-center gap-2 text-xs font-mono text-white/60 mt-1">
-                    <span className="text-cyan-400 font-semibold">{cleanText(finding.company)}</span>
+                  <div className="flex items-center gap-2 text-xs font-mono text-white/50 mt-1 min-w-0">
+                    <span className="text-cyan-400 font-semibold whitespace-nowrap">{cleanText(finding.company)}</span>
                     {finding.location && (
                       <>
                         <span className="text-white/30">·</span>
-                        <span className="text-white/50 truncate max-w-[200px] flex items-center gap-0.5"><MapPin className="w-3 h-3" />{cleanText(finding.location)}</span>
+                        <span className="truncate min-w-0 flex items-center gap-0.5"><MapPin className="w-3 h-3 shrink-0" />{cleanText(finding.location)}</span>
                       </>
                     )}
                     <span className="text-white/30">·</span>
-                    <span className="text-white/40 truncate max-w-[160px]">{cleanText(finding.target_name)}</span>
+                    <span className="truncate min-w-0 text-white/40">{cleanText(finding.target_name)}</span>
                   </div>
                 </div>
 
-                {/* Streamlined Summary (concise and non-cluttered) */}
-                <p className="text-xs text-white/70 leading-relaxed font-sans line-clamp-2">
+                <p className="text-xs text-white/70 leading-relaxed line-clamp-2">
                   {cleanText(finding.summary)}
                 </p>
-
               </div>
 
-              {/* Actions Footer */}
               <div className="pt-3 mt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <a
                     href={finding.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>Ver Oferta</span>
+                    <span>Ver oferta</span>
                     <ArrowUpRight className="w-3.5 h-3.5 text-white/60" />
                   </a>
-
-                  {/* Harvard CV & Cover Letter Generation Buttons */}
                   <button
                     onClick={() => handleOpenDocModal(finding, "cv")}
-                    className={`px-2.5 py-1.5 rounded-xl border text-xs font-mono font-medium transition-all flex items-center gap-1 cursor-pointer ${
-                      finding.has_cv_pdf
-                        ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40 font-bold"
-                        : "bg-white/[0.06] hover:bg-white/15 text-white/90 border-white/15"
-                    }`}
-                    title="Generar CV personalizado formato Harvard en PDF"
+                    className="px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/15 text-white/90 border border-white/15 text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                    title="CV personalizado en PDF"
                   >
                     <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>{finding.has_cv_pdf ? "Ver CV (.pdf)" : "CV Harvard"}</span>
+                    <span>{finding.has_cv_pdf ? "Ver CV" : "CV"}</span>
                   </button>
-
                   <button
                     onClick={() => handleOpenDocModal(finding, "cover_letter")}
-                    className={`px-2.5 py-1.5 rounded-xl border text-xs font-mono font-medium transition-all flex items-center gap-1 cursor-pointer ${
-                      finding.has_cover_letter_pdf
-                        ? "bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border-purple-500/40 font-bold"
-                        : "bg-white/[0.06] hover:bg-white/15 text-white/90 border-white/15"
-                    }`}
-                    title="Generar Cover Letter personalizada en PDF"
+                    className="px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/15 text-white/90 border border-white/15 text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Cover letter personalizada en PDF"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                    <span>{finding.has_cover_letter_pdf ? "Ver Carta (.pdf)" : "Cover Letter"}</span>
+                    <Edit3 className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{finding.has_cover_letter_pdf ? "Ver carta" : "Carta"}</span>
                   </button>
                 </div>
 
                 <div className="flex items-center gap-1.5">
                   {finding.is_applied ? (
                     <>
-                      {finding.is_rejected ? (
-                        <button
-                          onClick={() => handleUnreject(finding.id)}
-                          className="px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-mono transition-all flex items-center gap-1 cursor-pointer"
-                          title="Desmarcar rechazo y volver a estado en espera"
-                        >
-                          <Undo2 className="w-3.5 h-3.5" />
-                          <span>Desmarcar rechazo</span>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleReject(finding.id)}
-                          className="px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 hover:text-rose-200 text-xs font-mono transition-all flex items-center gap-1 cursor-pointer"
-                          title="Registrar que la empresa rechazó la postulación"
-                        >
-                          <XCircle className="w-3.5 h-3.5 text-rose-400" />
-                          <span>Me rechazaron</span>
-                        </button>
-                      )}
-
+                      <button
+                        onClick={() => (finding.is_rejected ? handleUnreject(finding.id) : handleReject(finding.id))}
+                        className="px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/15 text-white/80 border border-white/15 text-xs transition-colors cursor-pointer"
+                        title={finding.is_rejected ? "Volver a en espera" : "Registrar que la empresa rechazó la postulación"}
+                      >
+                        {finding.is_rejected ? "Desmarcar rechazo" : "Me rechazaron"}
+                      </button>
                       <button
                         onClick={() => handleUnapply(finding.id)}
-                        className="p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white/50 hover:text-white transition-all cursor-pointer"
+                        className="p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white/50 hover:text-white transition-colors cursor-pointer"
                         title="Quitar de mis postulaciones"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <Undo2 className="w-3.5 h-3.5" />
                       </button>
                     </>
                   ) : (
                     <button
                       onClick={() => handleApply(finding.id)}
-                      className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 hover:text-emerald-200 text-xs font-mono transition-all flex items-center gap-1 cursor-pointer"
-                      title="Marcar como postulado para seguimiento"
+                      className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-xs font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Marcar como postulado"
                     >
                       <Send className="w-3 h-3" />
                       <span>Postularse</span>
                     </button>
                   )}
-
                   <button
                     onClick={() => handleDiscard(finding.id)}
-                    className="p-1.5 rounded-xl bg-white/[0.04] hover:bg-rose-500/20 text-white/40 hover:text-rose-400 border border-transparent hover:border-rose-500/30 transition-all cursor-pointer"
-                    title="Descartar / archivar vacante"
+                    className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/25 text-rose-400 transition-colors cursor-pointer"
+                    title="Borrar oferta"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

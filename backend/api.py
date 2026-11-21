@@ -2187,13 +2187,8 @@ def extract_raw_jobs_from_target(t):
                 if sub_q:
                     sub_url += f"?q={urllib.parse.quote(sub_q)}"
                 try:
-                    sub_req = urllib.request.Request(sub_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-                    with urllib.request.urlopen(sub_req, timeout=6) as sr:
-                        raw_b = sr.read()
-                        try:
-                            s_html = raw_b.decode('utf-8')
-                        except UnicodeDecodeError:
-                            s_html = raw_b.decode('latin-1', errors='replace')
+                    if True:
+                        s_html = http_get_text(sub_url, timeout=30)
                         idx = s_html.find("window.__STATE__ = ")
                         if idx != -1:
                             d, _ = json.JSONDecoder().raw_decode(s_html[idx + len("window.__STATE__ = "):].strip())
@@ -2233,14 +2228,9 @@ def extract_raw_jobs_from_target(t):
             for page in (1, 2):
                 page_url = t_url + (f"?p={page}" if page > 1 else "")
                 try:
-                    req = urllib.request.Request(page_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept-Language': 'es-AR,es;q=0.9'})
-                    with urllib.request.urlopen(req, timeout=8) as r:
-                        raw_b = r.read()
-                        try:
-                            html = raw_b.decode('utf-8')
-                        except UnicodeDecodeError:
-                            html = raw_b.decode('latin-1', errors='replace')
-                except Exception:
+                    html = http_get_text(page_url, timeout=40)
+                except Exception as e:
+                    print(f"[Computrabajo] {t_name} p{page} fallo: {type(e).__name__}: {e}", file=sys.stderr)
                     break
                 for art in re.findall(r'<article.*?</article>', html, re.S):
                     m = re.search(r'class="js-o-link[^"]*"[^>]*href="([^"]+)"[^>]*>\s*(.*?)\s*</a>', art, re.S)

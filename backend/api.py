@@ -18,7 +18,9 @@ import sqlite3
 import subprocess
 import threading
 import urllib.request
+import urllib.error
 import base64
+import gzip
 import re
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1910,16 +1912,52 @@ TECH_KEYWORDS = [
 LINKEDIN_GUEST_SEARCH = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
 LINKEDIN_GUEST_POSTING = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/"
 
+def http_get_text(url, timeout=20, extra_headers=None):
+    """GET pidiendo gzip: con el Wi-Fi 2.4 GHz del server (a veces ~10 KB/s) una pagina de LinkedIn
+    pasa de ~29 KB a ~3 KB. Sin gzip los requests se cortaban por timeout y el portal quedaba en 0."""
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept-Language': 'es-AR,es;q=0.9', 'Accept-Encoding': 'gzip'}
+    headers.update(extra_headers or {})
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        raw = r.read()
+        if r.headers.get('Content-Encoding', '').lower() == 'gzip':
+            raw = gzip.decompress(raw)
+    try:
+        return raw.decode('utf-8')
+    except UnicodeDecodeError:
+        return raw.decode('latin-1', errors='replace')
+
+_LINKEDIN_LOCK = threading.Lock()
+_LINKEDIN_LAST = [0.0]
+LINKEDIN_MIN_GAP = 4.0  # segundos entre requests a LinkedIn (todos los portales comparten el limite)
+
+def linkedin_get(url):
+    """Serializa los requests a LinkedIn: con 8 portales en paralelo LinkedIn devolvia 429 y portales
+    enteros quedaban en 0. Un reintento tras 429 con espera larga."""
+    for attempt in range(2):
+        with _LINKEDIN_LOCK:
+            wait = LINKEDIN_MIN_GAP - (time.time() - _LINKEDIN_LAST[0])
+            if wait > 0:
+                time.sleep(wait)
+            try:
+                return http_get_text(url, timeout=20)
+            except urllib.error.HTTPError as e:
+                if e.code != 429 or attempt == 1:
+                    raise
+            finally:
+                _LINKEDIN_LAST[0] = time.time()
+        time.sleep(30)
+
 def fetch_linkedin_cards(params, pages=3):
     """Tarjetas de la API publica de LinkedIn: [{title, company, location, link, date}]. 10 por pagina."""
     cards = []
     for page in range(pages):
         url = LINKEDIN_GUEST_SEARCH + "?" + urllib.parse.urlencode({**params, "start": page * 10})
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept-Language': 'es-AR,es;q=0.9'})
-            with urllib.request.urlopen(req, timeout=8) as r:
-                html = r.read().decode('utf-8', errors='replace')
-        except Exception:
+            html = linkedin_get(url)
+        except Exception as e:
+            label = params.get('keywords') or f"empresa {params.get('f_C', '')}"
+            print(f"[LinkedIn] pagina {page + 1} fallo ({label}): {type(e).__name__}: {e}", file=sys.stderr)
             break
         found = 0
         for block in re.split(r'<li>', html)[1:]:
@@ -1940,7 +1978,6 @@ def fetch_linkedin_cards(params, pages=3):
             })
         if found < 10:
             break
-        time.sleep(1.2)
     return cards
 
 def fetch_linkedin_company(job_link):

@@ -2348,19 +2348,31 @@ def run_agent_job_scraper(target_id=None, force=True):
     targets = cur.fetchall()
     now = int(time.time())
 
-    # 1. Fetch raw jobs in parallel across all targeted sources (< 3 seconds total)
+    # 1. Fetch raw jobs in parallel across all targeted sources.
+    # Antes el limite era 30 s para TODO el rastreo: con el Wi-Fi lento del server los portales que no
+    # terminaban a tiempo se descartaban en silencio y el rastreo igual decia "todos al dia".
     all_raw_jobs = []
-    with ThreadPoolExecutor(max_workers=min(8, len(targets) or 1)) as pool:
-        future_map = {pool.submit(extract_raw_jobs_from_target, t): t for t in targets}
-        try:
-            for fut in as_completed(future_map, timeout=30):
-                try:
-                    jobs = fut.result()
-                    all_raw_jobs.extend(jobs)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+    per_target = {}
+    started = time.time()
+    pool = ThreadPoolExecutor(max_workers=min(8, len(targets) or 1))
+    future_map = {pool.submit(extract_raw_jobs_from_target, t): t for t in targets}
+    try:
+        for fut in as_completed(future_map, timeout=120 if target_id else 300):
+            t_name = future_map[fut][1]
+            try:
+                jobs = fut.result()
+                all_raw_jobs.extend(jobs)
+                per_target[t_name] = f"{len(jobs)} ofertas en {int(time.time() - started)}s"
+            except Exception as e:
+                per_target[t_name] = f"error {type(e).__name__}"
+    except Exception:
+        pass
+    pool.shutdown(wait=False, cancel_futures=True)
+    timed_out = [t[1] for t in targets if t[1] not in per_target]
+    for name, res in per_target.items():
+        print(f"[Scraper] Portal {name}: {res}", file=sys.stderr)
+    for name in timed_out:
+        print(f"[Scraper] Portal {name}: SIN RESPUESTA (tiempo agotado)", file=sys.stderr)
 
     # 2. Check existing findings to avoid duplicate evaluations
     cur.execute("SELECT link, title, company FROM agent_findings")

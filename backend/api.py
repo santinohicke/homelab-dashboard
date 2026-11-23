@@ -2586,7 +2586,9 @@ Responde estrictamente con un JSON valido:
     conn.close()
 
     msg = f"Rastreo completado: {total_new} nuevas vacantes incorporadas" if total_new > 0 else "Rastreo completado: Todos los portales están al día (0 vacantes nuevas sin postular)."
-    return {"status": "ok", "new_findings": total_new, "timestamp": now, "message": msg}
+    if timed_out:
+        msg += f" {len(timed_out)} de {len(targets)} portales no respondieron a tiempo: {', '.join(timed_out[:4])}."
+    return {"status": "ok", "new_findings": total_new, "timestamp": now, "message": msg, "timed_out": timed_out}
 
 
 # ---------------------------------------------------------------------------------------------

@@ -2287,6 +2287,54 @@ def extract_raw_jobs_from_target(t):
                     "link": card["link"]
                 })
 
+        # 5b. STARTUPS ARGENTINA (directorio de startups; listado server-rendered, 24 vacantes por pagina)
+        # Solo las areas Ingenieria y Datos e IA; los mismos filtros que el resto de los portales.
+        elif "startupsargentina.com" in t_url:
+            seen_sa = set()
+            row_re = re.compile(r'<a[^>]*href="(/empleos/[^"/]+/[0-9a-f-]{36}/[^"]*)"[^>]*>.*?<strong>(.*?)</strong>\s*<span>(.*?)</span>', re.S)
+            for area in ("engineering", "data"):
+                for page in range(1, 9):
+                    page_url = f"https://www.startupsargentina.com/empleos?area={area}" + (f"&page={page}" if page > 1 else "")
+                    try:
+                        html = http_get_text(page_url, timeout=25)
+                    except Exception as e:
+                        print(f"[StartupsArgentina] {area} p{page} fallo: {type(e).__name__}: {e}", file=sys.stderr)
+                        break
+                    rows = row_re.findall(html)
+                    if not rows:
+                        break
+                    for href, raw_title, raw_meta in rows:
+                        if href in seen_sa:
+                            continue
+                        seen_sa.add(href)
+                        title = html_unescape(re.sub(r'<.*?>', '', raw_title)).strip()
+                        comp_m = re.search(r'<b>(.*?)</b>', raw_meta, re.S)
+                        company = html_unescape(re.sub(r'<.*?>', '', comp_m.group(1))).strip() if comp_m else "Startup"
+                        meta = [p.strip() for p in html_unescape(re.sub(r'<.*?>', '', raw_meta)).split('·')]
+                        location = meta[1] if len(meta) > 1 else "Argentina"
+                        mode = next((p for p in meta[2:] if p.lower() in ("remoto", "híbrido", "hibrido", "presencial")), "")
+                        tl = (title + " " + mode).lower()
+                        if len(title) < 5 or any(b in tl for b in NON_TECH_BLACKLIST) or is_senior_role(tl):
+                            continue
+                        if has_experience_requirement(tl):
+                            continue
+                        entry_label = entry_level_label(tl)
+                        if not entry_label or is_full_time_only(tl):
+                            continue
+                        jobs.append({
+                            "target_id": t_id,
+                            "target_name": t_name,
+                            "title": title[:90],
+                            "company": company,
+                            "modality": f"{entry_label} / {mode}" if mode else entry_label,
+                            "location": location,
+                            "skills": "",
+                            "link": canonicalize_job_url("https://www.startupsargentina.com" + href)
+                        })
+                    if len(rows) < 24:
+                        break
+                    time.sleep(1.0)
+
         # 6. GENERIC FALLBACK
         else:
             req = urllib.request.Request(t_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})

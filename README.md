@@ -124,6 +124,18 @@ Una aplicación web progresiva (**PWA**) de alto impacto visual desarrollada en 
 
 ---
 
+### 2b. Radar Eventos · Hackatones, charlas y meetups presenciales en CABA/AMBA
+* **Solo presencial en CABA o AMBA**: hackatones (prioridad), charlas y CFPs, meetups, afters de builders y voluntariados. Descarta lo online y lo que tiene un lugar explícito fuera del AMBA (coordenadas a menos de ~40 km del Obelisco o localidad del AMBA).
+* **Fuentes reales, sin navegador headless**: Luma (discover de Buenos Aires con varias keywords y calendarios de comunidades), MCP público de NEXA, RSS de argentinahackathons, Meetup por grupo (fechas del iCal), Condor Nest, CFPs de developers.events y páginas vigiladas por hash del texto visible (avisa "cambió", incluido un cambio de código HTTP).
+* **Catálogo editable**: la tabla `event_sources` se administra desde la solapa Fuentes (alta, activar/desactivar, borrar). Solo acepta tipos conocidos y URLs `https://` que resuelvan a IP pública (bloqueo de SSRF: loopback, LAN, Tailscale 100.64.0.0/10, link-local, y redirects hacia esos rangos) y respeta `robots.txt`.
+* **Pasada cada 6 h** en un hilo daemon propio, con lock (una pasada a la vez), tope de duración, 1 request cada 3 s por dominio, User-Agent identificable y una línea por fuente en `api.log`.
+* **Dedupe** por id de origen, URL canónica y título normalizado + fecha local; si el evento llega por varias fuentes gana la de datos más ricos y se guardan todas sus URLs. Los cambios de fecha o lugar actualizan sin volver a avisar y lo que desaparece de su fuente se marca, no se borra.
+* **Push agrupado por Home Assistant**: como máximo uno por tipo y pasada (nuevos, cierres a 7 días o menos, páginas que cambiaron, fuentes con problemas). Una fuente alerta si falla 24 h seguidas o, en agregadoras, si da 0 resultados 3 días.
+* **Auto-descubrimiento**: un calendario de Luma que aparece en 2 o más eventos del discover se propone en Fuentes para seguirlo con un clic.
+* **UI**: pestaña junto a Radar IT, solapas por categoría con fecha y hora de Argentina y días al cierre, en Apple Glass cian, pensada para iPhone.
+* **Descartar y Mis inscripciones**: cada evento se puede descartar (no vuelve en las pasadas siguientes y se puede restaurar) o marcar "Me inscribí", que lo mueve a la solapa Mis inscripciones.
+* **Relevancia tech**: en el discover de Luma, las búsquedas con palabras genéricas solo dejan pasar eventos que nombran algo tech; los eventos de otros países se descartan aunque su dirección esté oculta.
+
 ### 3. Telemetría & Observabilidad de IA (Google Gemini 3.1 Flash-Lite)
 * **Medición Real de Consumo de Tokens (Sin Datos Hardcodeados)**: Registro analítico de tokens consumidos (Prompt, Completion y Total) por inferencia, con persistencia en tabla SQLite `ai_usage_logs`.
 * **Visualización de Cuota Máxima**: Tarjeta de consumo con límite máximo de tokens (`/ 1.000.000 máx`), saldo restante y barra de progreso porcentual dinámica.

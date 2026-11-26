@@ -7,13 +7,14 @@ import {
   Gauge, FileText, ArrowUpRight, Maximize2, Minimize2, Sparkles, Box, Disc,
   Power, Battery, Cable, Crosshair, Radar, Database, MessageSquare, Mail,
   Thermometer, ArrowDown, ArrowUp, Timer, CloudSun, Droplets,
-  Copy, X, Check, Archive, HeartPulse, Bell, Network, AlertTriangle, Share2
+  Copy, X, Check, Archive, HeartPulse, Bell, Network, AlertTriangle, Share2, CalendarDays
 } from "lucide-react";
 import HomelabMetricsObservatory from "./MetricsObservatory.jsx";
 import SecurityVault from "./SecurityVault.jsx";
 import NetworkTopology from "./NetworkTopology.jsx";
 import BackupsManager from "./BackupsManager.jsx";
 import AgentRadar from "./AgentRadar.jsx";
+import EventRadar from "./EventRadar.jsx";
 import AIObservatory from "./AIObservatory.jsx";
 import DropZone from "./DropZone.jsx";
 
@@ -1496,6 +1497,7 @@ export function AppleIslandDesign() {
               <div className="text-xs uppercase tracking-widest text-zinc-400 font-mono font-semibold mb-1">
                 {dashboardSection === "control" && "HOMELAB · SERVIDOR LENOVO"}
                 {dashboardSection === "radar" && "VIGILANCIA IA · PASANTÍAS & EMPLEOS IT"}
+                {dashboardSection === "eventos" && "COMUNIDAD TECH · HACKATONES & EVENTOS EN CABA"}
                 {dashboardSection === "ai" && "INTELIGENCIA ARTIFICIAL · OBSERVABILIDAD & CUOTA"}
                 {dashboardSection === "metrics" && "OBSERVABILIDAD · TELEMETRÍA HISTÓRICA"}
                 {dashboardSection === "security" && "CENTRO DE DEFENSA · CIFRADO & HARDENING"}
@@ -1506,6 +1508,7 @@ export function AppleIslandDesign() {
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
                 {dashboardSection === "control" && "Centro de Control"}
                 {dashboardSection === "radar" && "Radar Autónomo IT"}
+                {dashboardSection === "eventos" && "Radar de Eventos"}
                 {dashboardSection === "ai" && "Telemetría & Consumo de IA"}
                 {dashboardSection === "metrics" && "Métricas & Analíticas"}
                 {dashboardSection === "security" && "Bóveda de Seguridad & Auditoría"}
@@ -1547,6 +1550,7 @@ export function AppleIslandDesign() {
             {[
               { id: "control", label: "Centro de Control", icon: Sliders, color: "text-cyan-400" },
               { id: "radar", label: "Radar IT & Pasantías", icon: Radar, color: "text-cyan-400" },
+              { id: "eventos", label: "Radar Eventos", icon: CalendarDays, color: "text-cyan-400" },
               { id: "dropzone", label: "DropZone & Clipboard", icon: Share2, color: "text-emerald-400" },
               { id: "ai", label: "Telemetría IA", icon: Sparkles, color: "text-purple-400" },
               { id: "metrics", label: "Métricas & Gráficos", icon: BarChart3, color: "text-purple-400" },
@@ -2563,6 +2567,8 @@ export function AppleIslandDesign() {
           {dashboardSection === "radar" && (
             <AgentRadar />
           )}
+
+          {dashboardSection === "eventos" && <EventRadar />}
 
           {dashboardSection === "ai" && (
             <AIObservatory />

@@ -30,6 +30,14 @@ from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, urljoin
 from datetime import datetime
 
+# Radar de eventos (paquete event_radar/): import protegido; si falla, el resto de la API sigue.
+try:
+    from event_radar import engine as er_engine, routes as er_routes, schema as er_schema
+    EVENT_RADAR_ERROR = None
+except Exception as _er_exc:
+    er_engine = er_routes = er_schema = None
+    EVENT_RADAR_ERROR = "import: %s: %s" % (type(_er_exc).__name__, _er_exc)
+    print("[radar-eventos] deshabilitado: " + EVENT_RADAR_ERROR, file=sys.stderr, flush=True)
 
 
 PORT = 8088
@@ -494,6 +502,14 @@ def init_db():
     conn.commit()
 
     conn.close()
+    global EVENT_RADAR_ERROR
+    if EVENT_RADAR_ERROR is None:
+        try:  # tablas event_* (aditivas) y contexto del radar; no arranca hilos ni hace red
+            er_schema.ensure_schema(DB_PATH)
+            er_engine.configure(DB_PATH, dispatch_ha_alert)
+        except Exception as exc:
+            EVENT_RADAR_ERROR = "esquema: %s: %s" % (type(exc).__name__, exc)
+            print("[radar-eventos] deshabilitado: " + EVENT_RADAR_ERROR, file=sys.stderr, flush=True)
 
 # CPU deltas
 last_cpu_time = 0
@@ -3368,6 +3384,20 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _handle_event_radar(self, method, parsed):
+        if EVENT_RADAR_ERROR is not None or er_engine.default_context() is None:
+            return self._send_json({"error": "Radar de eventos deshabilitado"}, 503)
+        try:
+            length = int(self.headers.get("Content-Length") or 0) if method == "POST" else 0
+            if length > 65536:
+                return self._send_json({"error": "Cuerpo demasiado grande"}, 413)
+            body = self.rfile.read(length) if length > 0 else None
+            status, payload = er_routes.handle(method, parsed.path, parse_qs(parsed.query), body)
+        except Exception as exc:
+            print("[radar-eventos] %s %s: error %s: %s" % (method, parsed.path, type(exc).__name__, exc), file=sys.stderr, flush=True)
+            status, payload = 500, {"error": "Error interno del radar de eventos"}
+        self._send_json(payload, status)
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -3379,6 +3409,8 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
+        if path == "/api/v1/events" or path.startswith("/api/v1/events/"):
+            return self._handle_event_radar("GET", parsed)
 
         # 1. LIVE SYSTEM STATS
         if path == "/api/v1/system":
@@ -4447,6 +4479,8 @@ class HomelabAPIHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        if path == "/api/v1/events" or path.startswith("/api/v1/events/"):
+            return self._handle_event_radar("POST", parsed)
 
         # 1. ACTION: DOCKER PRUNE
         if path == "/api/v1/actions/docker-prune":
@@ -5369,6 +5403,13 @@ def main():
     verifier_thread = threading.Thread(target=offer_verifier_loop, daemon=True)
     verifier_thread.start()
     print("[*] Offer verifier started (cada 3 h con la PC prendida).")
+
+    if EVENT_RADAR_ERROR is None and er_engine.default_context() is not None:
+        try:
+            er_engine.start_daemon()
+            print("[*] Radar de eventos iniciado (primera pasada en 5-10 min, luego cada 6 h).")
+        except Exception as exc:
+            print("[radar-eventos] no arrancó el hilo: %s: %s" % (type(exc).__name__, exc), file=sys.stderr, flush=True)
 
     ThreadingHTTPServer.allow_reuse_address = True
     server = ThreadingHTTPServer(("0.0.0.0", PORT), HomelabAPIHandler)

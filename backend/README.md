@@ -87,6 +87,23 @@ Un microservicio de telemetría y operaciones diseñado para correr en servidore
 | `GET` | `/api/v1/agent/top-companies` | Estado del monitor de Empresas Top: por empresa, grupo, links oficiales (empleo / estudiantes / LinkedIn), pasantías abiertas detectadas y última revisión. |
 | `POST` | `/api/v1/agent/top-companies/scan` | Dispara en segundo plano la revisión de todas las empresas top (LinkedIn `f_C` + portales oficiales). |
 
+### Radar de Eventos Tech presenciales (paquete `event_radar/`)
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/events?category=` | Eventos futuros visibles, ordenados por fecha, con `counts` por categoría. Categoría inválida: 400. |
+| `GET` | `/api/v1/events/sources` | Catálogo `event_sources` con salud de cada fuente. |
+| `POST` | `/api/v1/events/sources` | Alta de fuente (tipo conocido, `https://`, IP pública, `robots.txt`). 201, 400 o 409. |
+| `POST` | `/api/v1/events/sources/update` · `/delete` | Activar/desactivar o borrar una fuente; borrar no borra sus eventos. |
+| `GET` | `/api/v1/events/health` | Conteos de fuentes ok, sin resultados y con error, y fuentes en alerta. |
+| `GET` | `/api/v1/events/candidates` | Calendarios de Luma propuestos por auto-descubrimiento (aceptar o descartar por `POST`). |
+| `POST` | `/api/v1/events/run` | Lanza una pasada en segundo plano (202) o 409 si ya hay una en curso. |
+| `GET` | `/api/v1/events/run/status` | Estado y resumen de la última pasada. |
+| `POST` | `/api/v1/events/dismiss` · `/undismiss` | Descarta un evento (no vuelve a mostrarse en las pasadas siguientes) o lo restaura. |
+| `POST` | `/api/v1/events/register` · `/unregister` | Marca "Me inscribí" (pasa a `registered`) o lo devuelve a su categoría. |
+| `GET` | `/api/v1/events/dismissed` | Lista de eventos descartados. |
+
+El paquete vive junto a `api.py` y se importa de forma protegida: si falla, `/api/v1/events*` responde 503 y el resto de la API sigue igual. Usa solo la biblioteca estándar, tablas propias en `metrics.db` (`event_*`) y SQLite con `timeout=60`.
+
 ### Telemetría de Inteligencia Artificial (Observabilidad & Cuotas)
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
